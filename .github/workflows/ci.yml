@@ -1,0 +1,73 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: setup dotnet
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            11.0.x
+
+      - name: restore
+        run: >
+          dotnet restore
+
+      - name: build
+        run: >
+          dotnet build
+          --no-restore
+          --binaryLogger:${{ github.run_id }}-${{ github.run_attempt }}-windows.binlog
+
+      - name: upload binlog
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: binlog-windows
+          path: "*.binlog"
+
+      - name: test
+        run: >
+          dotnet test
+          --no-build
+
+  style-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: setup dotnet
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            11.0.x
+
+      - name: encoding
+        run: >
+          dotnet eng/CheckEncoding.cs
+
+      - name: restore
+        run: >
+          dotnet restore
+
+      - name: format
+        run: >
+          dotnet format
+          --no-restore
+          --severity info
+          --verify-no-changes

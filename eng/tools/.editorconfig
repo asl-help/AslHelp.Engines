@@ -1,0 +1,11 @@
+root = false
+
+#### Suppressions ####
+
+[*.cs]
+# CA
+dotnet_diagnostic.CA2225.severity = none # Operator overloads have named alternates
+
+# Treat a disposable passed to a constructor as disposed by the new object, because the types that take a handle
+# or a client in their constructor dispose it.
+dotnet_code_quality.CA2000.dispose_ownership_transfer_at_constructor = true

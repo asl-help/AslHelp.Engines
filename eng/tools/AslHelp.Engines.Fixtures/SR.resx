@@ -12,6 +12,12 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="DesktopCreateFailed" xml:space="preserve">
+    <value>Could not create the hidden desktop.</value>
+  </data>
+  <data name="DesktopCreateFix" xml:space="preserve">
+    <value>Start the player from an interactive session or without a hidden desktop.</value>
+  </data>
   <data name="DuplicateInputName" xml:space="preserve">
     <value>The name '{0}' was added already. Use each name once per key.</value>
   </data>
@@ -27,6 +33,30 @@
   <data name="InvalidKeyName" xml:space="preserve">
     <value>'{0}' is not a valid kind or name. Use 1 or more lowercase ascii letters, digits and '-'.</value>
   </data>
+  <data name="JobCreateFailed" xml:space="preserve">
+    <value>Could not create the job object.</value>
+  </data>
+  <data name="JobCreateFix" xml:space="preserve">
+    <value>Check that the machine has free kernel memory.</value>
+  </data>
+  <data name="JobKillOnCloseFailed" xml:space="preserve">
+    <value>Could not set the job object to end its processes on close.</value>
+  </data>
+  <data name="JobKillOnCloseFix" xml:space="preserve">
+    <value>Check that this Windows supports job objects.</value>
+  </data>
+  <data name="JobListFailed" xml:space="preserve">
+    <value>Could not set up the start of '{0}' inside the job object.</value>
+  </data>
+  <data name="JobListFix" xml:space="preserve">
+    <value>Start the player again.</value>
+  </data>
+  <data name="LockTimedOut" xml:space="preserve">
+    <value>Another player is still running on this machine and did not stop within {0}. Wait for it or end the process that runs it, then start again.</value>
+  </data>
+  <data name="LockTimeoutOutOfRange" xml:space="preserve">
+    <value>The lock timeout is out of range. Pass a value from 0 up to {0}.</value>
+  </data>
   <data name="LoneSurrogateFileName" xml:space="preserve">
     <value>A file name under '{0}' has a lone UTF-16 surrogate, which has no unique UTF-8 bytes. Rename the file.</value>
   </data>
@@ -35,5 +65,23 @@
   </data>
   <data name="NoInputs" xml:space="preserve">
     <value>Call Build first, then read the inputs it hashed.</value>
+  </data>
+  <data name="PlayerNotFound" xml:space="preserve">
+    <value>The player '{0}' does not exist. Build or download it first, then pass its path.</value>
+  </data>
+  <data name="ResumeFailed" xml:space="preserve">
+    <value>Could not resume '{0}'.</value>
+  </data>
+  <data name="ResumeFix" xml:space="preserve">
+    <value>Start the player again.</value>
+  </data>
+  <data name="StartFailed" xml:space="preserve">
+    <value>Could not start '{0}'.</value>
+  </data>
+  <data name="StartFix" xml:space="preserve">
+    <value>Pass the path of a program built for Windows.</value>
+  </data>
+  <data name="WorkingFolderNotFound" xml:space="preserve">
+    <value>The working folder '{0}' does not exist. Create it or pass a folder that exists.</value>
   </data>
 </root>

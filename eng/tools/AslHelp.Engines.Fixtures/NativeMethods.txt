@@ -1,0 +1,17 @@
+CreateDesktop
+CreateJobObject
+CreateProcess
+DeleteProcThreadAttributeList
+EnumDesktops
+GENERIC_ACCESS_RIGHTS
+GetErrorMode
+GetProcessWindowStation
+InitializeProcThreadAttributeList
+JOBOBJECT_EXTENDED_LIMIT_INFORMATION
+PROC_THREAD_ATTRIBUTE_JOB_LIST
+ResumeThread
+STARTUPINFOEXW
+SetErrorMode
+SetInformationJobObject
+UpdateProcThreadAttribute
+WaitForSingleObject

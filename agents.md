@@ -16,7 +16,7 @@ Every project targets `net11.0-windows`, because the players only run on Windows
 
 ## Layout
 
-- `eng/tools/AslHelp.Engines.Fixtures` is the library. It builds the cache keys and lists the inputs each key hashed.
+- `eng/tools/AslHelp.Engines.Fixtures` is the library. It builds the cache keys, lists the inputs each key hashed and starts the players, 1 per machine, inside a kill-on-close job object, with the Windows hard-error dialogs off so a missing static import ends the player with STATUS_DLL_NOT_FOUND.
 - `eng/CheckEncoding.cs` checks the encoding and the line endings of every tracked file. CI and `just check` run it as a file-based app with `dotnet eng/CheckEncoding.cs`.
 - The tests for a project sit in `test/<Project>.Tests`.
 - A new project goes into `src/` when it ships and into `eng/tools/` when it only builds or tests the repo. It also goes into `AslHelp.Engines.slnx`.

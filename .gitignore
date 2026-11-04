@@ -1,0 +1,16 @@
+# IDE options & cache
+.vs/*
+.vscode/*
+.idea/*
+.zed/*
+
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# Artifacts
+artifacts/
+bin/
+obj/
+
+# User-specific files
+*.user

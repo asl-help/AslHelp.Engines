@@ -1,0 +1,14 @@
+{
+  "explorer.fileNesting.enabled": true,
+  "explorer.fileNesting.patterns": {
+    ".gitignore": ".gitattributes, .gitmodules",
+    "*.slnx": ".editorconfig, Directory.Build.props, Directory.Build.targets, Directory.Packages.props, global.json",
+    "*.csproj": "${capture}.Package.props",
+    "I*.cs": "${capture}Extensions.cs, ${capture}Extensions.*.cs",
+    "*.cs": "${capture}Extensions.cs, ${capture}Extensions.*.cs",
+    "readme.md": "agents.md, justfile, license.md",
+  },
+  "files.exclude": {
+    "artifacts/": true,
+  },
+}

@@ -66,7 +66,7 @@ just fixtures-all ../fixtures
 
 The build needs a Docker engine that runs Windows containers and that your user can reach. The 1st build pulls `mcr.microsoft.com/windows/server:ltsc2025`, which is about 16 GB. We use that image because it's the smallest one with `dsound.dll` and `dinput8.dll`.
 
-1. Pass the version as in the installer file name. Upper or lower case both work. `eng/tools/AslHelp.Engines.Fixtures.Cli/Unreal3/installers.json` lists every pinned version, its sha1 and the date it was last checked.
+1. Pass the version as in the installer file name. Upper or lower case both work. `eng/tools/AslHelp.Engines.Fixtures.Cli/Unreal3/installers.json` lists every pinned version and its sha1.
 2. The build downloads `UDKInstall-<version>.exe` from the [`udkinstaller`](https://archive.org/details/udkinstaller) item into `<output>/downloads`, checks its sha1 and extracts the zip inside it into `<output>/udk-<version>`, so the UDK setup program never runs.
 3. It reads the import tables of `Binaries/Win32/UDK.exe` and of the DLLs it loads from that folder. It copies the DirectX and Visual C++ 2010 DLLs they import from the install's own `Binaries/Redist/UE3Redist.exe` (`Binaries/Windows/UE3Redist.exe` before 2011-05) into `Binaries/Win32`, each DirectX DLL from the 1st x86 cabinet of the redist that lists it. The Visual C++ 2005 and 2008 DLLs come from Windows. Nothing is installed for the whole system.
 4. Versions up to 2011-07 target CLR 2, which Windows Server doesn't ship, so it adds a startup section with CLR 4 to `Binaries/Win32/UDK.exe.config` and `Binaries/Win32/UDK.com.config`.
@@ -77,12 +77,11 @@ The build needs a Docker engine that runs Windows containers and that your user 
 
 The key of a UDK player covers the pinned version, the installer sha1, the make and server command lines, the ini edits and a build version. The runtime DLLs are no key input, because the key is built before the install exists. The installer sha1 pins the files they are read from. Bump `BuildVersion` in `Udk` when a build step changes in a way none of the other inputs show, so every player is built again.
 
-The compiler and the server run in a Windows container with the install mounted, so a build fails when the player needs something that only the build machine has. The `-nullrhi` switch turns rendering off, because a container has no display. The build gives your user full control of the install before each start, because the files a container writes belong to the administrator of the container. A version with `checked` null may use an installer layout that the tool does not read. A step that finds files missing or damaged in the extracted install needs a fresh extraction: delete `<output>/udk-<version>` and run the build again.
+The compiler and the server run in a Windows container with the install mounted, so a build fails when the player needs something that only the build machine has. The `-nullrhi` switch turns rendering off, because a container has no display. The build gives your user full control of the install before each start, because the files a container writes belong to the administrator of the container. A step that finds files missing or damaged in the extracted install needs a fresh extraction: delete `<output>/udk-<version>` and run the build again.
 
 Every pinned version from 2010-06-BETA on builds. The build refuses 2009-11-BETA right after the extraction, because that engine stops at startup until the PhysX installer has run on the machine.
 
 ### Adding a UDK version
 
-1. Copy the sha1 of `UDKInstall-<version>.exe` from https://archive.org/metadata/udkinstaller into `installers.json` in version order, with `checked` null.
+1. Copy the sha1 of `UDKInstall-<version>.exe` from https://archive.org/metadata/udkinstaller into `installers.json` in version order.
 2. Run the build command for it.
-3. Set `checked` to the date of that run.

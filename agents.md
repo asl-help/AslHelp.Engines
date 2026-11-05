@@ -34,7 +34,7 @@ Every project targets `net11.0-windows`, because the players only run on Windows
   - `TransferProgress` is how far a download or an upload has come: the bytes moved and the length of the file. `Downloader` and `DavStore` report it after each chunk.
   - `TransferBars` shows a Spectre.Console progress bar for each transfer and clears it when the transfer ends. `TransferBars.Create` draws real bars on the console of this process and plain lines with no ANSI codes on any other writer, such as a test's `StringWriter`. `CommandLine` wraps the toolchain install in a bar and `PlayerCache` wraps the archive download and upload, so nothing else writes to the console while a bar is drawn.
   - `ArchiveOrgFile` is 1 file of an archive.org item with its pinned sha1 and its download URL.
-  - `Unreal3/installers.json` lists the pinned UDK installers, 1 row per version with its sha1 and the date it was last checked. The CLI embeds it and `UdkInstallers` reads it once.
+  - `Unreal3/installers.json` lists the pinned UDK installers, 1 row per version with its sha1. The CLI embeds it and `UdkInstallers` reads it once.
   - `SelfExtractingZip` reads the zip inside an installer without running it.
   - `ProcessRunner` runs a command line tool without a window and reads its output while the tool runs, so the output never reaches the console. A code other than 0 fails with the command line, the code and at most the last 10 lines of the output that are not blank.
   - `Cabinet` reads the file names of a Microsoft cabinet and unpacks its files with `expand.exe`.

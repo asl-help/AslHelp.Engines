@@ -61,7 +61,7 @@ internal static class UdkInstallers
     /// <summary>
     ///     Reads the rows of an installer file shaped like <c>installers.json</c>.
     /// </summary>
-    /// <param name="json">The UTF-8 JSON array of rows, each with <c>version</c>, <c>sha1</c> and <c>checked</c>.</param>
+    /// <param name="json">The UTF-8 JSON array of rows, each with <c>version</c> and <c>sha1</c>.</param>
     /// <returns>
     ///     The rows in file order.
     /// </returns>

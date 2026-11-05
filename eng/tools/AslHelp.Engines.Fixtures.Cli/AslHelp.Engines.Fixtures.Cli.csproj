@@ -7,6 +7,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="$(ToolsPath)/AslHelp.Engines.Fixtures/AslHelp.Engines.Fixtures.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" />
     <PackageReference Include="System.CommandLine" />
     <PackageReference Include="ZstdSharp.Port" />
   </ItemGroup>

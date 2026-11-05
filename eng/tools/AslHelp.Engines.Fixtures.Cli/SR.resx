@@ -36,6 +36,36 @@
   <data name="BaseUrlRelative" xml:space="preserve">
     <value>The base URL '{0}' is relative. Pass the absolute URL of the WebDAV folder.</value>
   </data>
+  <data name="BuildDescription" xml:space="preserve">
+    <value>Restores the player from the cache or installs a toolchain, builds its player in it, checks that the player starts and caches the player.</value>
+  </data>
+  <data name="Building" xml:space="preserve">
+    <value>Building {0} in {1}</value>
+  </data>
+  <data name="CacheDownloading" xml:space="preserve">
+    <value>Downloading {0}</value>
+  </data>
+  <data name="CacheMiss" xml:space="preserve">
+    <value>The cache has no {0}</value>
+  </data>
+  <data name="CacheMoving" xml:space="preserve">
+    <value>Moving {0} to {1}</value>
+  </data>
+  <data name="CachePacking" xml:space="preserve">
+    <value>Packing {0} into {1}</value>
+  </data>
+  <data name="CacheUnpacking" xml:space="preserve">
+    <value>Unpacking {0} into {1}</value>
+  </data>
+  <data name="CacheUploading" xml:space="preserve">
+    <value>Uploading {0} to {1}</value>
+  </data>
+  <data name="CacheWritingManifest" xml:space="preserve">
+    <value>Writing {0}</value>
+  </data>
+  <data name="Checking" xml:space="preserve">
+    <value>Checking the player in {0}</value>
+  </data>
   <data name="DavCredentialsRejected" xml:space="preserve">
     <value>The WebDAV server rejected the credentials for {0} '{1}'. Check {2}, {3} and {4}.</value>
   </data>
@@ -72,8 +102,14 @@
   <data name="DavVariablesMissing" xml:space="preserve">
     <value>Set these environment variables to use the WebDAV cache: {0}. To build locally, clear the ones that are set.</value>
   </data>
+  <data name="Installing" xml:space="preserve">
+    <value>Installing {0} {1} into {2}</value>
+  </data>
   <data name="LocalBuild" xml:space="preserve">
     <value>The build stays local, because none of {0}, {1} and {2} is set. Set them to share players through the WebDAV cache.</value>
+  </data>
+  <data name="OutputDescription" xml:space="preserve">
+    <value>The folder for the downloads, the install and the player.</value>
   </data>
   <data name="PackFolderIsLink" xml:space="preserve">
     <value>The folder '{0}' is a link. Replace it with a real folder before packing.</value>
@@ -84,8 +120,17 @@
   <data name="RootDescription" xml:space="preserve">
     <value>Builds the fixture players that the engine libraries' live tests read from.</value>
   </data>
+  <data name="StoreCopyDamaged" xml:space="preserve">
+    <value>The store copy '{0}' cannot be unpacked. Delete it from the store and build the player again.</value>
+  </data>
   <data name="StorePathInvalid" xml:space="preserve">
     <value>The path '{0}' is not a relative '/' separated path. Pass a path like 'players/abc.tar.zst' with no empty, '.' or '..' segment.</value>
+  </data>
+  <data name="ToolchainDescription" xml:space="preserve">
+    <value>The toolchain to build the player with.</value>
+  </data>
+  <data name="ToolchainNotListed" xml:space="preserve">
+    <value>The parser accepted the toolchain '{0}', which is not in the list.</value>
   </data>
   <data name="TransferNoConnection" xml:space="preserve">
     <value>{0} '{1}' could not connect to the server. {2}</value>
@@ -104,5 +149,14 @@
   </data>
   <data name="UnpackNotMoved" xml:space="preserve">
     <value>The archive is unpacked into '{0}' but cannot be moved to '{1}'. Close what has either folder open and rename the folder by hand.</value>
+  </data>
+  <data name="VersionDescription" xml:space="preserve">
+    <value>The version of the toolchain, as its release lists it.</value>
+  </data>
+  <data name="VersionNotFolderName" xml:space="preserve">
+    <value>The version '{0}' that {1} pins is not a valid folder name, so the player folder cannot use it. Pin a version that is not '.' or '..' and has no path separator or other char a file name cannot have.</value>
+  </data>
+  <data name="VersionNotHashed" xml:space="preserve">
+    <value>{0} pins the version '{1}' but does not hash it. Add the pinned version as the input 'version', so the paths and the manifest agree.</value>
   </data>
 </root>

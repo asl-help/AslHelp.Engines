@@ -20,7 +20,9 @@ Every project targets `net11.0-windows`, because the players only run on Windows
 ## Layout
 
 - `eng/tools/AslHelp.Engines.Fixtures` is the library. It builds the cache keys, lists the inputs each key hashed and starts the players, 1 per machine, inside a kill-on-close job object, with the Windows hard-error dialogs off so a missing static import ends the player with STATUS_DLL_NOT_FOUND.
-- `eng/tools/AslHelp.Engines.Fixtures.Cli` is the `fixtures` command line. It prints its help.
+- `eng/tools/AslHelp.Engines.Fixtures.Cli` is the `fixtures` command line. It has these parts:
+  - `Archive` packs and unpacks the `.tar.zst` archives, each zstd frame with a content checksum.
+  - `TempPaths` has the `.partial` suffix of a file or folder that is still being written and the quiet deletes that clean one up.
 - `eng/CheckEncoding.cs` checks the encoding and the line endings of every tracked file. CI and `just check` run it as a file-based app with `dotnet eng/CheckEncoding.cs`.
 - The tests for a project sit in `test/<Project>.Tests`.
 - A new project goes into `src/` when it ships and into `eng/tools/` when it only builds or tests the repo. It also goes into `AslHelp.Engines.slnx`.

@@ -12,7 +12,40 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="ArchiveDamaged" xml:space="preserve">
+    <value>The archive '{0}' is damaged or cut short. Delete it and download or pack it again.</value>
+  </data>
+  <data name="ArchiveEntryKind" xml:space="preserve">
+    <value>The archive entry '{0}' is a {1}. Only files and folders can be unpacked.</value>
+  </data>
+  <data name="ArchiveEntryOutside" xml:space="preserve">
+    <value>The archive entry '{0}' points outside the destination. Pack the archive again from a plain folder.</value>
+  </data>
+  <data name="ArchiveEntryTaken" xml:space="preserve">
+    <value>The archive entry '{0}' uses a path that an earlier entry took. Pack the archive again from a plain folder.</value>
+  </data>
+  <data name="ArchiveNotReplaced" xml:space="preserve">
+    <value>The archive is complete at '{0}' but cannot replace '{1}'. Close what has '{1}' open and rename the file by hand.</value>
+  </data>
+  <data name="ArchivePathIsFolder" xml:space="preserve">
+    <value>The archive path '{0}' is a folder. Pass a file path for the archive.</value>
+  </data>
+  <data name="PackFolderIsLink" xml:space="preserve">
+    <value>The folder '{0}' is a link. Replace it with a real folder before packing.</value>
+  </data>
+  <data name="PackFolderNotFound" xml:space="preserve">
+    <value>The folder '{0}' does not exist. Pass an existing folder to pack.</value>
+  </data>
   <data name="RootDescription" xml:space="preserve">
     <value>Builds the fixture players that the engine libraries' live tests read from.</value>
+  </data>
+  <data name="UnpackDestinationIsFile" xml:space="preserve">
+    <value>The destination '{0}' is a file. Delete it or pick another folder to unpack into.</value>
+  </data>
+  <data name="UnpackFolderNotEmpty" xml:space="preserve">
+    <value>The folder '{0}' is not empty. Delete it or pick another folder to unpack into.</value>
+  </data>
+  <data name="UnpackNotMoved" xml:space="preserve">
+    <value>The archive is unpacked into '{0}' but cannot be moved to '{1}'. Close what has either folder open and rename the folder by hand.</value>
   </data>
 </root>

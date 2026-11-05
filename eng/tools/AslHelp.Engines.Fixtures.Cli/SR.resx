@@ -42,6 +42,18 @@
   <data name="Building" xml:space="preserve">
     <value>Building {0} in {1}</value>
   </data>
+  <data name="CabinetEndsEarly" xml:space="preserve">
+    <value>The cabinet ends before its last file entry.</value>
+  </data>
+  <data name="CabinetFilesInHeader" xml:space="preserve">
+    <value>The cabinet has its file entries at {0}, inside its header.</value>
+  </data>
+  <data name="CabinetNameTooLong" xml:space="preserve">
+    <value>The cabinet has a file name longer than {0} bytes.</value>
+  </data>
+  <data name="CabinetNoSignature" xml:space="preserve">
+    <value>The cabinet does not start with MSCF.</value>
+  </data>
   <data name="CacheDownloading" xml:space="preserve">
     <value>Downloading {0}</value>
   </data>
@@ -120,6 +132,9 @@
   <data name="DownloadUrlRelative" xml:space="preserve">
     <value>The URL '{0}' is relative. Pass the absolute URL of the file to download.</value>
   </data>
+  <data name="ExtractDestinationExists" xml:space="preserve">
+    <value>The destination '{0}' exists. Delete it or pick another folder to extract into.</value>
+  </data>
   <data name="Installing" xml:space="preserve">
     <value>Installing {0} {1} into {2}</value>
   </data>
@@ -141,8 +156,20 @@
   <data name="PinnedHashInvalid" xml:space="preserve">
     <value>'{0}' is not a sha1 digest. Write the pin as 40 lowercase hex chars.</value>
   </data>
+  <data name="ProcessFailed" xml:space="preserve">
+    <value>'{0}' exited with code {1} (0x{1:X8}).</value>
+  </data>
+  <data name="ProcessFailedWithOutput" xml:space="preserve">
+    <value>'{0}' exited with code {1} (0x{1:X8}). Its output ended with:{2}</value>
+  </data>
+  <data name="ProcessOutputNotRedirected" xml:space="preserve">
+    <value>The start info of '{0}' does not redirect both output streams. Set RedirectStandardOutput and RedirectStandardError to true.</value>
+  </data>
   <data name="RootDescription" xml:space="preserve">
     <value>Builds the fixture players that the engine libraries' live tests read from.</value>
+  </data>
+  <data name="SeekOriginInvalid" xml:space="preserve">
+    <value>Pass Begin, Current or End.</value>
   </data>
   <data name="StoreCopyDamaged" xml:space="preserve">
     <value>The store copy '{0}' cannot be unpacked. Delete it from the store and build the player again.</value>
@@ -182,5 +209,14 @@
   </data>
   <data name="VersionNotHashed" xml:space="preserve">
     <value>{0} pins the version '{1}' but does not hash it. Add the pinned version as the input 'version', so the paths and the manifest agree.</value>
+  </data>
+  <data name="Zip64ExtraData" xml:space="preserve">
+    <value>The zip in '{0}' has a zip64 end record with extra data, which is not read. Extract it with another tool.</value>
+  </data>
+  <data name="ZipNotFound" xml:space="preserve">
+    <value>The file '{0}' has no zip in it. Pass a self-extracting file or a zip.</value>
+  </data>
+  <data name="ZipOffsetsOutside" xml:space="preserve">
+    <value>The zip in '{0}' has offsets that point outside the file. Download the file again.</value>
   </data>
 </root>

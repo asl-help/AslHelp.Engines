@@ -31,6 +31,9 @@ Every project targets `net11.0-windows`, because the players only run on Windows
   - `HttpHandlers` creates the handler of `Downloader` and `DavStore`. The handler stops a connect attempt after 30 seconds and checks the certificate of the server for revocation online.
   - `TransferProgress` is how far a download or an upload has come: the bytes moved and the length of the file. `Downloader` and `DavStore` report it after each chunk.
   - `TransferBars` shows a Spectre.Console progress bar for each transfer and clears it when the transfer ends. `TransferBars.Create` draws real bars on the console of this process and plain lines with no ANSI codes on any other writer, such as a test's `StringWriter`. `CommandLine` wraps the toolchain install in a bar and `PlayerCache` wraps the archive download and upload, so nothing else writes to the console while a bar is drawn.
+  - `SelfExtractingZip` reads the zip inside an installer without running it.
+  - `ProcessRunner` runs a command line tool without a window and reads its output while the tool runs, so the output never reaches the console. A code other than 0 fails with the command line, the code and at most the last 10 lines of the output that are not blank.
+  - `Cabinet` reads the file names of a Microsoft cabinet and unpacks its files with `expand.exe`.
   - `TempPaths` has the `.partial` suffix of a file or folder that is still being written and the quiet deletes that clean one up.
   - `IToolchain` installs an engine release at a version, builds players in it, checks that they start and adds the inputs of its build to the player key with `AddKeyInputs`, which returns the version as the toolchain pins it.
 - `eng/CheckEncoding.cs` checks the encoding and the line endings of every tracked file. CI and `just check` run it as a file-based app with `dotnet eng/CheckEncoding.cs`.

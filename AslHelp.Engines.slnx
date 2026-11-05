@@ -14,10 +14,12 @@
 
   <Folder Name="/eng/tools/">
     <Project Path="eng/tools/AslHelp.Engines.Fixtures/AslHelp.Engines.Fixtures.csproj" />
+    <Project Path="eng/tools/AslHelp.Engines.Fixtures.Cli/AslHelp.Engines.Fixtures.Cli.csproj" />
   </Folder>
 
   <Folder Name="/test/">
     <Project Path="test/AslHelp.Engines.Fixtures.Tests/AslHelp.Engines.Fixtures.Tests.csproj" />
+    <Project Path="test/AslHelp.Engines.Fixtures.Cli.Tests/AslHelp.Engines.Fixtures.Cli.Tests.csproj" />
   </Folder>
 
 </Solution>

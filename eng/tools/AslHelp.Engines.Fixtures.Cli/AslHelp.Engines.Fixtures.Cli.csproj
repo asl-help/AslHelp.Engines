@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <AssemblyName>fixtures</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Generate a class from the message file, so the code reads the messages by name. -->
+    <EmbeddedResource
+      Update="SR.resx"
+      StronglyTypedLanguage="CSharp"
+      StronglyTypedClassName="SR"
+      StronglyTypedNamespace="$(RootNamespace)"
+      StronglyTypedFileName="$(IntermediateOutputPath)SR.g.cs" />
+  </ItemGroup>
+
+</Project>

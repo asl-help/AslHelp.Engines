@@ -1,3 +1,4 @@
+using AslHelp.Engines.Fixtures.Cli.Unreal3;
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
@@ -27,11 +28,13 @@ internal static class CommandLine
     /// </returns>
     public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error)
     {
+        using Downloader downloader = new();
+
         return await RunAsync(
             args,
             output,
             error,
-            [],
+            [new Udk(downloader)],
             DavStore.FromEnvironmentIfSet,
             Path.Combine(AppContext.BaseDirectory, ProjectsPath)).ConfigureAwait(false);
     }

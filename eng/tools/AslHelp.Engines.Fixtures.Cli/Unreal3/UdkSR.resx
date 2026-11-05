@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ClassesFolderNotFound" xml:space="preserve">
+    <value>The classes folder '{0}' does not exist. Pass the folder with the .uc files.</value>
+  </data>
+  <data name="CompilerNotFound" xml:space="preserve">
+    <value>The compiler '{0}' does not exist. Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
+  <data name="ConfigLineMissing" xml:space="preserve">
+    <value>The config file '{0}' has no line '{1}' to replace. Add '{2}' under [UnrealEd.EditorEngine] by hand.</value>
+  </data>
+  <data name="ConfigNotFound" xml:space="preserve">
+    <value>The config file '{0}' does not exist. Only installs with the UDKGame layout, UDK 2010 and later, are supported.</value>
+  </data>
+  <data name="DirectXRuntimeNotInRedist" xml:space="preserve">
+    <value>No x86 cabinet of the redist '{0}' has {1}, which '{2}' lacks. Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
+  <data name="InstallersBadSha1" xml:space="preserve">
+    <value>{0} has the sha1 '{1}' for version '{2}'. Write it as 40 lowercase hex chars and build the tool again.</value>
+  </data>
+  <data name="InstallersInvalid" xml:space="preserve">
+    <value>{0} is not a valid installer file. {1} Fix the file and build the tool again.</value>
+  </data>
+  <data name="InstallersNotEmbedded" xml:space="preserve">
+    <value>The tool has no embedded {0}. Build the tool again.</value>
+  </data>
+  <data name="InstallersNull" xml:space="preserve">
+    <value>{0} is null. Write a JSON array of rows, 1 per version.</value>
+  </data>
+  <data name="MakeFailed" xml:space="preserve">
+    <value>UDK.com make exited with code {0} (0x{0:X8}). {1}</value>
+  </data>
+  <data name="MakeLogFix" xml:space="preserve">
+    <value>Read '{0}' for the compile errors.</value>
+  </data>
+  <data name="MakeNoPackage" xml:space="preserve">
+    <value>UDK.com make exited with code 0 but did not write '{0}'. Read '{1}' and check that {2} is in UDKGame/Config/DefaultEngineUDK.ini.</value>
+  </data>
+  <data name="MakeNotDone" xml:space="preserve">
+    <value>UDK.com make did not finish within {0} seconds. {1}</value>
+  </data>
+  <data name="MakeStartFix" xml:space="preserve">
+    <value>The compiler did not start. Run '{0}' by hand to see why.</value>
+  </data>
+  <data name="MapNotFound" xml:space="preserve">
+    <value>There is no {0} map under '{1}'. Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
+  <data name="PartialNotMoved" xml:space="preserve">
+    <value>The file is complete at '{0}' but cannot be moved to '{1}'. Close what has either file open and run the build again.</value>
+  </data>
+  <data name="PeImportsUnreadable" xml:space="preserve">
+    <value>The file '{0}' is not a PE file with a readable import table. Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
+  <data name="RedistEntryDamaged" xml:space="preserve">
+    <value>The entry '{0}' of the redist '{1}' is damaged. {2} Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
+  <data name="RedistEntryMissing" xml:space="preserve">
+    <value>The redist '{0}' has no entry '{1}'. Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
+  <data name="RedistNotFound" xml:space="preserve">
+    <value>The install has neither '{0}' nor '{1}' and '{2}' lacks {3}. Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
+  <data name="RedistRuntimeMissing" xml:space="preserve">
+    <value>The redist '{0}' did not give {1}. Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
+  <data name="ServerFailed" xml:space="preserve">
+    <value>UDK.exe server exited with code {0} (0x{0:X8}) during the check. {1}</value>
+  </data>
+  <data name="ServerLogFix" xml:space="preserve">
+    <value>Read '{0}' for the errors.</value>
+  </data>
+  <data name="ServerNotFound" xml:space="preserve">
+    <value>The server '{0}' does not exist. Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
+  <data name="ServerNotReady" xml:space="preserve">
+    <value>UDK.exe server did not log '{0}' within {1} seconds. {2}</value>
+  </data>
+  <data name="ServerProgressFix" xml:space="preserve">
+    <value>Read '{0}' to see where it stopped.</value>
+  </data>
+  <data name="ServerStartFix" xml:space="preserve">
+    <value>The server did not start. Run '{0}' by hand to see why.</value>
+  </data>
+  <data name="UdkNeedsVc2008" xml:space="preserve">
+    <value>UDK {0} needs the Visual C++ 2008 runtime, which this tool does not extract. Build 2011-10-BETA or a later version.</value>
+  </data>
+  <data name="UdkVersionNotPinned" xml:space="preserve">
+    <value>There is no pinned UDK installer for version '{0}'. Pass 1 of: {1}. To add a version, copy its sha1 from https://archive.org/metadata/{2} into {3} in version order. The readme section 'Adding a UDK version' has the steps.</value>
+  </data>
+  <data name="Vc2008Unsupported" xml:space="preserve">
+    <value>{0} imports {1}, so the install needs the Visual C++ 2008 runtime, which this tool does not extract. Build 2011-10-BETA or a later version.</value>
+  </data>
+  <data name="Vc2010InstallerMissing" xml:space="preserve">
+    <value>The redist '{0}' has no entry '{1}', which '{2}' needs for the Visual C++ 2010 DLLs. Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
+  <data name="VcImporter" xml:space="preserve">
+    <value>'{0}' or a DLL it loads</value>
+  </data>
+  <data name="VcOtherUnsupported" xml:space="preserve">
+    <value>{0} imports {1}, a Visual C++ runtime other than 2010. This tool extracts only the Visual C++ 2010 runtime, so build another version.</value>
+  </data>
+</root>

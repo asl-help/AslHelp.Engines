@@ -39,10 +39,12 @@ jobs:
           name: binlog-windows
           path: "*.binlog"
 
+      # Run 1 test project at a time, because the player tests of both take the machine-wide lock.
       - name: test
         run: >
           dotnet test
           --no-build
+          -m:1
 
   style-checks:
     runs-on: ubuntu-latest

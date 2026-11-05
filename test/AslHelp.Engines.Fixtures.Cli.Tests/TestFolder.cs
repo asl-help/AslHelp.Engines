@@ -1,6 +1,7 @@
 using System;
 using System.Formats.Tar;
 using System.IO;
+using System.IO.Compression;
 using ZstdSharp;
 
 namespace AslHelp.Engines.Fixtures.Cli.Tests;
@@ -62,6 +63,24 @@ internal sealed class TestFolder
         string path = Path.Combine(folder, relativePath);
         _ = Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path, bytes);
+    }
+
+    /// <summary>
+    ///     Writes a zip at <paramref name="path"/> with 1 entry per item of <paramref name="entries"/> and creates missing folders.
+    /// </summary>
+    /// <param name="path">The zip to create.</param>
+    /// <param name="entries">The entry names and their content. The names are written as is.</param>
+    public static void WriteZip(string path, params (string Name, byte[] Bytes)[] entries)
+    {
+        _ = Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        using var zip = ZipFile.Open(path, ZipArchiveMode.Create);
+
+        foreach (var (name, bytes) in entries)
+        {
+            using var entry = zip.CreateEntry(name).Open();
+            entry.Write(bytes);
+        }
     }
 
     /// <summary>

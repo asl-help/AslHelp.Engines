@@ -8,6 +8,10 @@ insert_final_newline = true
 indent_style             = space
 trim_trailing_whitespace = true
 
+# Player project files, which the player key hashes with CRLF line endings
+[test/fixtures/**]
+end_of_line = crlf
+
 # Xml project files
 [*.{csproj,proj,slnx}]
 indent_size = 2

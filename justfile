@@ -8,9 +8,9 @@ default:
 build:
     dotnet build
 
-# Run every test.
+# Run every test, 1 test project at a time, because the player tests of both take the machine-wide lock.
 test:
-    dotnet test
+    dotnet test -m:1
 
 # Format every file in place.
 format:
@@ -24,7 +24,7 @@ encoding:
 check: encoding
     dotnet format --severity info --verify-no-changes
     dotnet build --no-incremental
-    dotnet test --no-build
+    dotnet test --no-build -m:1
 
 # Run the fixtures command line with the arguments as typed, from the current folder.
 [no-cd]

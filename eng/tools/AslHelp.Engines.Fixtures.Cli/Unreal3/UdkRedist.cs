@@ -27,6 +27,7 @@ internal sealed class UdkRedist : IDisposable
 
     private const string CabinetPrefix = "DXRedistCutdown/";
     private const string CabinetSuffix = "_x86.cab";
+    private const string PhysXInstallerEntry = "PhysX/PhysX_8.10.29_SystemSoftware.exe";
     private const string Vc2008Entry = "vcredist_x86_vs2008sp1.exe";
 
     private readonly ZipArchive _archive;
@@ -52,7 +53,7 @@ internal sealed class UdkRedist : IDisposable
     public string FilePath { get; }
 
     /// <summary>
-    ///     Gets whether the redist has the Visual C++ 2008 installer, as UDK 2009-11 to 2011-07 do.
+    ///     Gets whether the redist has the Visual C++ 2008 installer, as UDK 2009-11 to 2011-07 do. Those versions target CLR 2.
     /// </summary>
     public bool HasVc2008 { get; }
 
@@ -87,6 +88,32 @@ internal sealed class UdkRedist : IDisposable
         }
 
         return null;
+    }
+
+    /// <summary>
+    ///     Throws if the redist of the install in <paramref name="installDirectory"/> has the PhysX installer.
+    /// </summary>
+    /// <remarks>
+    ///     An install without a redist passes, because the runtime step reports a missing redist only if it needs one.
+    /// </remarks>
+    /// <param name="installDirectory">The extracted install.</param>
+    /// <param name="version">The version, for the message.</param>
+    /// <exception cref="InvalidDataException">The redist has no zip in it or a damaged one.</exception>
+    /// <exception cref="InvalidOperationException">The redist has the PhysX installer.</exception>
+    public static void ThrowIfNeedsPhysXInstaller(string installDirectory, string version)
+    {
+        if (FindPath(installDirectory) is not { } redistPath)
+        {
+            return;
+        }
+
+        using var redist = Open(redistPath);
+
+        // Refuse the install, because the engine stops at startup until that installer has run on the machine.
+        if (redist._archive.GetEntry(PhysXInstallerEntry) is not null)
+        {
+            throw new InvalidOperationException(SR.Format(UdkSR.UdkNeedsPhysXInstaller, version));
+        }
     }
 
     /// <summary>

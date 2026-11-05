@@ -93,14 +93,11 @@
   <data name="ServerStartFix" xml:space="preserve">
     <value>The server did not start. Run '{0}' by hand to see why.</value>
   </data>
-  <data name="UdkNeedsVc2008" xml:space="preserve">
-    <value>UDK {0} needs the Visual C++ 2008 runtime, which this tool does not extract. Build 2011-10-BETA or a later version.</value>
+  <data name="UdkNeedsPhysXInstaller" xml:space="preserve">
+    <value>UDK {0} requires PhysX.</value>
   </data>
   <data name="UdkVersionNotPinned" xml:space="preserve">
     <value>There is no pinned UDK installer for version '{0}'. Pass 1 of: {1}. To add a version, copy its sha1 from https://archive.org/metadata/{2} into {3} in version order. The readme section 'Adding a UDK version' has the steps.</value>
-  </data>
-  <data name="Vc2008Unsupported" xml:space="preserve">
-    <value>{0} imports {1}, so the install needs the Visual C++ 2008 runtime, which this tool does not extract. Build 2011-10-BETA or a later version.</value>
   </data>
   <data name="Vc2010InstallerMissing" xml:space="preserve">
     <value>The redist '{0}' has no entry '{1}', which '{2}' needs for the Visual C++ 2010 DLLs. Delete the install folder and run the build again, so the installer is extracted again.</value>
@@ -109,6 +106,6 @@
     <value>'{0}' or a DLL it loads</value>
   </data>
   <data name="VcOtherUnsupported" xml:space="preserve">
-    <value>{0} imports {1}, a Visual C++ runtime other than 2010. This tool extracts only the Visual C++ 2010 runtime, so build another version.</value>
+    <value>{0} imports {1}, which Windows does not ship and this tool does not extract.</value>
   </data>
 </root>

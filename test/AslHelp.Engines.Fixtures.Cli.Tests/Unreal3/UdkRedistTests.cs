@@ -50,7 +50,30 @@ public sealed class UdkRedistTests
         Assert.That(UdkRedist.FindPath(_folder.NewFolder()), Is.Null);
     }
 
-    // A redist with vcredist_x86_vs2008sp1.exe needs the Visual C++ 2008 runtime.
+    // A Binaries/Windows/UE3Redist.exe with the PhysX installer throws with the version.
+    [Test]
+    public void ThrowIfNeedsPhysXInstaller_RedistWithPhysXInstaller_ThrowsWithTheVersion()
+    {
+        string install = _folder.NewFolder();
+        WriteZip(Path.Combine(install, "Binaries", "Windows", "UE3Redist.exe"), ("PhysX/PhysX_8.10.29_SystemSoftware.exe", [1]));
+
+        Assert.That(
+            () => UdkRedist.ThrowIfNeedsPhysXInstaller(install, "1.0"),
+            Throws.InvalidOperationException
+                .With.Message.Contains("UDK 1.0")
+                .And.Message.Contains("PhysX"));
+    }
+
+    // An install without a redist passes, because the runtime step reports a missing redist only if it needs one.
+    [Test]
+    public void ThrowIfNeedsPhysXInstaller_NoRedist_Passes()
+    {
+        string install = _folder.NewFolder();
+
+        Assert.That(() => UdkRedist.ThrowIfNeedsPhysXInstaller(install, "1.0"), Throws.Nothing);
+    }
+
+    // A redist with vcredist_x86_vs2008sp1.exe has the Visual C++ 2008 installer.
     [Test]
     public void Open_RedistWithVc2008Entry_HasVc2008()
     {
@@ -65,7 +88,7 @@ public sealed class UdkRedistTests
         }
     }
 
-    // A redist with only vcredist_x86_vs2010sp1.exe has the Visual C++ 2010 installer and does not need the 2008 runtime.
+    // A redist with only vcredist_x86_vs2010sp1.exe has the Visual C++ 2010 installer and no Visual C++ 2008 installer.
     [Test]
     public void Open_RedistWithVc2010Entry_HasVc2010AndNoVc2008()
     {

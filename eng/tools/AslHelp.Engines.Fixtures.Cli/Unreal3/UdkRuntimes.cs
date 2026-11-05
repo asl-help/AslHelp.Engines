@@ -70,7 +70,7 @@ internal static class UdkRuntimes
 
     /// <summary>
     ///     Copies into <c>Binaries/Win32</c> of the install the DirectX and Visual C++ 2010 DLLs that <c>UDK.exe</c> loads
-    ///     and that are not there yet.
+    ///     and that are not there yet. The Visual C++ 2005 and 2008 DLLs come from Windows.
     /// </summary>
     /// <remarks>
     ///     The DLL names come from <see cref="FindImports"/> and their bytes from the install's own
@@ -97,8 +97,8 @@ internal static class UdkRuntimes
     ///     does not give a DLL.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    ///     A DLL imports a Visual C++ runtime other than 2010, no x86 cabinet of the redist lists a missing DirectX DLL,
-    ///     or <c>expand.exe</c> or the Visual C++ installer exits with a code other than 0.
+    ///     A DLL imports a Visual C++ runtime that Windows does not ship and the tool does not extract, no x86 cabinet of the
+    ///     redist lists a missing DirectX DLL, or <c>expand.exe</c> or the Visual C++ installer exits with a code other than 0.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public static async Task AddAsync(string installDirectory, CancellationToken cancellationToken)
@@ -112,6 +112,11 @@ internal static class UdkRuntimes
 
         foreach (string runtime in FindImports(binaries))
         {
+            if (VisualCppRuntimes.IsPartOfWindows(runtime))
+            {
+                continue;
+            }
+
             bool vc = VisualCppRuntimes.IsRuntime(runtime);
 
             if (vc)

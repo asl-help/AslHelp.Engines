@@ -9,11 +9,12 @@ just format
 just encoding
 just check
 just fixtures <arguments>
+just fixtures-all <folder>
 ```
 
 `just check` runs the encoding check, the format check, the build and the tests, as CI does. Run it before a commit.
 
-`just fixtures` runs the `fixtures` command line from the current folder and passes each argument through whole, such as `just fixtures build <toolchain> <version> --output <folder>`.
+`just fixtures` runs the `fixtures` command line from the current folder and passes each argument through whole, such as `just fixtures build <toolchain> <version> --output <folder>`. `just fixtures-all` builds every pinned UDK version into the folder.
 
 Every project targets `net11.0-windows`, because the players only run on Windows. Build and test on Windows.
 
@@ -42,14 +43,15 @@ Every project targets `net11.0-windows`, because the players only run on Windows
     - `Udk` is the toolchain. It calls the parts below and adds the key inputs in a fixed order.
     - `UdkInstallers` reads the pinned installers and finds the one of a version.
     - `UdkInstall` defines the install paths that the other parts share.
-    - `UdkRuntimes` copies the runtime DLLs that `UDK.exe` imports from the install's redist. `DirectXRuntimes` unpacks the DirectX ones and `VisualCppRuntimes` the Visual C++ 2010 ones. `VisualCppRuntimes` also refuses the 2008 runtime.
+    - `UdkRuntimes` copies the runtime DLLs that `UDK.exe` imports from the install's redist. `DirectXRuntimes` unpacks the DirectX DLLs and `VisualCppRuntimes` the Visual C++ 2010 DLLs. `UdkRuntimes` skips the Visual C++ 2005 and 2008 DLLs because Windows ships them.
+    - `UdkClrConfig` adds the CLR 4 startup section to the config files of an install with the Visual C++ 2008 redist.
     - `UdkProject` copies the fixture classes, edits the config files and compiles the package.
     - `UdkServer` starts the server and waits for the ready line in its log.
-    - `UdkRedist` opens the install's `UE3Redist.exe`, finds the cabinet of a DLL and extracts entries.
+    - `UdkRedist` opens the install's `UE3Redist.exe`, finds the cabinet of a DLL and extracts entries. It also refuses an install with the PhysX installer.
     - `PeImports` reads the import DLL names of a PE file.
   - `IToolchain` installs an engine release at a version, builds players in it, checks that they start and adds the inputs of its build to the player key with `AddKeyInputs`, which returns the version as the toolchain pins it.
 - `test/fixtures/unreal3` has the UnrealScript classes of the Unreal Engine 3 player. The CLI project copies them to its output as `projects/unreal3/Classes`.
-- Engine-specific code sits in a folder per engine in the CLI project, such as `Unreal3/`, with 1 `IToolchain` each. Engine names appear only in the engine folders (`Unreal3/` in the CLI and its tests, `test/fixtures/unreal3`), in `Unreal3/UdkSR.resx`, in the toolchain list of `CommandLine`, in the CLI project items that copy or embed engine files and in the engine parts of this file and the readme. Everything else uses neutral names, with no engine in them.
+- Engine-specific code sits in a folder per engine in the CLI project, such as `Unreal3/`, with 1 `IToolchain` each. Engine names appear only in the engine folders (`Unreal3/` in the CLI and its tests, `test/fixtures/unreal3`), in `Unreal3/UdkSR.resx`, in the toolchain list of `CommandLine`, in the CLI project items that copy or embed engine files, in the `fixtures-all` recipe and in the engine parts of this file and the readme. Everything else uses neutral names, with no engine in them.
 - `eng/CheckEncoding.cs` checks the encoding and the line endings of every tracked file. CI and `just check` run it as a file-based app with `dotnet eng/CheckEncoding.cs`.
 - The tests for a project sit in `test/<Project>.Tests`.
 - A new project goes into `src/` when it ships and into `eng/tools/` when it only builds or tests the repo. It also goes into `AslHelp.Engines.slnx`.

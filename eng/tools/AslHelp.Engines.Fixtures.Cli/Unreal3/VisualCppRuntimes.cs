@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 namespace AslHelp.Engines.Fixtures.Cli.Unreal3;
 
 /// <summary>
-///     Matches the Visual C++ runtime DLLs by name, refuses the 2008 runtime and extracts the 2010 runtime from the redist.
+///     Matches the Visual C++ runtime DLLs by name and extracts the 2010 runtime from the redist.
 /// </summary>
 internal static class VisualCppRuntimes
 {
@@ -16,18 +16,20 @@ internal static class VisualCppRuntimes
     private const string VcFilePrefix = "F_CENTRAL_";
     private const string VcFileSuffix = "_x86";
 
-    // List the Visual C++ 2008 DLLs, because the message for them points at the versions that build.
-    private static readonly string[] _vc2008Runtimes =
-    [
-        "msvcp90.dll",
-        "msvcr90.dll",
-    ];
-
     // List the Visual C++ 2010 DLLs, because only vcredist_x86_vs2010sp1.exe is extracted.
     private static readonly string[] _vc2010Runtimes =
     [
         "msvcp100.dll",
         "msvcr100.dll",
+    ];
+
+    // List the Visual C++ 2005 and 2008 DLLs, because Windows ships them in WinSxS with the policies that redirect the older builds to them.
+    private static readonly string[] _windowsRuntimes =
+    [
+        "msvcp80.dll",
+        "msvcp90.dll",
+        "msvcr80.dll",
+        "msvcr90.dll",
     ];
 
     /// <summary>
@@ -58,28 +60,15 @@ internal static class VisualCppRuntimes
     }
 
     /// <summary>
-    ///     Throws if the redist of the install in <paramref name="installDirectory"/> has the Visual C++ 2008 installer.
+    ///     Checks whether <paramref name="runtime"/> is a Visual C++ runtime DLL that Windows ships, so no install needs a copy.
     /// </summary>
-    /// <remarks>
-    ///     An install without a redist passes, because the runtime step reports a missing redist only if it needs one.
-    /// </remarks>
-    /// <param name="installDirectory">The extracted install.</param>
-    /// <param name="version">The version, for the message.</param>
-    /// <exception cref="InvalidDataException">The redist has no zip in it or a damaged one.</exception>
-    /// <exception cref="InvalidOperationException">The redist has <c>vcredist_x86_vs2008sp1.exe</c>.</exception>
-    public static void ThrowIfVc2008(string installDirectory, string version)
+    /// <param name="runtime">The DLL name of an import, which <see cref="IsRuntime"/> accepts.</param>
+    /// <returns>
+    ///     <see langword="true"/> if the name is a Visual C++ 2005 or 2008 DLL.
+    /// </returns>
+    public static bool IsPartOfWindows(string runtime)
     {
-        if (UdkRedist.FindPath(installDirectory) is not { } redistPath)
-        {
-            return;
-        }
-
-        using var redist = UdkRedist.Open(redistPath);
-
-        if (redist.HasVc2008)
-        {
-            throw new InvalidOperationException(SR.Format(UdkSR.UdkNeedsVc2008, version));
-        }
+        return Array.Exists(_windowsRuntimes, name => name.Equals(runtime, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -88,8 +77,7 @@ internal static class VisualCppRuntimes
     /// <param name="runtime">The DLL name of an import, which <see cref="IsRuntime"/> accepts.</param>
     /// <param name="binariesDirectory">The <c>Binaries/Win32</c> folder of the install, for the message.</param>
     /// <exception cref="InvalidOperationException">
-    ///     <paramref name="runtime"/> is not <c>msvcr100.dll</c> or <c>msvcp100.dll</c>. The message for a Visual C++ 2008
-    ///     DLL points at the versions that build.
+    ///     <paramref name="runtime"/> is not <c>msvcr100.dll</c> or <c>msvcp100.dll</c>.
     /// </exception>
     public static void ThrowIfNot2010(string runtime, string binariesDirectory)
     {
@@ -100,9 +88,7 @@ internal static class VisualCppRuntimes
 
         string importer = SR.Format(UdkSR.VcImporter, Path.Combine(binariesDirectory, UdkInstall.ExecutableName));
 
-        throw new InvalidOperationException(Array.Exists(_vc2008Runtimes, name => name.Equals(runtime, StringComparison.OrdinalIgnoreCase))
-            ? SR.Format(UdkSR.Vc2008Unsupported, importer, runtime)
-            : SR.Format(UdkSR.VcOtherUnsupported, importer, runtime));
+        throw new InvalidOperationException(SR.Format(UdkSR.VcOtherUnsupported, importer, runtime));
     }
 
     /// <summary>

@@ -19,7 +19,7 @@ public sealed class UdkTests
     // install.
     private const string InstallVariable = "FIXTURES_UDK_INSTALL";
 
-    private const string Vc2008Entry = "vcredist_x86_vs2008sp1.exe";
+    private const string PhysXEntry = "PhysX/PhysX_8.10.29_SystemSoftware.exe";
     private const string Vc2010Entry = "vcredist_x86_vs2010sp1.exe";
 
     private Downloader? _downloader;
@@ -110,11 +110,11 @@ public sealed class UdkTests
         }
     }
 
-    // An install whose redist has the Visual C++ 2008 installer is refused with the version and the versions to pick, before any request.
+    // An install whose redist has the PhysX installer is refused with the version, before any request.
     [Test]
-    public void InstallAsync_ExistingInstallWithVc2008Redist_ThrowsBeforeAnyRequest()
+    public void InstallAsync_ExistingInstallWithPhysXInstaller_ThrowsBeforeAnyRequest()
     {
-        WriteZip(Path.Combine(_folder.Root, "udk-2009-11-BETA", "Binaries", "Windows", "UE3Redist.exe"), (Vc2008Entry, [1]));
+        WriteZip(Path.Combine(_folder.Root, "udk-2009-11-BETA", "Binaries", "Windows", "UE3Redist.exe"), (PhysXEntry, [1]));
         FakeHttpHandler handler = new(_ => Status(HttpStatusCode.NotFound));
         using Downloader downloader = new(handler);
 
@@ -124,8 +124,7 @@ public sealed class UdkTests
                 async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2009-11-BETA", _folder.Root, null, CancellationToken.None),
                 Throws.InvalidOperationException
                     .With.Message.Contains("UDK 2009-11-BETA")
-                    .And.Message.Contains("Visual C++ 2008")
-                    .And.Message.Contains("2011-10"));
+                    .And.Message.Contains("PhysX"));
             Assert.That(handler.Requests, Is.Empty);
         }
     }

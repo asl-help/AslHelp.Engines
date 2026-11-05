@@ -9,8 +9,6 @@ namespace AslHelp.Engines.Fixtures.Cli.Tests.Unreal3;
 
 public sealed class VisualCppRuntimesTests
 {
-    private const string Vc2008Entry = "vcredist_x86_vs2008sp1.exe";
-
     private TestFolder _folder = null!;
 
     [SetUp]
@@ -47,30 +45,6 @@ public sealed class VisualCppRuntimesTests
     public void IsRuntime_OneDigitOrOtherExtension_ReturnsFalse(string fileName)
     {
         Assert.That(VisualCppRuntimes.IsRuntime(fileName), Is.False);
-    }
-
-    // A Binaries/Windows/UE3Redist.exe with the Visual C++ 2008 installer throws with the version and the versions that build.
-    [Test]
-    public void ThrowIfVc2008_RedistWithVc2008Entry_ThrowsWithTheVersion()
-    {
-        string install = _folder.NewFolder();
-        WriteZip(Path.Combine(install, "Binaries", "Windows", "UE3Redist.exe"), (Vc2008Entry, [1]));
-
-        Assert.That(
-            () => VisualCppRuntimes.ThrowIfVc2008(install, "1.0"),
-            Throws.InvalidOperationException
-                .With.Message.Contains("UDK 1.0")
-                .And.Message.Contains("Visual C++ 2008")
-                .And.Message.Contains("2011-10"));
-    }
-
-    // An install without a redist passes, because the runtime step reports a missing redist only if it needs one.
-    [Test]
-    public void ThrowIfVc2008_NoRedist_Passes()
-    {
-        string install = _folder.NewFolder();
-
-        Assert.That(() => VisualCppRuntimes.ThrowIfVc2008(install, "1.0"), Throws.Nothing);
     }
 
     // A vc_red.cab from makecab with F_CENTRAL_msvcr100_x86 and F_CENTRAL_msvcp100_x86 gives msvcr100.dll and msvcp100.dll byte for byte.

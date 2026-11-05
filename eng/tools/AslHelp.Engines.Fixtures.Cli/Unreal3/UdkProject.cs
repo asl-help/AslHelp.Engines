@@ -41,7 +41,7 @@ internal static class UdkProject
     ///     Represents the compiler arguments.
     /// </summary>
     /// <remarks>
-    ///     <c>-nullrhi</c> turns rendering off, because the hidden desktop has no display mode. Without it D3D9
+    ///     <c>-nullrhi</c> turns rendering off, because a container has no display mode. Without it D3D9
     ///     <c>GetAdapterDisplayMode</c> fails and make exits with code 3.
     /// </remarks>
     private const string CompilerArguments = "make -unattended -nullrhi";
@@ -165,13 +165,14 @@ internal static class UdkProject
     ///     Compiles the <c>Fixture</c> package of the install in <paramref name="installDirectory"/> with <c>UDK.com make</c>.
     /// </summary>
     /// <remarks>
-    ///     The compiler runs as a <see cref="Player"/> on a hidden desktop, so it takes the machine lock and a cancel or a
-    ///     timeout ends <c>UDK.com</c> and every process it started. <c>UDKGame/Script/Fixture.u</c> is deleted first,
+    ///     The compiler runs in <paramref name="host"/>, so a cancel or a timeout ends <c>UDK.com</c> and every process it
+    ///     started. <c>UDKGame/Script/Fixture.u</c> is deleted first,
     ///     because make skips a package that looks up to date and would keep a removed class in it.
     ///     <c>UDKGame/Logs/Launch.log</c> is deleted too, so a failure points only at a log of this compile.
     /// </remarks>
+    /// <param name="host">The host that the compiler runs in.</param>
     /// <param name="installDirectory">The install with the classes from <see cref="AddFixturePackage"/>.</param>
-    /// <param name="timeout">How long the compile may run once it has the machine lock, such as <see cref="DefaultMakeTimeout"/>.</param>
+    /// <param name="timeout">How long the compile may run once it runs, such as <see cref="DefaultMakeTimeout"/>.</param>
     /// <param name="cancellationToken">The token that stops the compile.</param>
     /// <returns>
     ///     A task that completes once <c>UDKGame/Script/Fixture.u</c> is written.
@@ -179,14 +180,12 @@ internal static class UdkProject
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
     /// <exception cref="FileNotFoundException">The install has no <c>UDK.com</c>.</exception>
     /// <exception cref="InvalidOperationException">
-    ///     <c>UDK.com</c> exits with a code other than 0 or exits with 0 but does not write <c>UDKGame/Script/Fixture.u</c>.
+    ///     The host cannot run anything or <c>UDK.com</c> exits with a code other than 0 or exits with 0 but does not write
+    ///     <c>UDKGame/Script/Fixture.u</c>.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
-    /// <exception cref="TimeoutException">
-    ///     Another player kept the machine lock too long or the compile runs longer than <paramref name="timeout"/>.
-    /// </exception>
-    /// <exception cref="System.ComponentModel.Win32Exception">The desktop or the process cannot be created.</exception>
-    public static async Task MakeAsync(string installDirectory, TimeSpan timeout, CancellationToken cancellationToken)
+    /// <exception cref="TimeoutException">The compile runs longer than <paramref name="timeout"/>.</exception>
+    public static async Task MakeAsync(IPlayerHost host, string installDirectory, TimeSpan timeout, CancellationToken cancellationToken)
     {
         ThrowIfNoCompiler(installDirectory);
 
@@ -207,25 +206,25 @@ internal static class UdkProject
             File.Delete(logPath);
         }
 
-        PlayerStartInfo info = new(compilerPath, CompilerArguments, Path.GetDirectoryName(compilerPath)!) { HiddenDesktop = true };
         int exitCode;
+        var player = await host.StartAsync(installDirectory, CompilerPath, CompilerArguments, cancellationToken).ConfigureAwait(false);
 
-        using (var player = Player.Start(info))
+        await using (player.ConfigureAwait(false))
         {
-            // Start the clock once the compiler runs, so the wait for the machine lock does not count against it.
+            // Start the clock once the compiler runs, so the pull of a container image does not count against it.
             using var timeoutSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeoutSource.CancelAfter(timeout);
 
             try
             {
-                await player.Process.WaitForExitAsync(timeoutSource.Token).ConfigureAwait(false);
+                await player.WaitForExitAsync(timeoutSource.Token).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
                 throw new TimeoutException(SR.Format(UdkSR.MakeNotDone, timeout.TotalSeconds, NextStep(logPath, compilerPath)));
             }
 
-            exitCode = player.Process.ExitCode;
+            exitCode = player.ExitCode;
         }
 
         if (exitCode != 0)

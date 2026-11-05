@@ -198,7 +198,7 @@ public sealed class UdkProjectTests
         WriteBytes(install, "UDKGame/Logs/Launch.log", [1]);
 
         Assert.That(
-            async () => await UdkProject.MakeAsync(install, UdkProject.DefaultMakeTimeout, CancellationToken.None),
+            async () => await UdkProject.MakeAsync(new LocalPlayerHost(), install, UdkProject.DefaultMakeTimeout, CancellationToken.None),
             Throws.InvalidOperationException.With.Message.Contains("code 1 (0x00000001)").And.Message.Not.Contains("Launch.log"));
         Assert.That(File.Exists(Path.Combine(install, "UDKGame", "Logs", "Launch.log")), Is.False);
     }
@@ -212,7 +212,7 @@ public sealed class UdkProjectTests
         string install = WriteFakeInstallWithNeverEndingCompiler();
 
         Assert.That(
-            async () => await UdkProject.MakeAsync(install, TimeSpan.FromSeconds(1), CancellationToken.None),
+            async () => await UdkProject.MakeAsync(new LocalPlayerHost(), install, TimeSpan.FromSeconds(1), CancellationToken.None),
             Throws.TypeOf<TimeoutException>().With.Message.Contains("did not start").And.Message.Not.Contains("Launch.log"));
     }
 
@@ -224,7 +224,7 @@ public sealed class UdkProjectTests
     {
         string install = WriteFakeInstallWithNeverEndingCompiler();
 
-        var make = UdkProject.MakeAsync(install, TimeSpan.FromSeconds(1), CancellationToken.None);
+        var make = UdkProject.MakeAsync(new LocalPlayerHost(), install, TimeSpan.FromSeconds(1), CancellationToken.None);
         WriteBytes(install, "UDKGame/Logs/Launch.log", [1]);
 
         await Assert.ThatAsync(
@@ -241,7 +241,7 @@ public sealed class UdkProjectTests
         string install = WriteFakeInstallWithCompiler("PING.EXE");
 
         Assert.That(
-            async () => await UdkProject.MakeAsync(install, UdkProject.DefaultMakeTimeout, CancellationToken.None),
+            async () => await UdkProject.MakeAsync(new LocalPlayerHost(), install, UdkProject.DefaultMakeTimeout, CancellationToken.None),
             Throws.InvalidOperationException.With.Message.Contains("did not start").And.Message.Not.Contains("Launch.log"));
     }
 
@@ -253,7 +253,7 @@ public sealed class UdkProjectTests
         string install = WriteFakeInstallWithCompiler("tree.com");
 
         Assert.That(
-            async () => await UdkProject.MakeAsync(install, UdkProject.DefaultMakeTimeout, CancellationToken.None),
+            async () => await UdkProject.MakeAsync(new LocalPlayerHost(), install, UdkProject.DefaultMakeTimeout, CancellationToken.None),
             Throws.InvalidOperationException.With.Message.Contains(Path.Combine(install, "UDKGame", "Script", "Fixture.u")));
     }
 
@@ -266,7 +266,7 @@ public sealed class UdkProjectTests
         WriteBytes(install, "UDKGame/Script/Fixture.u", [9]);
 
         Assert.That(
-            async () => await UdkProject.MakeAsync(install, UdkProject.DefaultMakeTimeout, CancellationToken.None),
+            async () => await UdkProject.MakeAsync(new LocalPlayerHost(), install, UdkProject.DefaultMakeTimeout, CancellationToken.None),
             Throws.InvalidOperationException.With.Message.Contains(Path.Combine(install, "UDKGame", "Script", "Fixture.u")));
     }
 
@@ -280,7 +280,11 @@ public sealed class UdkProjectTests
         WriteBytes(install, "UDKGame/Logs/Launch.log", [1]);
 
         Assert.That(
-            async () => await UdkProject.MakeAsync(install, UdkProject.DefaultMakeTimeout, new CancellationToken(canceled: true)),
+            async () => await UdkProject.MakeAsync(
+                new LocalPlayerHost(),
+                install,
+                UdkProject.DefaultMakeTimeout,
+                new CancellationToken(canceled: true)),
             Throws.InstanceOf<OperationCanceledException>());
 
         using (Assert.EnterMultipleScope())

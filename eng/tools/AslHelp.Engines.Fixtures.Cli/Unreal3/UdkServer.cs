@@ -54,14 +54,14 @@ internal static class UdkServer
     ///     Starts the server of the install in <paramref name="installDirectory"/> and waits for the ready line.
     /// </summary>
     /// <remarks>
-    ///     <c>Binaries/Win32/UDK.exe server &lt;map&gt;?game=Fixture.FixtureGame</c> runs as a <see cref="Player"/> on a
-    ///     hidden desktop. The map is the 1st <c>.udk</c> file under <c>UDKGame/Content/Maps</c> in ordinal order of its
-    ///     relative path. The check waits for the line <c>ScriptLog: Fixture ready</c> in <c>UDKGame/Logs/Launch.log</c>,
+    ///     <c>Binaries/Win32/UDK.exe server &lt;map&gt;?game=Fixture.FixtureGame</c> runs in <paramref name="host"/>. The map is the 1st
+    ///     <c>.udk</c> file under <c>UDKGame/Content/Maps</c> in ordinal order of its relative path. The check waits for the line <c>ScriptLog: Fixture ready</c> in <c>UDKGame/Logs/Launch.log</c>,
     ///     which <c>FixtureGame</c> logs once it has spawned the fixture actor. The log is deleted before the start, so a
     ///     line from an earlier run does not count. It is deleted after a pass too, so the player has no log of the build
     ///     machine. A missing <c>UDK.exe</c> or map throws before anything starts.
     ///     Any exit of the server is a failure, because the server runs until it is stopped.
     /// </remarks>
+    /// <param name="host">The host that the server runs in.</param>
     /// <param name="installDirectory">The install with the built fixture package.</param>
     /// <param name="timeout">How long to wait for the ready line once the server runs.</param>
     /// <param name="cancellationToken">The token that stops the check and ends the server.</param>
@@ -70,13 +70,10 @@ internal static class UdkServer
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
     /// <exception cref="FileNotFoundException">The install has no <c>UDK.exe</c> or no map.</exception>
-    /// <exception cref="InvalidOperationException">The server exits before the check finds the ready line.</exception>
+    /// <exception cref="InvalidOperationException">The host cannot run anything or the server exits before the check finds the ready line.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
-    /// <exception cref="TimeoutException">
-    ///     Another player kept the machine lock too long or the ready line is not in the log within <paramref name="timeout"/>.
-    /// </exception>
-    /// <exception cref="System.ComponentModel.Win32Exception">The desktop or the process cannot be created.</exception>
-    public static async Task CheckAsync(string installDirectory, TimeSpan timeout, CancellationToken cancellationToken)
+    /// <exception cref="TimeoutException">The ready line is not in the log within <paramref name="timeout"/>.</exception>
+    public static async Task CheckAsync(IPlayerHost host, string installDirectory, TimeSpan timeout, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(installDirectory);
 
@@ -99,9 +96,9 @@ internal static class UdkServer
         }
 
         string arguments = string.Format(CultureInfo.InvariantCulture, _arguments, map);
-        PlayerStartInfo info = new(serverPath, arguments, Path.Combine(installDirectory, UdkInstall.BinariesPath)) { HiddenDesktop = true };
+        var player = await host.StartAsync(installDirectory, FilePath, arguments, cancellationToken).ConfigureAwait(false);
 
-        using (var player = Player.Start(info))
+        await using (player.ConfigureAwait(false))
         {
             await WaitForReadyLineAsync(player, serverPath, logPath, timeout, cancellationToken).ConfigureAwait(false);
         }
@@ -126,13 +123,13 @@ internal static class UdkServer
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     /// <exception cref="TimeoutException">The ready line is not in the log within <paramref name="timeout"/>.</exception>
     private static async Task WaitForReadyLineAsync(
-        Player player,
+        IPlayerRun player,
         string serverPath,
         string logPath,
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
-        // Start the clock once the server runs, so the wait for the machine lock does not count against it.
+        // Start the clock once the server runs, so the pull of a container image does not count against it.
         long started = Stopwatch.GetTimestamp();
         long scanned = 0;
 
@@ -140,7 +137,7 @@ internal static class UdkServer
         {
             if (player.HasExited)
             {
-                throw ServerExited(player.Process.ExitCode, serverPath, logPath);
+                throw ServerExited(player.ExitCode, serverPath, logPath);
             }
 
             if (HasReadyLine(logPath, ref scanned))
@@ -148,7 +145,7 @@ internal static class UdkServer
                 // Check the exit once more, so a server that exits while the log is read fails the check.
                 if (player.HasExited)
                 {
-                    throw ServerExited(player.Process.ExitCode, serverPath, logPath);
+                    throw ServerExited(player.ExitCode, serverPath, logPath);
                 }
 
                 return;

@@ -47,7 +47,7 @@ public sealed class UdkTests
         FakeHttpHandler handler = new(_ => Status(HttpStatusCode.NotFound));
         using Downloader downloader = new(handler);
 
-        string install = await new Udk(downloader).InstallAsync("2015-02", _folder.Root, null, CancellationToken.None);
+        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2015-02", _folder.Root, null, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -64,7 +64,7 @@ public sealed class UdkTests
         using Downloader downloader = new(handler);
 
         Assert.That(
-            async () => await new Udk(downloader).InstallAsync("2015-02", _folder.Root, null, CancellationToken.None),
+            async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2015-02", _folder.Root, null, CancellationToken.None),
             Throws.TypeOf<HttpRequestException>());
 
         using (Assert.EnterMultipleScope())
@@ -86,7 +86,7 @@ public sealed class UdkTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await new Udk(downloader).InstallAsync("1999-01", _folder.Root, null, CancellationToken.None),
+                async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("1999-01", _folder.Root, null, CancellationToken.None),
                 Throws.InvalidOperationException);
             Assert.That(handler.Requests, Is.Empty);
             Assert.That(Directory.Exists(Path.Combine(_folder.Root, "udk-1999-01")), Is.False);
@@ -101,7 +101,7 @@ public sealed class UdkTests
         FakeHttpHandler handler = new(_ => Status(HttpStatusCode.NotFound));
         using Downloader downloader = new(handler);
 
-        string install = await new Udk(downloader).InstallAsync("2011-03-beta2", _folder.Root, null, CancellationToken.None);
+        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2011-03-beta2", _folder.Root, null, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -121,7 +121,7 @@ public sealed class UdkTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await new Udk(downloader).InstallAsync("2009-11-BETA", _folder.Root, null, CancellationToken.None),
+                async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2009-11-BETA", _folder.Root, null, CancellationToken.None),
                 Throws.InvalidOperationException
                     .With.Message.Contains("UDK 2009-11-BETA")
                     .And.Message.Contains("Visual C++ 2008")
@@ -138,7 +138,7 @@ public sealed class UdkTests
         FakeHttpHandler handler = new(_ => Status(HttpStatusCode.NotFound));
         using Downloader downloader = new(handler);
 
-        string install = await new Udk(downloader).InstallAsync("2013-07", _folder.Root, null, CancellationToken.None);
+        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2013-07", _folder.Root, null, CancellationToken.None);
 
         Assert.That(install, Is.EqualTo(Path.Combine(_folder.Root, "udk-2013-07")));
     }
@@ -225,7 +225,7 @@ public sealed class UdkTests
             ["build", "unreal3", "1999-01", "--output", folder],
             output,
             error,
-            [new Udk(downloader)],
+            [new Udk(downloader, new LocalPlayerHost())],
             _ =>
             {
                 opened = true;
@@ -369,6 +369,6 @@ public sealed class UdkTests
     {
         _downloader ??= new Downloader(new FakeHttpHandler(_ => Status(HttpStatusCode.NotFound)));
 
-        return new Udk(_downloader);
+        return new Udk(_downloader, new LocalPlayerHost());
     }
 }

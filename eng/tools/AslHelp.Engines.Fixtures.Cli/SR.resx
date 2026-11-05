@@ -114,6 +114,9 @@
   <data name="DavVariablesMissing" xml:space="preserve">
     <value>Set these environment variables to use the WebDAV cache: {0}. To build locally, clear the ones that are set.</value>
   </data>
+  <data name="DockerFailed" xml:space="preserve">
+    <value>Docker did not start a container from '{0}'. {1}</value>
+  </data>
   <data name="DownloadBadRange" xml:space="preserve">
     <value>GET '{0}' returned 206 with Content-Range '{1}' instead of a range from byte {2} to the end of the file. Delete '{3}' and run again.</value>
   </data>

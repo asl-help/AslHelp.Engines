@@ -16,8 +16,10 @@ namespace AslHelp.Engines.Fixtures.Cli.Unreal3;
 ///     The zip is extracted directly, so UnSetup never runs and nothing is written to the registry.
 /// </remarks>
 /// <param name="downloader">The downloader for the installers.</param>
+/// <param name="host">The host that the compiler and the server run in.</param>
 internal sealed class Udk(
-    Downloader downloader) : IToolchain
+    Downloader downloader,
+    IPlayerHost host) : IToolchain
 {
     /// <summary>
     ///     Numbers the revision of the build steps that no other key input shows. Bump it when a step changes that way, so
@@ -135,15 +137,12 @@ internal sealed class Udk(
     ///     imports is not a PE file or the redist does not give every DLL.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    ///     A DLL imports a Visual C++ runtime other than 2010, no x86 cabinet of the redist lists a missing DirectX DLL,
-    ///     or a runtime tool or <c>UDK.com</c> exits with a code other than 0. <c>UDK.com</c> exits with 0 but does not
-    ///     write <c>UDKGame/Script/Fixture.u</c>.
+    ///     A DLL imports a Visual C++ runtime other than 2010, no x86 cabinet of the
+    ///     redist lists a missing DirectX DLL, the host cannot run anything or a runtime tool or <c>UDK.com</c> exits with a
+    ///     code other than 0. <c>UDK.com</c> exits with 0 but does not write <c>UDKGame/Script/Fixture.u</c>.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
-    /// <exception cref="TimeoutException">
-    ///     Another player kept the machine lock too long or the compile runs longer than <see cref="UdkProject.DefaultMakeTimeout"/>.
-    /// </exception>
-    /// <exception cref="System.ComponentModel.Win32Exception">The desktop or the process cannot be created.</exception>
+    /// <exception cref="TimeoutException">The compile runs longer than <see cref="UdkProject.DefaultMakeTimeout"/>.</exception>
     public async Task BuildAsync(string installDirectory, string projectDirectory, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(installDirectory);
@@ -154,7 +153,7 @@ internal sealed class Udk(
 
         await UdkRuntimes.AddAsync(installDirectory, cancellationToken).ConfigureAwait(false);
         UdkProject.AddFixturePackage(installDirectory, Path.Combine(projectDirectory, UdkProject.ProjectClassesPath));
-        await UdkProject.MakeAsync(installDirectory, UdkProject.DefaultMakeTimeout, cancellationToken).ConfigureAwait(false);
+        await UdkProject.MakeAsync(host, installDirectory, UdkProject.DefaultMakeTimeout, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -162,14 +161,11 @@ internal sealed class Udk(
     ///     <see cref="UdkServer.CheckAsync"/> runs the server and waits up to <see cref="CheckTimeout"/> for the ready line.
     /// </remarks>
     /// <exception cref="FileNotFoundException">The install has no <c>UDK.exe</c> or no map.</exception>
-    /// <exception cref="InvalidOperationException">The server exits before the check finds the ready line.</exception>
+    /// <exception cref="InvalidOperationException">The host cannot run anything or the server exits before the check finds the ready line.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
-    /// <exception cref="TimeoutException">
-    ///     Another player kept the machine lock too long or the ready line is not in the log within <see cref="CheckTimeout"/>.
-    /// </exception>
-    /// <exception cref="System.ComponentModel.Win32Exception">The desktop or the process cannot be created.</exception>
+    /// <exception cref="TimeoutException">The ready line is not in the log within <see cref="CheckTimeout"/>.</exception>
     public Task CheckAsync(string installDirectory, CancellationToken cancellationToken)
     {
-        return UdkServer.CheckAsync(installDirectory, CheckTimeout, cancellationToken);
+        return UdkServer.CheckAsync(host, installDirectory, CheckTimeout, cancellationToken);
     }
 }

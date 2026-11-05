@@ -1,3 +1,4 @@
+using AslHelp.Engines.Fixtures.Unreal3;
 using System;
 using System.Globalization;
 using System.IO;
@@ -55,7 +56,7 @@ internal sealed class Udk(
             .Add("version", installer.Version)
             .Add("installer-sha1", installer.Sha1)
             .Add("make-command", UdkProject.MakeCommand)
-            .Add("server-command", UdkServer.Command)
+            .Add("server-command", UdkInstall.ServerCommand)
             .Add("config-edit", UdkProject.ConfigEdit)
             .Add("config-delete", UdkProject.EngineConfigPath)
             .Add("build-version", BuildVersion.ToString(CultureInfo.InvariantCulture));

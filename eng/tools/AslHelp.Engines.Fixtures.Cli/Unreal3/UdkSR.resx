@@ -54,9 +54,6 @@
   <data name="MakeStartFix" xml:space="preserve">
     <value>The compiler did not start. Run '{0}' by hand to see why.</value>
   </data>
-  <data name="MapNotFound" xml:space="preserve">
-    <value>There is no {0} map under '{1}'. Delete the install folder and run the build again, so the installer is extracted again.</value>
-  </data>
   <data name="PartialNotMoved" xml:space="preserve">
     <value>The file is complete at '{0}' but cannot be moved to '{1}'. Close what has either file open and run the build again.</value>
   </data>

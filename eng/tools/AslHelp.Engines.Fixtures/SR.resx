@@ -63,6 +63,9 @@
   <data name="LoneSurrogateValue" xml:space="preserve">
     <value>The value has a lone UTF-16 surrogate, which has no unique UTF-8 bytes. Pass valid Unicode text.</value>
   </data>
+  <data name="MapNotFound" xml:space="preserve">
+    <value>There is no {0} map under '{1}'. Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
   <data name="NoInputs" xml:space="preserve">
     <value>Call Build first, then read the inputs it hashed.</value>
   </data>

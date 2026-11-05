@@ -20,7 +20,7 @@ Every project targets `net11.0-windows`, because the players only run on Windows
 
 ## Layout
 
-- `eng/tools/AslHelp.Engines.Fixtures` is the library. It builds the cache keys, lists the inputs each key hashed and starts the players, 1 per machine, inside a kill-on-close job object, with the Windows hard-error dialogs off so a missing static import ends the player with STATUS_DLL_NOT_FOUND.
+- `eng/tools/AslHelp.Engines.Fixtures` is the library. It builds the cache keys, lists the inputs each key hashed and starts the players, 1 per machine, inside a kill-on-close job object, with the Windows hard-error dialogs off so a missing static import ends the player with STATUS_DLL_NOT_FOUND. Its `Unreal3/` folder has what every command line that runs UDK shares. `UdkInstall` defines the install paths and the server command line and finds the map. `UdkLogScan` finds the ready line in the server log.
 - `eng/tools/AslHelp.Engines.Fixtures.Cli` is the `fixtures` command line. Its `build` command installs a toolchain, builds the player, checks it and caches it as `<output>/<toolchain>-<version>-<hash>` and `players/<toolchain>/<version>/<hash>.tar.zst`, with a `<hash>.json` manifest beside the archive. It has the parts its commands use:
   - `Archive` packs and unpacks the `.tar.zst` archives, each zstd frame with a content checksum. The `build` command uses it for the cached players.
   - `DavStore` is the WebDAV cache store that the `build` command uses. `FromEnvironmentIfSet` opens it from the `FIXTURES_DAV_*` variables and writes the line that the build stays local when none is set.
@@ -42,7 +42,6 @@ Every project targets `net11.0-windows`, because the players only run on Windows
   - `Unreal3/` has the UDK toolchain, 1 part per step:
     - `Udk` is the toolchain. It calls the parts below and adds the key inputs in a fixed order.
     - `UdkInstallers` reads the pinned installers and finds the one of a version.
-    - `UdkInstall` defines the install paths that the other parts share.
     - `UdkRuntimes` copies the runtime DLLs that `UDK.exe` imports from the install's redist. `DirectXRuntimes` unpacks the DirectX DLLs and `VisualCppRuntimes` the Visual C++ 2010 DLLs. `UdkRuntimes` skips the Visual C++ 2005 and 2008 DLLs because Windows ships them.
     - `UdkClrConfig` adds the CLR 4 startup section to the config files of an install with the Visual C++ 2008 redist.
     - `UdkProject` copies the fixture classes, edits the config files and compiles the package.
@@ -51,7 +50,7 @@ Every project targets `net11.0-windows`, because the players only run on Windows
     - `PeImports` reads the import DLL names of a PE file.
   - `IToolchain` installs an engine release at a version, builds players in it, checks that they start and adds the inputs of its build to the player key with `AddKeyInputs`, which returns the version as the toolchain pins it.
 - `test/fixtures/unreal3` has the UnrealScript classes of the Unreal Engine 3 player. The CLI project copies them to its output as `projects/unreal3/Classes`.
-- Engine-specific code sits in a folder per engine in the CLI project, such as `Unreal3/`, with 1 `IToolchain` each. Engine names appear only in the engine folders (`Unreal3/` in the CLI and its tests, `test/fixtures/unreal3`), in `Unreal3/UdkSR.resx`, in the toolchain list of `CommandLine`, in the CLI project items that copy or embed engine files, in the `fixtures-all` recipe and in the engine parts of this file and the readme. Everything else uses neutral names, with no engine in them.
+- Engine-specific code sits in a folder per engine, such as `Unreal3/`, with 1 `IToolchain` each in the CLI project. Engine names appear only in the engine folders (`Unreal3/` in each project and its tests, `test/fixtures/unreal3`), in `Unreal3/UdkSR.resx`, in the toolchain list of `CommandLine`, in the CLI project items that copy or embed engine files, in the `fixtures-all` recipe and in the engine parts of this file and the readme. Everything else uses neutral names, with no engine in them.
 - `eng/CheckEncoding.cs` checks the encoding and the line endings of every tracked file. CI and `just check` run it as a file-based app with `dotnet eng/CheckEncoding.cs`.
 - The tests for a project sit in `test/<Project>.Tests`.
 - A new project goes into `src/` when it ships and into `eng/tools/` when it only builds or tests the repo. It also goes into `AslHelp.Engines.slnx`.

@@ -1,8 +1,7 @@
+using AslHelp.Engines.Fixtures.Unreal3;
 using System;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,41 +13,11 @@ namespace AslHelp.Engines.Fixtures.Cli.Unreal3;
 internal static class UdkServer
 {
     /// <summary>
-    ///     Represents the server command line, with the map as <c>{0}</c>.
-    /// </summary>
-    public const string Command = $"{FilePath} {ArgumentsFormat}";
-
-    /// <summary>
-    ///     Represents the server arguments, with the map as <c>{0}</c>.
-    /// </summary>
-    /// <remarks>
-    ///     The server renders nothing, so the fixture game runs on it. <c>-FORCELOGFLUSH</c> flushes every log line, so
-    ///     the poll reads a line as soon as it is logged.
-    /// </remarks>
-    private const string ArgumentsFormat = "server {0}?game=Fixture.FixtureGame -unattended -nullrhi -FORCELOGFLUSH";
-
-    /// <summary>
-    ///     Represents the path of <c>UDK.exe</c>, relative to the install.
-    /// </summary>
-    private const string FilePath = $@"{UdkInstall.BinariesPath}\{UdkInstall.ExecutableName}";
-
-    private const int LogBufferSize = 4096;
-    private const string MapPattern = "*.udk";
-    private const string MapsPath = @"UDKGame\Content\Maps";
-
-    // Match the tag and the text of the line FixtureGame logs, because each line starts with a timestamp.
-    private const string ReadyLine = "ScriptLog: Fixture ready";
-
-    /// <summary>
     ///     Represents how long <see cref="CheckAsync"/> waits for the ready line by default, 2 minutes.
     /// </summary>
     public static readonly TimeSpan DefaultCheckTimeout = TimeSpan.FromMinutes(2);
 
-    private static readonly CompositeFormat _arguments = CompositeFormat.Parse(ArgumentsFormat);
     private static readonly TimeSpan _logPollInterval = TimeSpan.FromMilliseconds(250);
-
-    // Match the bytes of the ready line, because UDK writes Launch.log as ASCII.
-    private static readonly byte[] _readyLineBytes = Encoding.ASCII.GetBytes(ReadyLine);
 
     /// <summary>
     ///     Starts the server of the install in <paramref name="installDirectory"/> and waits for the ready line.
@@ -77,7 +46,7 @@ internal static class UdkServer
     {
         ArgumentNullException.ThrowIfNull(installDirectory);
 
-        string serverPath = Path.Combine(installDirectory, FilePath);
+        string serverPath = Path.Combine(installDirectory, UdkInstall.ServerPath);
         string logPath = Path.Combine(installDirectory, UdkInstall.LogPath);
 
         if (!File.Exists(serverPath))
@@ -85,7 +54,7 @@ internal static class UdkServer
             throw new FileNotFoundException(SR.Format(UdkSR.ServerNotFound, serverPath), serverPath);
         }
 
-        string map = FindMap(installDirectory);
+        string map = UdkInstall.FindMap(installDirectory);
 
         // Check the token before the delete, so a canceled call keeps the log of the last run and starts no server.
         cancellationToken.ThrowIfCancellationRequested();
@@ -95,8 +64,8 @@ internal static class UdkServer
             File.Delete(logPath);
         }
 
-        string arguments = string.Format(CultureInfo.InvariantCulture, _arguments, map);
-        var player = await host.StartAsync(installDirectory, FilePath, arguments, cancellationToken).ConfigureAwait(false);
+        string arguments = UdkInstall.ServerArguments(map);
+        var player = await host.StartAsync(installDirectory, UdkInstall.ServerPath, arguments, cancellationToken).ConfigureAwait(false);
 
         await using (player.ConfigureAwait(false))
         {
@@ -131,7 +100,7 @@ internal static class UdkServer
     {
         // Start the clock once the server runs, so the pull of a container image does not count against it.
         long started = Stopwatch.GetTimestamp();
-        long scanned = 0;
+        UdkLogScan scan = new(logPath);
 
         while (true)
         {
@@ -140,7 +109,7 @@ internal static class UdkServer
                 throw ServerExited(player.ExitCode, serverPath, logPath);
             }
 
-            if (HasReadyLine(logPath, ref scanned))
+            if (scan.HasReadyLine())
             {
                 // Check the exit once more, so a server that exits while the log is read fails the check.
                 if (player.HasExited)
@@ -158,65 +127,10 @@ internal static class UdkServer
                     ? SR.Format(UdkSR.ServerProgressFix, logPath)
                     : SR.Format(UdkSR.ServerStartFix, serverPath);
 
-                throw new TimeoutException(SR.Format(UdkSR.ServerNotReady, ReadyLine, timeout.TotalSeconds, next));
+                throw new TimeoutException(SR.Format(UdkSR.ServerNotReady, UdkLogScan.ReadyLine, timeout.TotalSeconds, next));
             }
 
             await Task.Delay(_logPollInterval, cancellationToken).ConfigureAwait(false);
-        }
-    }
-
-    /// <summary>
-    ///     Checks whether the log at <paramref name="logPath"/> has the ready line in the bytes after <paramref name="scanned"/>.
-    /// </summary>
-    /// <param name="logPath">The log, which the running engine keeps open.</param>
-    /// <param name="scanned">
-    ///     The number of bytes an earlier call read, set to the new length by a call that does not find the line. A log
-    ///     shorter than it is read from the start.
-    /// </param>
-    /// <returns>
-    ///     <see langword="true"/> if the log has the ready line. <see langword="false"/> if it does not or does not exist yet.
-    /// </returns>
-    public static bool HasReadyLine(string logPath, ref long scanned)
-    {
-        try
-        {
-            // Share read, write and delete, so the read never blocks the engine, which writes the log while it runs and
-            // renames it to a backup when it starts again.
-            using FileStream log = new(logPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, bufferSize: 0);
-
-            if (log.Length < scanned)
-            {
-                scanned = 0;
-            }
-
-            // Read the last bytes of the earlier call again, so a line split between 2 calls still matches.
-            int overlap = _readyLineBytes.Length - 1;
-            log.Position = Math.Max(0, scanned - overlap);
-
-            Span<byte> buffer = stackalloc byte[LogBufferSize];
-            int kept = 0;
-            int read;
-
-            while ((read = log.Read(buffer[kept..])) > 0)
-            {
-                int length = kept + read;
-
-                if (buffer[..length].IndexOf(_readyLineBytes) >= 0)
-                {
-                    return true;
-                }
-
-                kept = Math.Min(length, overlap);
-                buffer[(length - kept)..length].CopyTo(buffer);
-            }
-
-            scanned = log.Position;
-
-            return false;
-        }
-        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
-        {
-            return false;
         }
     }
 
@@ -237,37 +151,5 @@ internal static class UdkServer
             : SR.Format(UdkSR.ServerStartFix, serverPath);
 
         return new InvalidOperationException(SR.Format(UdkSR.ServerFailed, exitCode, next));
-    }
-
-    /// <summary>
-    ///     Gets the name of the 1st map under <c>UDKGame/Content/Maps</c> of <paramref name="installDirectory"/> in ordinal
-    ///     order of its relative path.
-    /// </summary>
-    /// <param name="installDirectory">The install.</param>
-    /// <returns>
-    ///     The map file name without its extension, as the server takes it.
-    /// </returns>
-    /// <exception cref="FileNotFoundException">The install has no <c>.udk</c> file under <c>UDKGame/Content/Maps</c>.</exception>
-    private static string FindMap(string installDirectory)
-    {
-        string mapsDirectory = Path.Combine(installDirectory, MapsPath);
-        string? first = null;
-
-        if (Directory.Exists(mapsDirectory))
-        {
-            foreach (string map in Directory.EnumerateFiles(mapsDirectory, MapPattern, SearchOption.AllDirectories))
-            {
-                string relative = Path.GetRelativePath(mapsDirectory, map);
-
-                if (first is null || string.CompareOrdinal(relative, first) < 0)
-                {
-                    first = relative;
-                }
-            }
-        }
-
-        return first is null
-            ? throw new FileNotFoundException(SR.Format(UdkSR.MapNotFound, MapPattern, mapsDirectory), mapsDirectory)
-            : Path.GetFileNameWithoutExtension(first);
     }
 }

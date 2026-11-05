@@ -30,6 +30,51 @@
   <data name="ArchivePathIsFolder" xml:space="preserve">
     <value>The archive path '{0}' is a folder. Pass a file path for the archive.</value>
   </data>
+  <data name="BaseUrlHasQuery" xml:space="preserve">
+    <value>The base URL '{0}' has a query or fragment. Pass the URL of the WebDAV folder without one.</value>
+  </data>
+  <data name="BaseUrlRelative" xml:space="preserve">
+    <value>The base URL '{0}' is relative. Pass the absolute URL of the WebDAV folder.</value>
+  </data>
+  <data name="DavCredentialsRejected" xml:space="preserve">
+    <value>The WebDAV server rejected the credentials for {0} '{1}'. Check {2}, {3} and {4}.</value>
+  </data>
+  <data name="DavFolderMissingFix" xml:space="preserve">
+    <value>The folder at {0} does not exist. Set {0} to the URL of an existing WebDAV folder.</value>
+  </data>
+  <data name="DavNoSpaceFix" xml:space="preserve">
+    <value>The server has no space left for the file. Free space on the server or raise the quota of the user.</value>
+  </data>
+  <data name="DavRedirectFix" xml:space="preserve">
+    <value>Set {0} to the URL the server redirects to.</value>
+  </data>
+  <data name="DavRedirectToFix" xml:space="preserve">
+    <value>The server redirects it to '{1}'. Set {0} to the folder URL on that server.</value>
+  </data>
+  <data name="DavRequestRefusedFix" xml:space="preserve">
+    <value>Check that {0} is the URL of a WebDAV folder that the user can write to.</value>
+  </data>
+  <data name="DavServerFix" xml:space="preserve">
+    <value>Check that the WebDAV server is up and try again.</value>
+  </data>
+  <data name="DavStatusFailed" xml:space="preserve">
+    <value>{0} '{1}' failed with status {2} ({3}). {4}</value>
+  </data>
+  <data name="DavTooLargeFix" xml:space="preserve">
+    <value>The server refuses a file of this size. Raise the upload limit of the server.</value>
+  </data>
+  <data name="DavUrlInvalid" xml:space="preserve">
+    <value>{0} is not an absolute http or https URL with no query or fragment. Set it to the URL of the WebDAV folder for the cache.</value>
+  </data>
+  <data name="DavUrlNotHttps" xml:space="preserve">
+    <value>{0} is a plain http URL to a remote server, which sends the app password unencrypted. Set it to an https URL or to an http URL on localhost.</value>
+  </data>
+  <data name="DavVariablesMissing" xml:space="preserve">
+    <value>Set these environment variables to use the WebDAV cache: {0}. To build locally, clear the ones that are set.</value>
+  </data>
+  <data name="LocalBuild" xml:space="preserve">
+    <value>The build stays local, because none of {0}, {1} and {2} is set. Set them to share players through the WebDAV cache.</value>
+  </data>
   <data name="PackFolderIsLink" xml:space="preserve">
     <value>The folder '{0}' is a link. Replace it with a real folder before packing.</value>
   </data>
@@ -38,6 +83,18 @@
   </data>
   <data name="RootDescription" xml:space="preserve">
     <value>Builds the fixture players that the engine libraries' live tests read from.</value>
+  </data>
+  <data name="StorePathInvalid" xml:space="preserve">
+    <value>The path '{0}' is not a relative '/' separated path. Pass a path like 'players/abc.tar.zst' with no empty, '.' or '..' segment.</value>
+  </data>
+  <data name="TransferNoConnection" xml:space="preserve">
+    <value>{0} '{1}' could not connect to the server. {2}</value>
+  </data>
+  <data name="TransferNoResponse" xml:space="preserve">
+    <value>{0} '{1}' got no response from the server within {2} seconds. {3}</value>
+  </data>
+  <data name="TransferStalled" xml:space="preserve">
+    <value>{0} '{1}' moved no bytes for {2} seconds. {3}</value>
   </data>
   <data name="UnpackDestinationIsFile" xml:space="preserve">
     <value>The destination '{0}' is a file. Delete it or pick another folder to unpack into.</value>

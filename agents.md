@@ -9,11 +9,12 @@ just format
 just encoding
 just check
 just fixtures <arguments>
+just fixtures-all <folder>
 ```
 
 `just check` runs the encoding check, the format check, the build and the tests, as CI does. Run it before a commit.
 
-`just fixtures` runs the `fixtures` command line from the current folder and passes each argument through whole, such as `just fixtures build <toolchain> <version> --output <folder>`.
+`just fixtures` runs the `fixtures` command line from the current folder and passes each argument through whole, such as `just fixtures build <toolchain> <version> --output <folder>`. `just fixtures-all` builds every pinned UDK version into the folder.
 
 Every project targets `net11.0-windows`, because the players only run on Windows. Build and test on Windows.
 
@@ -26,13 +27,14 @@ Every project targets `net11.0-windows`, because the players only run on Windows
   - `ICacheStore` is the part a cache store plugs in, with a download and an upload. `DavStore` implements it and the tests use a fake store. The default `CommandLine.RunAsync` is the one place that picks the store, so `PlayerCache` and the `build` command use only `ICacheStore`.
   - `PlayerCache` restores a player from `<output>/<toolchain>-<version>-<hash>` or the store and stores a new build in both. `KeyOf` builds the key from the toolchain name, the project folder and the toolchain's inputs and returns a `PlayerKey`. It throws when the version a toolchain returns is not the `version` input it adds. `StoreAsync` writes `manifest.json` into the install before it moves the install to the player folder and uploads the manifest after the archive. A hit never reads a manifest.
   - `PlayerKey` is the key of a player with its toolchain, the pinned version and the inputs the key hashed. `PlayerKeyContext` writes it as the manifest JSON.
+  - `IPlayerHost` is the part that starts an executable of an install and returns an `IPlayerRun`. `ContainerPlayerHost` implements it with a Windows container that mounts the install, through Docker.DotNet.Enhanced. The tests use `LocalPlayerHost`, which starts a fake executable as a `Player`.
   - `Downloader` downloads a file pinned to a hash.
   - `TransferTimer` sends the requests of `Downloader` and `DavStore` and reads and writes their bodies with time limits. A request fails when its server sends no response headers within 1 minute. After the last byte of an upload the limit is 5 minutes, because the server stores the file first. A body read or write fails when it moves no bytes for 1 minute. `Downloader` and `DavStore` throw a `TimeoutException` with the URL or the store path. `Downloader` keeps its partial file for the next run. `DavStore` deletes its partial file.
   - `HttpHandlers` creates the handler of `Downloader` and `DavStore`. The handler stops a connect attempt after 30 seconds and checks the certificate of the server for revocation online.
   - `TransferProgress` is how far a download or an upload has come: the bytes moved and the length of the file. `Downloader` and `DavStore` report it after each chunk.
   - `TransferBars` shows a Spectre.Console progress bar for each transfer and clears it when the transfer ends. `TransferBars.Create` draws real bars on the console of this process and plain lines with no ANSI codes on any other writer, such as a test's `StringWriter`. `CommandLine` wraps the toolchain install in a bar and `PlayerCache` wraps the archive download and upload, so nothing else writes to the console while a bar is drawn.
   - `ArchiveOrgFile` is 1 file of an archive.org item with its pinned sha1 and its download URL.
-  - `Unreal3/installers.json` lists the pinned UDK installers, 1 row per version with its sha1 and the date it was last checked. The CLI embeds it and `UdkInstallers` reads it once.
+  - `Unreal3/installers.json` lists the pinned UDK installers, 1 row per version with its sha1. The CLI embeds it and `UdkInstallers` reads it once.
   - `SelfExtractingZip` reads the zip inside an installer without running it.
   - `ProcessRunner` runs a command line tool without a window and reads its output while the tool runs, so the output never reaches the console. A code other than 0 fails with the command line, the code and at most the last 10 lines of the output that are not blank.
   - `Cabinet` reads the file names of a Microsoft cabinet and unpacks its files with `expand.exe`.
@@ -41,14 +43,15 @@ Every project targets `net11.0-windows`, because the players only run on Windows
     - `Udk` is the toolchain. It calls the parts below and adds the key inputs in a fixed order.
     - `UdkInstallers` reads the pinned installers and finds the one of a version.
     - `UdkInstall` defines the install paths that the other parts share.
-    - `UdkRuntimes` copies the runtime DLLs that `UDK.exe` imports from the install's redist. `DirectXRuntimes` unpacks the DirectX ones and `VisualCppRuntimes` the Visual C++ 2010 ones. `VisualCppRuntimes` also refuses the 2008 runtime.
+    - `UdkRuntimes` copies the runtime DLLs that `UDK.exe` imports from the install's redist. `DirectXRuntimes` unpacks the DirectX DLLs and `VisualCppRuntimes` the Visual C++ 2010 DLLs. `UdkRuntimes` skips the Visual C++ 2005 and 2008 DLLs because Windows ships them.
+    - `UdkClrConfig` adds the CLR 4 startup section to the config files of an install with the Visual C++ 2008 redist.
     - `UdkProject` copies the fixture classes, edits the config files and compiles the package.
     - `UdkServer` starts the server and waits for the ready line in its log.
-    - `UdkRedist` opens the install's `UE3Redist.exe`, finds the cabinet of a DLL and extracts entries.
+    - `UdkRedist` opens the install's `UE3Redist.exe`, finds the cabinet of a DLL and extracts entries. It also refuses an install with the PhysX installer.
     - `PeImports` reads the import DLL names of a PE file.
   - `IToolchain` installs an engine release at a version, builds players in it, checks that they start and adds the inputs of its build to the player key with `AddKeyInputs`, which returns the version as the toolchain pins it.
 - `test/fixtures/unreal3` has the UnrealScript classes of the Unreal Engine 3 player. The CLI project copies them to its output as `projects/unreal3/Classes`.
-- Engine-specific code sits in a folder per engine in the CLI project, such as `Unreal3/`, with 1 `IToolchain` each. Engine names appear only in the engine folders (`Unreal3/` in the CLI and its tests, `test/fixtures/unreal3`), in `Unreal3/UdkSR.resx`, in the toolchain list of `CommandLine`, in the CLI project items that copy or embed engine files and in the engine parts of this file and the readme. Everything else uses neutral names, with no engine in them.
+- Engine-specific code sits in a folder per engine in the CLI project, such as `Unreal3/`, with 1 `IToolchain` each. Engine names appear only in the engine folders (`Unreal3/` in the CLI and its tests, `test/fixtures/unreal3`), in `Unreal3/UdkSR.resx`, in the toolchain list of `CommandLine`, in the CLI project items that copy or embed engine files, in the `fixtures-all` recipe and in the engine parts of this file and the readme. Everything else uses neutral names, with no engine in them.
 - `eng/CheckEncoding.cs` checks the encoding and the line endings of every tracked file. CI and `just check` run it as a file-based app with `dotnet eng/CheckEncoding.cs`.
 - The tests for a project sit in `test/<Project>.Tests`.
 - A new project goes into `src/` when it ships and into `eng/tools/` when it only builds or tests the repo. It also goes into `AslHelp.Engines.slnx`.

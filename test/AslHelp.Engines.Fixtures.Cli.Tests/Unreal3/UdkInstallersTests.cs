@@ -74,15 +74,7 @@ public sealed class UdkInstallersTests
 
         Assert.That(installer, Is.EqualTo(new UdkInstaller(
                 "2011-03-BETA2",
-                "1c578892b9adfb861a62d4960cc5cfd80e26801f",
-                null)));
-    }
-
-    // The version of the readme example has been built end to end, so its row has a checked date.
-    [Test]
-    public void Find_ReadmeExampleVersion_IsChecked()
-    {
-        Assert.That(UdkInstallers.Find("2015-02").Checked, Is.Not.Null);
+                "1c578892b9adfb861a62d4960cc5cfd80e26801f")));
     }
 
     // An unpinned version is refused with the pinned versions, the data file and the readme section, without a parameter
@@ -101,21 +93,21 @@ public sealed class UdkInstallersTests
                 .And.Message.Not.Contains("(Parameter"));
     }
 
-    // A row reads with camelCase keys and checked as a date or null, as installers.json writes them.
+    // A row reads with camelCase keys, as installers.json writes them.
     [Test]
-    public void Read_Rows_ReadsVersionSha1AndChecked()
+    public void Read_Rows_ReadsVersionAndSha1()
     {
         using var json = Utf8Stream("""
             [
-              { "version": "1.0", "sha1": "0000000000000000000000000000000000000001", "checked": null },
-              { "version": "2.0", "sha1": "0000000000000000000000000000000000000002", "checked": "2026-11-01" }
+              { "version": "1.0", "sha1": "0000000000000000000000000000000000000001" },
+              { "version": "2.0", "sha1": "0000000000000000000000000000000000000002" }
             ]
             """);
 
         UdkInstaller[] expected =
         [
-            new("1.0", "0000000000000000000000000000000000000001", null),
-            new("2.0", "0000000000000000000000000000000000000002", new DateOnly(2026, 11, 1)),
+            new("1.0", "0000000000000000000000000000000000000001"),
+            new("2.0", "0000000000000000000000000000000000000002"),
         ];
 
         var installers = UdkInstallers.Read(json);
@@ -127,7 +119,7 @@ public sealed class UdkInstallersTests
     [Test]
     public void Read_RowWithoutSha1_ThrowsInvalidDataException()
     {
-        using var json = Utf8Stream("""[{ "version": "1.0", "checked": null }]""");
+        using var json = Utf8Stream("""[{ "version": "1.0" }]""");
 
         Assert.That(
             () => UdkInstallers.Read(json),
@@ -138,18 +130,18 @@ public sealed class UdkInstallersTests
     [Test]
     public void Read_RowWithNullVersion_ThrowsInvalidDataException()
     {
-        using var json = Utf8Stream("""[{ "version": null, "sha1": "0000000000000000000000000000000000000001", "checked": null }]""");
+        using var json = Utf8Stream("""[{ "version": null, "sha1": "0000000000000000000000000000000000000001" }]""");
 
         Assert.That(
             () => UdkInstallers.Read(json),
             Throws.TypeOf<InvalidDataException>().With.InnerException.TypeOf<JsonException>());
     }
 
-    // A key outside the 3 is refused, so a misspelled key is caught at the parse and not read as a missing value.
+    // A key outside the 2 is refused, so a misspelled key is caught at the parse and not read as a missing value.
     [Test]
     public void Read_RowWithUnknownKey_ThrowsInvalidDataException()
     {
-        using var json = Utf8Stream("""[{ "version": "1.0", "sha1": "0000000000000000000000000000000000000001", "checked": null, "note": "" }]""");
+        using var json = Utf8Stream("""[{ "version": "1.0", "sha1": "0000000000000000000000000000000000000001", "note": "" }]""");
 
         Assert.That(
             () => UdkInstallers.Read(json),
@@ -160,7 +152,7 @@ public sealed class UdkInstallersTests
     [Test]
     public void Read_DamagedJson_ThrowsWithTheFileName()
     {
-        using var json = Utf8Stream("""[{ "version": "1.0" "sha1": "0000000000000000000000000000000000000001", "checked": null }]""");
+        using var json = Utf8Stream("""[{ "version": "1.0" "sha1": "0000000000000000000000000000000000000001" }]""");
 
         Assert.That(
             () => UdkInstallers.Read(json),
@@ -171,7 +163,7 @@ public sealed class UdkInstallersTests
     [Test]
     public void Read_UppercaseSha1_ThrowsWithTheFileNameAndVersion()
     {
-        using var json = Utf8Stream("""[{ "version": "1.0", "sha1": "000000000000000000000000000000000000000A", "checked": null }]""");
+        using var json = Utf8Stream("""[{ "version": "1.0", "sha1": "000000000000000000000000000000000000000A" }]""");
 
         Assert.That(
             () => UdkInstallers.Read(json),

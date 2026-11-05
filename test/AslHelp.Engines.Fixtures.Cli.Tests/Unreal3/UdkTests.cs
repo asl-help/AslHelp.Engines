@@ -19,7 +19,7 @@ public sealed class UdkTests
     // install.
     private const string InstallVariable = "FIXTURES_UDK_INSTALL";
 
-    private const string Vc2008Entry = "vcredist_x86_vs2008sp1.exe";
+    private const string PhysXEntry = "PhysX/PhysX_8.10.29_SystemSoftware.exe";
     private const string Vc2010Entry = "vcredist_x86_vs2010sp1.exe";
 
     private Downloader? _downloader;
@@ -47,7 +47,7 @@ public sealed class UdkTests
         FakeHttpHandler handler = new(_ => Status(HttpStatusCode.NotFound));
         using Downloader downloader = new(handler);
 
-        string install = await new Udk(downloader).InstallAsync("2015-02", _folder.Root, null, CancellationToken.None);
+        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2015-02", _folder.Root, null, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -64,7 +64,7 @@ public sealed class UdkTests
         using Downloader downloader = new(handler);
 
         Assert.That(
-            async () => await new Udk(downloader).InstallAsync("2015-02", _folder.Root, null, CancellationToken.None),
+            async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2015-02", _folder.Root, null, CancellationToken.None),
             Throws.TypeOf<HttpRequestException>());
 
         using (Assert.EnterMultipleScope())
@@ -86,7 +86,7 @@ public sealed class UdkTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await new Udk(downloader).InstallAsync("1999-01", _folder.Root, null, CancellationToken.None),
+                async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("1999-01", _folder.Root, null, CancellationToken.None),
                 Throws.InvalidOperationException);
             Assert.That(handler.Requests, Is.Empty);
             Assert.That(Directory.Exists(Path.Combine(_folder.Root, "udk-1999-01")), Is.False);
@@ -101,7 +101,7 @@ public sealed class UdkTests
         FakeHttpHandler handler = new(_ => Status(HttpStatusCode.NotFound));
         using Downloader downloader = new(handler);
 
-        string install = await new Udk(downloader).InstallAsync("2011-03-beta2", _folder.Root, null, CancellationToken.None);
+        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2011-03-beta2", _folder.Root, null, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -110,22 +110,21 @@ public sealed class UdkTests
         }
     }
 
-    // An install whose redist has the Visual C++ 2008 installer is refused with the version and the versions to pick, before any request.
+    // An install whose redist has the PhysX installer is refused with the version, before any request.
     [Test]
-    public void InstallAsync_ExistingInstallWithVc2008Redist_ThrowsBeforeAnyRequest()
+    public void InstallAsync_ExistingInstallWithPhysXInstaller_ThrowsBeforeAnyRequest()
     {
-        WriteZip(Path.Combine(_folder.Root, "udk-2009-11-BETA", "Binaries", "Windows", "UE3Redist.exe"), (Vc2008Entry, [1]));
+        WriteZip(Path.Combine(_folder.Root, "udk-2009-11-BETA", "Binaries", "Windows", "UE3Redist.exe"), (PhysXEntry, [1]));
         FakeHttpHandler handler = new(_ => Status(HttpStatusCode.NotFound));
         using Downloader downloader = new(handler);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await new Udk(downloader).InstallAsync("2009-11-BETA", _folder.Root, null, CancellationToken.None),
+                async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2009-11-BETA", _folder.Root, null, CancellationToken.None),
                 Throws.InvalidOperationException
                     .With.Message.Contains("UDK 2009-11-BETA")
-                    .And.Message.Contains("Visual C++ 2008")
-                    .And.Message.Contains("2011-10"));
+                    .And.Message.Contains("PhysX"));
             Assert.That(handler.Requests, Is.Empty);
         }
     }
@@ -138,7 +137,7 @@ public sealed class UdkTests
         FakeHttpHandler handler = new(_ => Status(HttpStatusCode.NotFound));
         using Downloader downloader = new(handler);
 
-        string install = await new Udk(downloader).InstallAsync("2013-07", _folder.Root, null, CancellationToken.None);
+        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2013-07", _folder.Root, null, CancellationToken.None);
 
         Assert.That(install, Is.EqualTo(Path.Combine(_folder.Root, "udk-2013-07")));
     }
@@ -225,7 +224,7 @@ public sealed class UdkTests
             ["build", "unreal3", "1999-01", "--output", folder],
             output,
             error,
-            [new Udk(downloader)],
+            [new Udk(downloader, new LocalPlayerHost())],
             _ =>
             {
                 opened = true;
@@ -369,6 +368,6 @@ public sealed class UdkTests
     {
         _downloader ??= new Downloader(new FakeHttpHandler(_ => Status(HttpStatusCode.NotFound)));
 
-        return new Udk(_downloader);
+        return new Udk(_downloader, new LocalPlayerHost());
     }
 }

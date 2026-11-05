@@ -241,25 +241,24 @@ public sealed class UdkRuntimesTests
         }
     }
 
-    // A UDK.exe that imports MSVCR90.dll is refused with the Visual C++ 2008 message before any redist is read, because the
-    // tool ships only the 2010 runtime.
-    [Test]
-    public void AddAsync_ImportsMsvcr90_ThrowsVc2008Message()
+    // The Visual C++ 2005 and 2008 DLLs are parts of Windows, so a UDK.exe that imports them needs no redist and gets no copy.
+    [TestCase("MSVCR80.dll")]
+    [TestCase("msvcp80.dll")]
+    [TestCase("MSVCR90.dll")]
+    [TestCase("msvcp90.dll")]
+    public async Task AddAsync_ImportsRuntimeOfWindows_CopiesNothing(string runtime)
     {
         string install = _folder.NewFolder();
-        WriteServer(install, "MSVCR90.dll");
+        WriteServer(install, runtime);
 
-        Assert.That(
-            async () => await UdkRuntimes.AddAsync(install, CancellationToken.None),
-            Throws.InvalidOperationException
-                .With.Message.Contains("Visual C++ 2008")
-                .And.Message.Contains("MSVCR90.dll")
-                .And.Message.Contains("2011-10"));
+        await UdkRuntimes.AddAsync(install, CancellationToken.None);
+
+        Assert.That(File.Exists(Path.Combine(Binaries(install), runtime)), Is.False);
     }
 
-    // A UDK.exe that imports MSVCR110.dll is refused as a runtime other than 2010, without the Visual C++ 2008 advice.
+    // A UDK.exe that imports MSVCR110.dll is refused, because Windows does not ship it and the tool does not extract it.
     [Test]
-    public void AddAsync_ImportsMsvcr110_ThrowsOtherThan2010Message()
+    public void AddAsync_ImportsMsvcr110_ThrowsWithTheDll()
     {
         string install = _folder.NewFolder();
         WriteServer(install, "MSVCR110.dll");
@@ -268,8 +267,7 @@ public sealed class UdkRuntimesTests
             async () => await UdkRuntimes.AddAsync(install, CancellationToken.None),
             Throws.InvalidOperationException
                 .With.Message.Contains("MSVCR110.dll")
-                .And.Message.Contains("other than 2010")
-                .And.Message.Not.Contains("2008"));
+                .And.Message.Contains("does not extract"));
     }
 
     // A missing d3dx9_43.dll and msvcr100.dll with a cabinet for the 1st and no Visual C++ installer throws before expand.exe

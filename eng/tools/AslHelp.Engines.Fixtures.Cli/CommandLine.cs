@@ -29,12 +29,13 @@ internal static class CommandLine
     public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error)
     {
         using Downloader downloader = new();
+        using ContainerPlayerHost host = new();
 
         return await RunAsync(
             args,
             output,
             error,
-            [new Udk(downloader)],
+            [new Udk(downloader, host)],
             DavStore.FromEnvironmentIfSet,
             Path.Combine(AppContext.BaseDirectory, ProjectsPath)).ConfigureAwait(false);
     }

@@ -59,24 +59,29 @@ Unreal Engine 3 players are built with UDK, the free Unreal Engine 3 release.
 
 ```
 dotnet run --project eng/tools/AslHelp.Engines.Fixtures.Cli -- build unreal3 2015-02 --output ../fixtures
+just fixtures-all ../fixtures
 ```
 
-1. Pass the version as in the installer file name. Upper or lower case both work. `eng/tools/AslHelp.Engines.Fixtures.Cli/Unreal3/installers.json` lists every pinned version, its sha1 and the date it was last checked.
+`just fixtures-all` builds every pinned version 1 at a time and prints the exit code, the seconds and the last output line of each. It exits with the number of failed versions, so a full run exits with 1 because the build refuses 2009-11-BETA.
+
+The build needs a Docker engine that runs Windows containers and that your user can reach. The 1st build pulls `mcr.microsoft.com/windows/server:ltsc2025`, which is about 16 GB. We use that image because it's the smallest one with `dsound.dll` and `dinput8.dll`.
+
+1. Pass the version as in the installer file name. Upper or lower case both work. `eng/tools/AslHelp.Engines.Fixtures.Cli/Unreal3/installers.json` lists every pinned version and its sha1.
 2. The build downloads `UDKInstall-<version>.exe` from the [`udkinstaller`](https://archive.org/details/udkinstaller) item into `<output>/downloads`, checks its sha1 and extracts the zip inside it into `<output>/udk-<version>`, so the UDK setup program never runs.
-3. It reads the import tables of `Binaries/Win32/UDK.exe` and of the DLLs it loads from that folder. It copies the DirectX and Visual C++ 2010 DLLs they import from the install's own `Binaries/Redist/UE3Redist.exe` into `Binaries/Win32`, each DirectX DLL from the 1st x86 cabinet of the redist that lists it. Nothing is installed for the whole system.
-4. It copies `test/fixtures/unreal3/Classes` to `Development/Src/Fixture/Classes`, turns `Fixture` on in `UDKGame/Config/DefaultEngineUDK.ini` and deletes `UDKGame/Config/UDKEngine.ini`.
-5. It runs `Binaries/Win32/UDK.com make -unattended -nullrhi`, stops it after 10 minutes and checks `UDKGame/Script/Fixture.u`.
-6. It runs `Binaries/Win32/UDK.exe server <map>?game=Fixture.FixtureGame -unattended -nullrhi -FORCELOGFLUSH` with the 1st map under `UDKGame/Content/Maps` and waits up to 2 minutes for `ScriptLog: Fixture ready` in `UDKGame/Logs/Launch.log`. After a pass it deletes the log, because the log has the machine name, the user and the paths of the build machine.
-7. The player ends up in `<output>/unreal3-<version>-<hash>` with the install layout and `manifest.json` inside. `udk-<version>` is the install only until then.
+3. It reads the import tables of `Binaries/Win32/UDK.exe` and of the DLLs it loads from that folder. It copies the DirectX and Visual C++ 2010 DLLs they import from the install's own `Binaries/Redist/UE3Redist.exe` (`Binaries/Windows/UE3Redist.exe` before 2011-05) into `Binaries/Win32`, each DirectX DLL from the 1st x86 cabinet of the redist that lists it. The Visual C++ 2005 and 2008 DLLs come from Windows. Nothing is installed for the whole system.
+4. Versions up to 2011-07 target CLR 2, which Windows Server doesn't ship, so it adds a startup section with CLR 4 to `Binaries/Win32/UDK.exe.config` and `Binaries/Win32/UDK.com.config`.
+5. It copies `test/fixtures/unreal3/Classes` to `Development/Src/Fixture/Classes`, turns `Fixture` on in `UDKGame/Config/DefaultEngineUDK.ini` and deletes `UDKGame/Config/UDKEngine.ini`.
+6. It runs `Binaries/Win32/UDK.com make -unattended -nullrhi` in a container, stops it after 10 minutes and checks `UDKGame/Script/Fixture.u`.
+7. It runs `Binaries/Win32/UDK.exe server <map>?game=Fixture.FixtureGame -unattended -nullrhi -FORCELOGFLUSH` in a container with the 1st map under `UDKGame/Content/Maps` and waits up to 2 minutes for `ScriptLog: Fixture ready` in `UDKGame/Logs/Launch.log`. After a pass it deletes the log, because the log has the machine name, the user and the paths of the build.
+8. The player ends up in `<output>/unreal3-<version>-<hash>` with the install layout and `manifest.json` inside. `udk-<version>` is the install only until then.
 
 The key of a UDK player covers the pinned version, the installer sha1, the make and server command lines, the ini edits and a build version. The runtime DLLs are no key input, because the key is built before the install exists. The installer sha1 pins the files they are read from. Bump `BuildVersion` in `Udk` when a build step changes in a way none of the other inputs show, so every player is built again.
 
-The compiler and the server run as players, so no other player runs on the machine while either of them runs. The `-nullrhi` switch turns rendering off, because the hidden desktop they run on has no display mode. A version with `checked` null may use an installer layout that the tool does not read. A step that finds files missing or damaged in the extracted install needs a fresh extraction: delete `<output>/udk-<version>` and run the build again.
+The compiler and the server run in a Windows container with the install mounted, so a build fails when the player needs something that only the build machine has. The `-nullrhi` switch turns rendering off, because a container has no display. The build gives your user full control of the install before each start, because the files a container writes belong to the administrator of the container. A step that finds files missing or damaged in the extracted install needs a fresh extraction: delete `<output>/udk-<version>` and run the build again.
 
-Versions 2011-10 and later have the Visual C++ 2010 installer in their redist, which the tool extracts. The `checked` dates in `installers.json` show which versions were built end to end. Versions 2009-11 to 2011-07 need the Visual C++ 2008 runtime, which the tool does not extract. Their redist, `Binaries/Windows/UE3Redist.exe` before 2011-05, has the Visual C++ 2008 installer, so the build fails right after the extraction with a message that points at 2011-10-BETA and later versions.
+Every pinned version from 2010-06-BETA on builds. The build refuses 2009-11-BETA right after the extraction, because that engine stops at startup until the PhysX installer has run on the machine.
 
 ### Adding a UDK version
 
-1. Copy the sha1 of `UDKInstall-<version>.exe` from https://archive.org/metadata/udkinstaller into `installers.json` in version order, with `checked` null.
+1. Copy the sha1 of `UDKInstall-<version>.exe` from https://archive.org/metadata/udkinstaller into `installers.json` in version order.
 2. Run the build command for it.
-3. Set `checked` to the date of that run.

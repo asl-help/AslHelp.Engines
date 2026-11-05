@@ -37,7 +37,7 @@ public sealed class UdkServerTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await UdkServer.CheckAsync(install, UdkServer.DefaultCheckTimeout, CancellationToken.None),
+                async () => await UdkServer.CheckAsync(new LocalPlayerHost(), install, UdkServer.DefaultCheckTimeout, CancellationToken.None),
                 Throws.TypeOf<FileNotFoundException>().With.Message.Contains(Path.Combine(install, "Binaries", "Win32", "UDK.exe")));
             Assert.That(File.Exists(Path.Combine(install, "UDKGame", "Logs", "Launch.log")), Is.True);
         }
@@ -51,7 +51,7 @@ public sealed class UdkServerTests
         string install = WriteFakeInstallWithServer("PING.EXE");
 
         Assert.That(
-            async () => await UdkServer.CheckAsync(install, UdkServer.DefaultCheckTimeout, CancellationToken.None),
+            async () => await UdkServer.CheckAsync(new LocalPlayerHost(), install, UdkServer.DefaultCheckTimeout, CancellationToken.None),
             Throws.TypeOf<FileNotFoundException>().With.Message.Contains(Path.Combine(install, "UDKGame", "Content", "Maps")));
     }
 
@@ -67,7 +67,7 @@ public sealed class UdkServerTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await UdkServer.CheckAsync(install, UdkServer.DefaultCheckTimeout, CancellationToken.None),
+                async () => await UdkServer.CheckAsync(new LocalPlayerHost(), install, UdkServer.DefaultCheckTimeout, CancellationToken.None),
                 Throws.InvalidOperationException.With.Message.Contains("code 1 (0x00000001)"));
             Assert.That(File.Exists(Path.Combine(install, "UDKGame", "Logs", "Launch.log")), Is.False);
         }
@@ -83,7 +83,7 @@ public sealed class UdkServerTests
         WriteBytes(install, "UDKGame/Content/Maps/Examples/ExampleMap.udk", [1]);
 
         Assert.That(
-            async () => await UdkServer.CheckAsync(install, UdkServer.DefaultCheckTimeout, CancellationToken.None),
+            async () => await UdkServer.CheckAsync(new LocalPlayerHost(), install, UdkServer.DefaultCheckTimeout, CancellationToken.None),
             Throws.InvalidOperationException
                 .With.Message.Contains("code 1 (0x00000001)")
                 .And.Message.Contains("did not start")
@@ -99,7 +99,7 @@ public sealed class UdkServerTests
         string install = WriteFakeInstallWithNeverEndingServer();
 
         Assert.That(
-            async () => await UdkServer.CheckAsync(install, TimeSpan.FromSeconds(1), CancellationToken.None),
+            async () => await UdkServer.CheckAsync(new LocalPlayerHost(), install, TimeSpan.FromSeconds(1), CancellationToken.None),
             Throws.TypeOf<TimeoutException>().With.Message.Contains("did not start").And.Message.Not.Contains("Launch.log"));
     }
 
@@ -111,7 +111,7 @@ public sealed class UdkServerTests
     {
         string install = WriteFakeInstallWithNeverEndingServer();
 
-        var check = UdkServer.CheckAsync(install, TimeSpan.FromSeconds(1), CancellationToken.None);
+        var check = UdkServer.CheckAsync(new LocalPlayerHost(), install, TimeSpan.FromSeconds(1), CancellationToken.None);
         WriteBytes(install, "UDKGame/Logs/Launch.log", "Init: Version: 1"u8.ToArray());
 
         await Assert.ThatAsync(
@@ -128,7 +128,7 @@ public sealed class UdkServerTests
         string install = WriteFakeInstallWithNeverEndingServer();
         string log = Path.Combine(install, "UDKGame", "Logs", "Launch.log");
 
-        var check = UdkServer.CheckAsync(install, TimeSpan.FromMinutes(1), CancellationToken.None);
+        var check = UdkServer.CheckAsync(new LocalPlayerHost(), install, TimeSpan.FromMinutes(1), CancellationToken.None);
         WriteBytes(install, "UDKGame/Logs/Launch.log", "[0044.79] ScriptLog: Fixture ready"u8.ToArray());
         await check;
 
@@ -147,7 +147,11 @@ public sealed class UdkServerTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await UdkServer.CheckAsync(install, UdkServer.DefaultCheckTimeout, new CancellationToken(canceled: true)),
+                async () => await UdkServer.CheckAsync(
+                    new LocalPlayerHost(),
+                    install,
+                    UdkServer.DefaultCheckTimeout,
+                    new CancellationToken(canceled: true)),
                 Throws.InstanceOf<OperationCanceledException>());
             Assert.That(File.Exists(Path.Combine(install, "UDKGame", "Logs", "Launch.log")), Is.True);
         }

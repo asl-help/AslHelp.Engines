@@ -16,8 +16,10 @@ namespace AslHelp.Engines.Fixtures.Cli.Unreal3;
 ///     The zip is extracted directly, so UnSetup never runs and nothing is written to the registry.
 /// </remarks>
 /// <param name="downloader">The downloader for the installers.</param>
+/// <param name="host">The host that the compiler and the server run in.</param>
 internal sealed class Udk(
-    Downloader downloader) : IToolchain
+    Downloader downloader,
+    IPlayerHost host) : IToolchain
 {
     /// <summary>
     ///     Numbers the revision of the build steps that no other key input shows. Bump it when a step changes that way, so
@@ -66,11 +68,11 @@ internal sealed class Udk(
     ///     The install goes to <c>udk-&lt;version&gt;</c> under <paramref name="outputDirectory"/> and the installer to
     ///     <c>downloads</c> next to it. The folder spells the version as in <see cref="UdkInstallers.All"/>. An existing
     ///     install folder sends no request, so a cached install works offline. A missing one sends 1 request, the pinned
-    ///     download. An install whose redist has the Visual C++ 2008 installer, UDK 2009-11 to 2011-07, is refused once it
-    ///     is extracted. An install without a redist passes. The runtime step reports a missing redist if it needs one.
+    ///     download. An install whose redist has the PhysX installer, UDK 2009-11, is refused once it is
+    ///     extracted. An install without a redist passes. The runtime step reports a missing redist if it needs one.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    ///     <see cref="UdkInstallers.All"/> has no installer of <paramref name="version"/> or the install needs the Visual C++ 2008 runtime.
+    ///     <see cref="UdkInstallers.All"/> has no installer of <paramref name="version"/> or the install needs the PhysX installer.
     /// </exception>
     public async Task<string> InstallAsync(
         string version,
@@ -91,7 +93,7 @@ internal sealed class Udk(
         // and no hash of an installer of up to 2 GB.
         if (Directory.Exists(installDirectory))
         {
-            VisualCppRuntimes.ThrowIfVc2008(installDirectory, installer.Version);
+            UdkRedist.ThrowIfNeedsPhysXInstaller(installDirectory, installer.Version);
 
             return installDirectory;
         }
@@ -104,14 +106,14 @@ internal sealed class Udk(
         SelfExtractingZip.Extract(installerPath, installDirectory);
 
         // Check right after the extraction, so a version this tool cannot build fails before the build starts.
-        VisualCppRuntimes.ThrowIfVc2008(installDirectory, installer.Version);
+        UdkRedist.ThrowIfNeedsPhysXInstaller(installDirectory, installer.Version);
 
         return installDirectory;
     }
 
     /// <summary>
-    ///     Adds the runtimes with <see cref="UdkRuntimes.AddAsync"/> and the fixture package with
-    ///     <see cref="UdkProject.AddFixturePackage"/> and compiles it with <see cref="UdkProject.MakeAsync"/>.
+    ///     Adds the runtimes with <see cref="UdkRuntimes.AddAsync"/>, the CLR setting with <see cref="UdkClrConfig.Add"/> and the
+    ///     fixture package with <see cref="UdkProject.AddFixturePackage"/> and compiles it with <see cref="UdkProject.MakeAsync"/>.
     /// </summary>
     /// <remarks>
     ///     A missing <c>UDK.com</c> throws before anything in the install changes.
@@ -135,15 +137,12 @@ internal sealed class Udk(
     ///     imports is not a PE file or the redist does not give every DLL.
     /// </exception>
     /// <exception cref="InvalidOperationException">
-    ///     A DLL imports a Visual C++ runtime other than 2010, no x86 cabinet of the redist lists a missing DirectX DLL,
-    ///     or a runtime tool or <c>UDK.com</c> exits with a code other than 0. <c>UDK.com</c> exits with 0 but does not
-    ///     write <c>UDKGame/Script/Fixture.u</c>.
+    ///     A DLL imports a Visual C++ runtime that Windows does not ship and the tool does not extract, no x86 cabinet of the
+    ///     redist lists a missing DirectX DLL, the host cannot run anything or a runtime tool or <c>UDK.com</c> exits with a
+    ///     code other than 0. <c>UDK.com</c> exits with 0 but does not write <c>UDKGame/Script/Fixture.u</c>.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
-    /// <exception cref="TimeoutException">
-    ///     Another player kept the machine lock too long or the compile runs longer than <see cref="UdkProject.DefaultMakeTimeout"/>.
-    /// </exception>
-    /// <exception cref="System.ComponentModel.Win32Exception">The desktop or the process cannot be created.</exception>
+    /// <exception cref="TimeoutException">The compile runs longer than <see cref="UdkProject.DefaultMakeTimeout"/>.</exception>
     public async Task BuildAsync(string installDirectory, string projectDirectory, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(installDirectory);
@@ -153,8 +152,9 @@ internal sealed class Udk(
         UdkProject.ThrowIfNoCompiler(installDirectory);
 
         await UdkRuntimes.AddAsync(installDirectory, cancellationToken).ConfigureAwait(false);
+        UdkClrConfig.Add(installDirectory);
         UdkProject.AddFixturePackage(installDirectory, Path.Combine(projectDirectory, UdkProject.ProjectClassesPath));
-        await UdkProject.MakeAsync(installDirectory, UdkProject.DefaultMakeTimeout, cancellationToken).ConfigureAwait(false);
+        await UdkProject.MakeAsync(host, installDirectory, UdkProject.DefaultMakeTimeout, cancellationToken).ConfigureAwait(false);
     }
 
     /// <inheritdoc/>
@@ -162,14 +162,11 @@ internal sealed class Udk(
     ///     <see cref="UdkServer.CheckAsync"/> runs the server and waits up to <see cref="CheckTimeout"/> for the ready line.
     /// </remarks>
     /// <exception cref="FileNotFoundException">The install has no <c>UDK.exe</c> or no map.</exception>
-    /// <exception cref="InvalidOperationException">The server exits before the check finds the ready line.</exception>
+    /// <exception cref="InvalidOperationException">The host cannot run anything or the server exits before the check finds the ready line.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
-    /// <exception cref="TimeoutException">
-    ///     Another player kept the machine lock too long or the ready line is not in the log within <see cref="CheckTimeout"/>.
-    /// </exception>
-    /// <exception cref="System.ComponentModel.Win32Exception">The desktop or the process cannot be created.</exception>
+    /// <exception cref="TimeoutException">The ready line is not in the log within <see cref="CheckTimeout"/>.</exception>
     public Task CheckAsync(string installDirectory, CancellationToken cancellationToken)
     {
-        return UdkServer.CheckAsync(installDirectory, CheckTimeout, cancellationToken);
+        return UdkServer.CheckAsync(host, installDirectory, CheckTimeout, cancellationToken);
     }
 }

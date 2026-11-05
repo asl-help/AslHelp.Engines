@@ -8,11 +8,9 @@ namespace AslHelp.Engines.Fixtures.Cli.Unreal3;
 /// </summary>
 /// <param name="Version">The version with the pinned spelling, such as <c>2015-02</c> or <c>2011-03-BETA2</c>.</param>
 /// <param name="Sha1">The sha1 of the installer as 40 lowercase hex chars.</param>
-/// <param name="Checked">The date the version was last built end to end. <see langword="null"/> if it never was.</param>
 internal sealed record UdkInstaller(
     string Version,
-    string Sha1,
-    DateOnly? Checked)
+    string Sha1)
 {
     /// <summary>
     ///     Identifies the archive.org item that has every UDK installer.

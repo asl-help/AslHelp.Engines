@@ -34,3 +34,18 @@ fixtures *args:
     dotnet run --project '{{ justfile_directory() }}/eng/tools/AslHelp.Engines.Fixtures.Cli' -- @args
     # Exit with the code of the run or with 1 when dotnet did not start, because the script exits 0 after a failed command.
     exit ($LASTEXITCODE ?? 1)
+
+# Build the player of every pinned UDK version into the folder, 1 at a time, and print each result.
+[no-cd]
+[script("pwsh", "-NoLogo", "-NoProfile")]
+fixtures-all output:
+    $installers = Get-Content -Raw '{{ justfile_directory() }}/eng/tools/AslHelp.Engines.Fixtures.Cli/Unreal3/installers.json' | ConvertFrom-Json
+    $failed = 0
+    foreach ($version in $installers.version) {
+        $started = Get-Date
+        $lines = dotnet run --project '{{ justfile_directory() }}/eng/tools/AslHelp.Engines.Fixtures.Cli' -- build unreal3 $version --output '{{ output }}' 2>&1
+        $code = $LASTEXITCODE
+        if ($code -ne 0) { $failed++ }
+        "$version exit=$code seconds=$([int]((Get-Date) - $started).TotalSeconds) $($lines | Select-Object -Last 1)"
+    }
+    exit $failed

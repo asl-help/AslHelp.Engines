@@ -21,6 +21,24 @@
   <data name="ExecutableNotPe" xml:space="preserve">
     <value>'{0}' is not a PE file.</value>
   </data>
+  <data name="FixtureCheckNeeds" xml:space="preserve">
+    <value>The fixture check needs {0}.</value>
+  </data>
+  <data name="FixtureFieldNotFound" xml:space="preserve">
+    <value>The class FixtureData has no field called IntValue.</value>
+  </data>
+  <data name="FixtureInstanceNotFound" xml:space="preserve">
+    <value>No object of the class FixtureData is spawned.</value>
+  </data>
+  <data name="FixtureOffsetUnreadable" xml:space="preserve">
+    <value>The offset of IntValue at {0} does not read.</value>
+  </data>
+  <data name="FixtureValueUnreadable" xml:space="preserve">
+    <value>IntValue of FixtureData at {0} does not read.</value>
+  </data>
+  <data name="FixtureValueWrong" xml:space="preserve">
+    <value>IntValue of FixtureData reads {1} and not {0}.</value>
+  </data>
   <data name="ModuleNotLoaded" xml:space="preserve">
     <value>The server did not load {0}: {1}</value>
   </data>

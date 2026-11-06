@@ -1,3 +1,4 @@
+using AslHelp.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace AslHelp.Engines.Measuring.Cli.Unreal3;
@@ -24,4 +25,7 @@ internal static partial class UdkLog
 
     [LoggerMessage(EventId = 106, Level = LogLevel.Information, Message = "Found {Global} at {Rvas}.")]
     public static partial void SlotFound(this ILogger logger, string global, string rvas);
+
+    [LoggerMessage(EventId = 107, Level = LogLevel.Information, Message = "Read IntValue {Value} of FixtureData at {Address}.")]
+    public static partial void FixtureValueRead(this ILogger logger, int value, Address address);
 }

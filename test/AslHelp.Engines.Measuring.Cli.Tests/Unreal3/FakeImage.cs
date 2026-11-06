@@ -12,6 +12,16 @@ namespace AslHelp.Engines.Measuring.Cli.Tests.Unreal3;
 /// </summary>
 internal sealed class FakeImage
 {
+    /// <summary>
+    ///     Represents the position in the object array of the 1st filler, behind the package, the empty position and the 5 properties.
+    /// </summary>
+    public const int FirstFillerPosition = 7;
+
+    /// <summary>
+    ///     Represents the offset of the fixture value in an object of the fixture class.
+    /// </summary>
+    public const int FixtureValueAt = 0xF0;
+
     private const int ArrayHeaderSize = 3 * sizeof(int);
     private const uint ArraysRva = 0x3000;
     private const int BlockSize = 0x100;
@@ -23,6 +33,7 @@ internal sealed class FakeImage
     private const int ObjectArrayAt = 0x200;
     private const int PageSize = 0x1000;
     private const int SlotsAt = 0x300;
+    private const int UnreadableOffset = 0x1000;
 
     private static readonly Address _decoyPointers = new(0x0300_0000);
     private static readonly Address _duplicatePointers = new(0x0330_0000);
@@ -36,6 +47,8 @@ internal sealed class FakeImage
     private readonly byte[] _arrays = new byte[2 * PageSize];
     private readonly Dictionary<string, Address> _classes = [];
     private readonly List<Address> _entries = [];
+    private readonly Address _fixtureDefault;
+    private readonly Address _fixtureField;
     private readonly FakeLayout _layout;
     private readonly List<string> _names = [];
     private readonly List<Address> _objects = [];
@@ -73,6 +86,12 @@ internal sealed class FakeImage
 
         AddClasses(core);
         LinkProperties();
+
+        _fixtureField = AddFixtureField();
+
+        // Give the class default object the value too, so a check that accepts it passes where it must fail.
+        _fixtureDefault = AddFixtureObject($"Default__{UdkFixtureCheck.ClassName}", core);
+        FixtureInstance = AddFixtureObject(UdkFixtureCheck.ClassName, core);
 
         var engine = AddObjectOfClass("GameEngine_0", "GameEngine", core);
         var world = AddObjectOfClass("TheWorld", "World", core);
@@ -138,6 +157,11 @@ internal sealed class FakeImage
     ///     Gets the RVA of the static that points at <see cref="Engine"/>.
     /// </summary>
     public uint EngineSlotRva { get; }
+
+    /// <summary>
+    ///     Gets the spawned object of the fixture class.
+    /// </summary>
+    public Address FixtureInstance { get; }
 
     /// <summary>
     ///     Gets the memory with the graph.
@@ -333,6 +357,30 @@ internal sealed class FakeImage
     }
 
     /// <summary>
+    ///     Removes the Children pointer of the fixture class.
+    /// </summary>
+    public void ClearFixtureChildren()
+    {
+        Memory.WritePointer(_classes[UdkFixtureCheck.ClassName] + _layout.Children, Address.Zero);
+    }
+
+    /// <summary>
+    ///     Zeroes the pointer of the object array at the class default object of the fixture class.
+    /// </summary>
+    public void ClearFixtureDefault()
+    {
+        ClearObjectPointer(_fixtureDefault);
+    }
+
+    /// <summary>
+    ///     Zeroes the pointer of the object array at <see cref="FixtureInstance"/>.
+    /// </summary>
+    public void ClearFixtureInstance()
+    {
+        ClearObjectPointer(FixtureInstance);
+    }
+
+    /// <summary>
     ///     Zeroes the header of the name array.
     /// </summary>
     public void ClearNameArray()
@@ -394,6 +442,19 @@ internal sealed class FakeImage
     public void MakeObjectArrayDataUnreadable()
     {
         WriteStaticPointer(ObjectArrayAt, _unreadable);
+    }
+
+    /// <summary>
+    ///     Writes an offset into the fixture field that puts the fixture value behind every object.
+    /// </summary>
+    /// <returns>
+    ///     The address that the fixture value then reads from, which no block contains.
+    /// </returns>
+    public Address MoveFixtureValueOutOfTheObject()
+    {
+        Memory.WriteInt32(_fixtureField + _layout.Offset, UnreadableOffset);
+
+        return FixtureInstance + UnreadableOffset;
     }
 
     /// <summary>
@@ -473,6 +534,8 @@ internal sealed class FakeImage
             ("Property", "Field", _layout.PropertySize),
             ("ObjectProperty", "Property", _layout.PropertySize + sizeof(uint)),
             ("NameProperty", "Property", _layout.PropertySize),
+            (UdkFixtureCheck.ClassName, "Object", _layout.ObjectSize + 0x10),
+            ("IntProperty", "Property", _layout.PropertySize),
             ("Function", "Struct", _layout.StructSize + sizeof(uint)),
             ("Engine", "Object", _layout.ObjectSize),
             ("GameEngine", "Engine", _layout.ObjectSize + sizeof(uint)),
@@ -493,6 +556,27 @@ internal sealed class FakeImage
         }
 
         Memory.WritePointer(core + _layout.Class, _classes["Package"]);
+    }
+
+    private Address AddFixtureField()
+    {
+        var fixtureClass = _classes[UdkFixtureCheck.ClassName];
+        var field = AddObject(UdkFixtureCheck.FieldName, fixtureClass);
+
+        Memory.WritePointer(field + _layout.Class, _classes["IntProperty"]);
+        Memory.WriteInt32(field + _layout.Offset, FixtureValueAt);
+        Memory.WriteInt32(field + _layout.ElementSize, sizeof(int));
+        Memory.WritePointer(fixtureClass + _layout.Children, field);
+
+        return field;
+    }
+
+    private Address AddFixtureObject(string name, Address outer)
+    {
+        var obj = AddObjectOfClass(name, UdkFixtureCheck.ClassName, outer);
+        Memory.WriteInt32(obj + FixtureValueAt, UdkFixtureCheck.ExpectedValue);
+
+        return obj;
     }
 
     private void AddNameArray()
@@ -552,6 +636,11 @@ internal sealed class FakeImage
         {
             _properties[name] = AddObject(name, Address.Zero);
         }
+    }
+
+    private void ClearObjectPointer(Address value)
+    {
+        Memory.WritePointer(_objectPointers + (_objects.IndexOf(value) * sizeof(uint)), Address.Zero);
     }
 
     private void LinkProperties()

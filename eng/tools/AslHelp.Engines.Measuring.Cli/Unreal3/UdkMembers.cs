@@ -7,6 +7,17 @@ using System.Linq;
 namespace AslHelp.Engines.Measuring.Cli.Unreal3;
 
 /// <summary>
+///     Describes the objects that <see cref="UdkMembers.Measure"/> read.
+/// </summary>
+/// <param name="ObjectsByName">The objects of the object array by base name.</param>
+/// <param name="ClassClass">The class called Class.</param>
+/// <param name="Reader">The reader with the offsets found.</param>
+internal sealed record UdkMeasuredObjects(
+    ILookup<string?, Address> ObjectsByName,
+    Address ClassClass,
+    ObjectReader Reader);
+
+/// <summary>
 ///     Lists the members to measure and finds their offsets through the classes of the Core package.
 /// </summary>
 /// <remarks>
@@ -144,10 +155,13 @@ internal sealed class UdkMembers
     /// <param name="objects">The object array.</param>
     /// <param name="offsets">The offset of each member, by member.</param>
     /// <param name="unmeasured">The reason for each member that was not found, by member.</param>
+    /// <returns>
+    ///     The objects of the object array by base name, the class called Class and the reader with the offsets found.
+    /// </returns>
     /// <exception cref="InvalidOperationException">
     ///     The name, class or outer offset was not found or a class of the super chain does not exist.
     /// </exception>
-    public static void Measure(
+    public static UdkMeasuredObjects Measure(
         IMemoryReader memory,
         UdkNameArray names,
         UdkObjectArray objects,
@@ -162,6 +176,8 @@ internal sealed class UdkMembers
         var classClass = members.FindClassOffset();
 
         members.FindOuterAndStructMembers(classClass);
+
+        return new UdkMeasuredObjects(members._objectsByName, classClass, members._objects);
     }
 
     private static IEnumerable<int> OffsetsBy(int step)

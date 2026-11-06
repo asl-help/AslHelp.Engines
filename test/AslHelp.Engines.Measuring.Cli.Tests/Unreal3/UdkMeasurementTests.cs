@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 
@@ -182,13 +183,13 @@ public sealed class UdkMeasurementTests(
         Assert.That(Measure, Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.NameOffsetNotFound));
     }
 
-    // Without Children the members found through the properties go to unmeasured, the row still succeeds and the other members stay.
+    // Without Children the members found through the properties go to unmeasured and the other members stay.
     [Test]
-    public void Measure_ChildrenUnlinked_ReportsChildrenNextAndDependentsUnmeasured()
+    public void MeasureMembers_ChildrenUnlinked_ReportsChildrenNextAndDependentsUnmeasured()
     {
         _image.ClearChildren();
 
-        var measurement = Measure();
+        var (offsets, unmeasured) = MeasureMembers();
 
         string[] expected =
         [
@@ -202,12 +203,101 @@ public sealed class UdkMeasurementTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(measurement.Unmeasured.Keys, Is.EquivalentTo(expected));
-            Assert.That(measurement.Unmeasured[UdkMembers.Children], Is.EqualTo(UdkSR.UnmeasuredChildren));
-            Assert.That(measurement.Unmeasured[UdkMembers.Offset], Is.EqualTo(UdkSR.FormatUnmeasuredNeeds(UdkMembers.Children)));
-            Assert.That(measurement.Offsets[UdkMembers.SuperField], Is.EqualTo(layout.Super));
-            Assert.That(measurement.Offsets[UdkMembers.EnumNames], Is.EqualTo(layout.FieldSize));
+            Assert.That(unmeasured.Keys, Is.EquivalentTo(expected));
+            Assert.That(unmeasured[UdkMembers.Children], Is.EqualTo(UdkSR.UnmeasuredChildren));
+            Assert.That(unmeasured[UdkMembers.Offset], Is.EqualTo(UdkSR.FormatUnmeasuredNeeds(UdkMembers.Children)));
+            Assert.That(offsets[UdkMembers.SuperField], Is.EqualTo(layout.Super));
+            Assert.That(offsets[UdkMembers.EnumNames], Is.EqualTo(layout.FieldSize));
         }
+    }
+
+    // 1337 goes to the log with the address it came from, so a run shows which object passed.
+    [Test]
+    public void Measure_FixtureValueRight_LogsIt()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+
+        _ = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, new WriterLogger(output, error));
+
+        Assert.That(output.ToString(), Does.Contain($"IntValue 1337 of FixtureData at {_image.FixtureInstance}"));
+    }
+
+    // A wrong value fails the row with both numbers, because a passing array and member search can still have the wrong offset.
+    [Test]
+    public void Measure_FixtureValueWrong_ThrowsWithBothValues()
+    {
+        _image.Memory.WriteInt32(_image.FixtureInstance + FakeImage.FixtureValueAt, 42);
+
+        Assert.That(
+            Measure,
+            Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.FormatFixtureValueWrong(UdkFixtureCheck.ExpectedValue, 42)));
+    }
+
+    // A class with no object at all fails on the instance and not on the field or the value.
+    [Test]
+    public void Measure_NoFixtureInstance_ThrowsInstanceNotFound()
+    {
+        _image.ClearFixtureInstance();
+        _image.ClearFixtureDefault();
+
+        Assert.That(Measure, Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.FixtureInstanceNotFound));
+    }
+
+    // The class default object has the class too, but its value is the default and not what the game set.
+    [Test]
+    public void Measure_OnlyDefaultFixtureObject_ThrowsInstanceNotFound()
+    {
+        _image.ClearFixtureInstance();
+
+        Assert.That(Measure, Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.FixtureInstanceNotFound));
+    }
+
+    // A class without the field fails on the field while the instance is still there.
+    [Test]
+    public void Measure_FixtureClassWithoutField_ThrowsFieldNotFound()
+    {
+        _image.ClearFixtureChildren();
+
+        Assert.That(Measure, Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.FixtureFieldNotFound));
+    }
+
+    // A value behind the end of the readable memory fails with the address and does not count as a wrong value.
+    [Test]
+    public void Measure_FixtureValueUnreadable_ThrowsWithTheAddress()
+    {
+        var address = _image.MoveFixtureValueOutOfTheObject();
+
+        Assert.That(Measure, Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.FormatFixtureValueUnreadable(address)));
+    }
+
+    // Children goes to unmeasured, so the row fails because the value cannot be read without it.
+    [Test]
+    public void Measure_ChildrenUnlinked_ThrowsFixtureCheckNeedsChildren()
+    {
+        _image.ClearChildren();
+
+        Assert.That(Measure, Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.FormatFixtureCheckNeeds(UdkMembers.Children)));
+    }
+
+    // Only Offset goes to unmeasured here, so the failure is about Offset and not about Children.
+    [Test]
+    public void Measure_WrongPropertyOffset_ThrowsFixtureCheckNeedsOffset()
+    {
+        _image.Memory.WriteInt32(_image.PropertyCalled("Outer") + layout.Offset, 0);
+
+        Assert.That(Measure, Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.FormatFixtureCheckNeeds(UdkMembers.Offset)));
+    }
+
+    // A player built without the fixture package fails on the class and not on a missing instance.
+    [Test]
+    public void Measure_FixtureClassMissing_ThrowsClassNotFound()
+    {
+        _image.Memory.WritePointer(_image.ClassCalled(UdkFixtureCheck.ClassName) + layout.Class, Address.Zero);
+
+        Assert.That(
+            Measure,
+            Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.FormatClassNotFound(UdkFixtureCheck.ClassName)));
     }
 
     // The slots derive from their class through the super chain, so without SuperField both go to unmeasured with that reason.
@@ -427,19 +517,16 @@ public sealed class UdkMeasurementTests(
         Assert.That(Measure, Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.ObjectArrayNotFound));
     }
 
-    // 16 objects are enough and the slots at objects past them go to unmeasured.
+    // 16 objects are enough to trust a match of the index.
     [Test]
-    public void Measure_SixteenObjectsInTheSample_FindsTheArray()
+    public void FindObjects_SixteenObjectsInTheSample_FindsTheArray()
     {
         _image.KeepObjectPositions(17);
 
-        var measurement = Measure();
+        var names = UdkArrays.FindNames(_image.Memory, FakeImage.Base, _image.Sections, FirstNames);
+        var objects = UdkArrays.FindObjects(_image.Memory, FakeImage.Base, _image.Sections, names.Rvas);
 
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(measurement.Globals[Objects], Is.EqualTo(Rvas(FakeImage.ObjectArrayRva)));
-            Assert.That(measurement.Unmeasured[Engine], Is.EqualTo(UdkSR.FormatUnmeasuredSlot("Engine")));
-        }
+        Assert.That(objects.Rvas, Is.EqualTo(Rvas(FakeImage.ObjectArrayRva)));
     }
 
     // 1 sampled object with another index rejects the array, because the index has to fit every sampled object.
@@ -492,7 +579,7 @@ public sealed class UdkMeasurementTests(
         Assert.That(Measure().Globals[Objects], Is.EqualTo(Rvas(FakeImage.ExtraHeaderRva, FakeImage.ObjectArrayRva)));
     }
 
-    // 1 object in 22 without a name stays above the 95% limit.
+    // 1 object in 27 without a name stays above the 95% limit.
     [Test]
     public void Measure_OneObjectWithoutName_FindsNameOffset()
     {
@@ -501,7 +588,7 @@ public sealed class UdkMeasurementTests(
         Assert.That(Measure().Offsets[UdkMembers.ObjectName], Is.EqualTo(layout.Name));
     }
 
-    // 2 objects in 22 without a name fall under the 95% limit, so the real offset stops being a candidate.
+    // 2 objects in 27 without a name fall under the 95% limit, so the real offset stops being a candidate.
     [Test]
     public void Measure_TwoObjectsWithoutName_DoesNotUseTheNameOffset()
     {
@@ -571,30 +658,30 @@ public sealed class UdkMeasurementTests(
 
     // 4 fields are 1 too few, even with Outer, Name and Class among them.
     [Test]
-    public void Measure_FourChildren_ReportsChildrenUnmeasured()
+    public void MeasureMembers_FourChildren_ReportsChildrenUnmeasured()
     {
         _image.Memory.WritePointer(_image.PropertyCalled("Class") + layout.Next, Address.Zero);
 
-        Assert.That(Measure().Unmeasured[UdkMembers.Children], Is.EqualTo(UdkSR.UnmeasuredChildren));
+        Assert.That(MeasureMembers().Unmeasured[UdkMembers.Children], Is.EqualTo(UdkSR.UnmeasuredChildren));
     }
 
     // 5 fields without the property Class are not the fields of the class Object.
     [Test]
-    public void Measure_ChildrenWithoutClass_ReportsChildrenUnmeasured()
+    public void MeasureMembers_ChildrenWithoutClass_ReportsChildrenUnmeasured()
     {
         int linker = _image.Memory.Read<int>(_image.PropertyCalled("Linker") + layout.Name).UnwrapOr(-1);
         _image.Memory.WriteInt32(_image.PropertyCalled("Class") + layout.Name, linker);
 
-        Assert.That(Measure().Unmeasured[UdkMembers.Children], Is.EqualTo(UdkSR.UnmeasuredChildren));
+        Assert.That(MeasureMembers().Unmeasured[UdkMembers.Children], Is.EqualTo(UdkSR.UnmeasuredChildren));
     }
 
     // A field whose outer object is another struct ends the chain, which then has too few fields.
     [Test]
-    public void Measure_ChildWithAnotherOuter_ReportsChildrenUnmeasured()
+    public void MeasureMembers_ChildWithAnotherOuter_ReportsChildrenUnmeasured()
     {
         _image.Memory.WritePointer(_image.PropertyCalled("IsA") + layout.Outer, _image.Core);
 
-        Assert.That(Measure().Unmeasured[UdkMembers.Children], Is.EqualTo(UdkSR.UnmeasuredChildren));
+        Assert.That(MeasureMembers().Unmeasured[UdkMembers.Children], Is.EqualTo(UdkSR.UnmeasuredChildren));
     }
 
     // A chain that loops back to its start ends at the limit of the reader and every offset still comes back.
@@ -636,16 +723,16 @@ public sealed class UdkMeasurementTests(
     [TestCase("Outer")]
     [TestCase("Name")]
     [TestCase("Class")]
-    public void Measure_WrongPropertyOffset_ReportsItUnmeasured(string property)
+    public void MeasureMembers_WrongPropertyOffset_ReportsItUnmeasured(string property)
     {
         _image.Memory.WriteInt32(_image.PropertyCalled(property) + layout.Offset, 0);
 
-        var measurement = Measure();
+        var (offsets, unmeasured) = MeasureMembers();
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(measurement.Unmeasured[UdkMembers.Offset], Is.EqualTo(UdkSR.UnmeasuredOffset));
-            Assert.That(measurement.Offsets[UdkMembers.ElementSize], Is.EqualTo(layout.ElementSize));
+            Assert.That(unmeasured[UdkMembers.Offset], Is.EqualTo(UdkSR.UnmeasuredOffset));
+            Assert.That(offsets[UdkMembers.ElementSize], Is.EqualTo(layout.ElementSize));
         }
     }
 
@@ -763,6 +850,19 @@ public sealed class UdkMeasurementTests(
     private PlayerMeasurement Measure()
     {
         return UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, NullLogger.Instance);
+    }
+
+    private (Dictionary<string, int> Offsets, Dictionary<string, string> Unmeasured) MeasureMembers()
+    {
+        var names = UdkArrays.FindNames(_image.Memory, FakeImage.Base, _image.Sections, FirstNames);
+        var objects = UdkArrays.FindObjects(_image.Memory, FakeImage.Base, _image.Sections, names.Rvas);
+
+        Dictionary<string, int> offsets = [];
+        Dictionary<string, string> unmeasured = [];
+
+        _ = UdkMembers.Measure(_image.Memory, names, objects, offsets, unmeasured);
+
+        return (offsets, unmeasured);
     }
 
     private static Dictionary<string, UdkTarget> WithoutSlots()

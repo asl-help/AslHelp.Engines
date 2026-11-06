@@ -25,7 +25,8 @@ internal static class UdkMeasurement
     ///     The globals and the offsets found and the reason for each global or member that was not found.
     /// </returns>
     /// <exception cref="InvalidOperationException">
-    ///     An array, the name, class or outer offset or a class of the super chain was not found or 2 arrays with different data fit.
+    ///     An array, the name, class or outer offset or a class of the super chain was not found, 2 arrays with different data fit
+    ///     or the fixture value does not read as 1337 through the offsets found.
     /// </exception>
     public static PlayerMeasurement Measure(
         IMemoryReader memory,
@@ -49,9 +50,11 @@ internal static class UdkMeasurement
         Dictionary<string, int> offsets = [];
         Dictionary<string, string> unmeasured = [];
 
-        UdkMembers.Measure(memory, names, objects, offsets, unmeasured);
+        var measured = UdkMembers.Measure(memory, names, objects, offsets, unmeasured);
 
         logger.OffsetsFound(offsets.Count);
+
+        UdkFixtureCheck.Run(memory, measured, offsets, logger);
 
         Dictionary<string, IReadOnlyList<uint>> globals = [];
         HashSet<Address> known = [.. objects.Pointers];
@@ -80,7 +83,7 @@ internal static class UdkMeasurement
                 }
                 case UdkObjectSlotTarget slot:
                 {
-                    var rvas = FindSlots(memory, sections, names, known, offsets, slot);
+                    var rvas = FindSlots(memory, sections, measured.Reader, known, offsets, slot);
 
                     if (rvas.Count == 0)
                     {
@@ -116,7 +119,7 @@ internal static class UdkMeasurement
     /// </summary>
     /// <param name="memory">The memory of the process.</param>
     /// <param name="sections">The sections of the executable without code.</param>
-    /// <param name="names">The name array.</param>
+    /// <param name="reader">The reader with the offsets found.</param>
     /// <param name="known">The objects in the object array.</param>
     /// <param name="offsets">The offsets found.</param>
     /// <param name="slot">The global to find.</param>
@@ -126,17 +129,11 @@ internal static class UdkMeasurement
     private static List<uint> FindSlots(
         IMemoryReader memory,
         IReadOnlyList<UdkSection> sections,
-        UdkNameArray names,
+        ObjectReader reader,
         HashSet<Address> known,
         Dictionary<string, int> offsets,
         UdkObjectSlotTarget slot)
     {
-        ObjectLayout layout = new(
-            offsets[UdkMembers.ObjectInternalInteger],
-            offsets[UdkMembers.ObjectOuter],
-            offsets[UdkMembers.ObjectName],
-            offsets[UdkMembers.ObjectClass]);
-        ObjectReader reader = new(memory, names.Table, layout);
         StructReader structs = new(memory, reader, new StructLayout(offsets[UdkMembers.SuperField], -1, -1), new FieldLayout(-1));
         List<uint> rvas = [];
 

@@ -50,7 +50,7 @@ internal static partial class MeasureLog
         return _playerScope(logger, version);
     }
 
-    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "{Version} {Player}/{Players}")]
+    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "[{Version}] ({Player}/{Players})")]
     public static partial void Starting(this ILogger logger, string version, int player, int players);
 
     [LoggerMessage(

@@ -245,7 +245,7 @@ public sealed class CommandLineTests
 
         _ = await RunAsync(new FakeMeasurer());
 
-        Assert.That(_output.ToString(), Does.Contain("players: 2").And.Contain("1.0 1/2").And.Contain("2.0-BETA 2/2"));
+        Assert.That(_output.ToString(), Does.Contain("players: 2").And.Contain("[1.0] (1/2)").And.Contain("[2.0-BETA] (2/2)"));
     }
 
     // A measured row has its 3 maps, with the offsets grouped by type and the numbers in hex.
@@ -482,9 +482,9 @@ public sealed class CommandLineTests
         Assert.That(groups.GetArrayLength(), Is.EqualTo(2));
 
         string log = _output.ToString();
-        int lastPlayer = log.IndexOf("3.0 3/3", StringComparison.Ordinal);
+        int lastPlayer = log.IndexOf("[3.0] (3/3)", StringComparison.Ordinal);
         int shared = log.IndexOf("[1.0, 3.0]", StringComparison.Ordinal);
-        int sole = log.IndexOf("[2.0-BETA]", StringComparison.Ordinal);
+        int sole = log.LastIndexOf("[2.0-BETA]", StringComparison.Ordinal);
         int written = log.IndexOf("report: '", StringComparison.Ordinal);
 
         using (Assert.EnterMultipleScope())

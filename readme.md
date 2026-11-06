@@ -109,7 +109,7 @@ The command runs each player on the current machine in version order until its f
 
 ```
 2026-11-06 14:03:12 info: measure[8] players: 26 in 'E:\players'
-2026-11-06 14:03:12 info: measure[1] 2010-09 4/26
+2026-11-06 14:03:12 info: measure[1] [2010-09] (4/26)
 2026-11-06 14:03:31 info: measure[101]   => server ready (19.0 s)
 2026-11-06 14:03:44 info: measure[2]   => done (32.1 s): 4 globals, 15 offsets, 0 not found
 2026-11-06 14:21:07 info: measure[9] versions with the same offsets:

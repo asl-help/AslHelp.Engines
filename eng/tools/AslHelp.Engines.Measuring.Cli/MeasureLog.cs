@@ -23,31 +23,31 @@ internal static partial class MeasureLog
         return _playerScope(logger, version);
     }
 
-    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "{Version} {Player}/{Players} Starting player.")]
+    [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "{Version} {Player}/{Players}")]
     public static partial void Starting(this ILogger logger, string version, int player, int players);
 
     [LoggerMessage(
         EventId = 2,
         Level = LogLevel.Information,
-        Message = "Measured in {Seconds:F1} s: {Globals} globals, {Offsets} offsets, {Unmeasured} not found.")]
+        Message = "done: {Seconds:F1} s, {Globals} globals, {Offsets} offsets, {Unmeasured} not found")]
     public static partial void Measured(this ILogger logger, double seconds, int globals, int offsets, int unmeasured);
 
-    [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "{Value} not found: {Reason}")]
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "not found: {Value}: {Reason}")]
     public static partial void NotFound(this ILogger logger, string value, string reason);
 
-    [LoggerMessage(EventId = 4, Level = LogLevel.Error, Message = "{Version} failed: {Reason}")]
+    [LoggerMessage(EventId = 4, Level = LogLevel.Error, Message = "failed: {Version}: {Reason}")]
     public static partial void PlayerFailed(this ILogger logger, string version, string reason);
 
-    [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "'{Folder}' has no {Engine} players.")]
+    [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "no {Engine} players in '{Folder}'")]
     public static partial void NoPlayers(this ILogger logger, string folder, string engine);
 
     [LoggerMessage(EventId = 6, Level = LogLevel.Error, Message = "{Reason}")]
     public static partial void RunFailed(this ILogger logger, string reason);
 
-    [LoggerMessage(EventId = 7, Level = LogLevel.Information, Message = "Wrote '{Path}' with {Measured} of {Players} players measured.")]
+    [LoggerMessage(EventId = 7, Level = LogLevel.Information, Message = "report: '{Path}', {Measured}/{Players} measured")]
     public static partial void ReportWritten(this ILogger logger, string path, int measured, int players);
 
-    [LoggerMessage(EventId = 8, Level = LogLevel.Information, Message = "Found {Players} players in '{Folder}'.")]
+    [LoggerMessage(EventId = 8, Level = LogLevel.Information, Message = "players: {Players} in '{Folder}'")]
     public static partial void PlayersFound(this ILogger logger, int players, string folder);
 
     [LoggerMessage(EventId = 9, Level = LogLevel.Information, Message = "offset group {Group}/{Groups}: {Versions}")]

@@ -17,7 +17,7 @@ public sealed class CommandLineTests
     private const string Second = "engine-2.0-BETA-fedcba9876543210";
     private const string Third = "engine-3.0-00112233445566ff";
 
-    // Found, then Starting and Measured for each of 3 players, then 1 line for each of the 2 groups and the report line.
+    // Players, then the start and done lines for each of 3 players, then 1 line for each of the 2 groups and the report line.
     private static readonly (int EventId, int Scopes)[] _linesOfTwoGroups =
     [
         (8, 0),
@@ -228,7 +228,7 @@ public sealed class CommandLineTests
 
         _ = await RunAsync(new FakeMeasurer());
 
-        Assert.That(_output.ToString(), Does.Contain("Found 2 players").And.Contain("1.0 1/2 Starting").And.Contain("2.0-BETA 2/2 Starting"));
+        Assert.That(_output.ToString(), Does.Contain("players: 2").And.Contain("1.0 1/2").And.Contain("2.0-BETA 2/2"));
     }
 
     // A measured row has its 3 maps, with the offsets grouped by type and the numbers in hex.
@@ -461,10 +461,10 @@ public sealed class CommandLineTests
         Assert.That(groups.GetArrayLength(), Is.EqualTo(2));
 
         string log = _output.ToString();
-        int lastPlayer = log.IndexOf("3.0 3/3 Starting", StringComparison.Ordinal);
+        int lastPlayer = log.IndexOf("3.0 3/3", StringComparison.Ordinal);
         int shared = log.IndexOf("offset group 1/2: 1.0, 3.0", StringComparison.Ordinal);
         int sole = log.IndexOf("offset group 2/2: 2.0-BETA", StringComparison.Ordinal);
-        int written = log.IndexOf("Wrote '", StringComparison.Ordinal);
+        int written = log.IndexOf("report: '", StringComparison.Ordinal);
 
         using (Assert.EnterMultipleScope())
         {
@@ -650,7 +650,7 @@ public sealed class CommandLineTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(code, Is.EqualTo(1));
-            Assert.That(_output.ToString(), Does.Contain(": 1.0").And.Not.Contain("Wrote '"));
+            Assert.That(_output.ToString(), Does.Contain(": 1.0").And.Not.Contain("report: '"));
         }
     }
 

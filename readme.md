@@ -108,10 +108,10 @@ just measure <engine> <players> --output <file> [--targets <file>]
 The command runs each player on the current machine in version order until its fixture game is ready, reads the player's memory and writes 1 row per player into the report. It logs each step to the console with the time and the level, with the steps of a player indented under its start line. Errors go to stderr.
 
 ```
-2026-11-06 14:03:12 info: measure[8] Found 26 players in 'E:\players'.
-2026-11-06 14:03:12 info: measure[1] 2010-09 4/26 Starting player.
-2026-11-06 14:03:31 info: measure[101]   => Server ready after 19.0 s.
-2026-11-06 14:03:44 info: measure[2]   => Measured in 32.1 s: 4 globals, 15 offsets, 0 not found.
+2026-11-06 14:03:12 info: measure[8] players: 26 in 'E:\players'
+2026-11-06 14:03:12 info: measure[1] 2010-09 4/26
+2026-11-06 14:03:31 info: measure[101]   => server ready: 19.0 s
+2026-11-06 14:03:44 info: measure[2]   => done: 32.1 s, 4 globals, 15 offsets, 0 not found
 2026-11-06 14:21:07 info: measure[9] offset group 1/2: 2010-08-BETA, 2010-09, 2010-10-BETA
 2026-11-06 14:21:07 info: measure[9] offset group 2/2: 2015-02
 ```

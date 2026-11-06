@@ -220,7 +220,7 @@ public sealed class UdkMeasurementTests(
 
         _ = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, new WriterLogger(output, error));
 
-        Assert.That(output.ToString(), Does.Contain($"IntValue 1337 of FixtureData at {_image.FixtureInstance}"));
+        Assert.That(output.ToString(), Does.Contain($"FixtureData.IntValue: 1337 at {_image.FixtureInstance}"));
     }
 
     // A wrong value fails the row with both numbers, because a passing array and member search can still have the wrong offset.

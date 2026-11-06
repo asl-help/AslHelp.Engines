@@ -183,9 +183,6 @@
   <data name="ToolchainDescription" xml:space="preserve">
     <value>The toolchain to build the player with.</value>
   </data>
-  <data name="ToolchainNotListed" xml:space="preserve">
-    <value>The parser accepted the toolchain '{0}', which is not in the list.</value>
-  </data>
   <data name="TransferNoConnection" xml:space="preserve">
     <value>{0} '{1}' could not connect to the server. {2}</value>
   </data>

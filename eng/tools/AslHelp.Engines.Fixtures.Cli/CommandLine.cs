@@ -3,8 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.CommandLine;
 using System.CommandLine.Help;
-using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -63,55 +63,12 @@ internal static class CommandLine
         Func<TextWriter, ICacheStore?> openStore,
         string projectsDirectory)
     {
-        RootCommand root = [with(SR.RootDescription)];
-
-        // Print the help and fail, so a script that passes no command stops.
-        root.SetAction(parseResult =>
+        Argument<IToolchain> toolchainArgument = new("toolchain")
         {
-            _ = new HelpAction().Invoke(parseResult);
-            return 1;
-        });
-
-        root.Subcommands.Add(NewBuildCommand(output, error, toolchains, openStore, projectsDirectory));
-
-        InvocationConfiguration configuration = new()
-        {
-            Output = output,
-            Error = error,
+            Description = SR.ToolchainDescription,
+            CustomParser = result => toolchains.First(toolchain => toolchain.Name.Equals(result.Tokens[0].Value, StringComparison.Ordinal)),
         };
-
-        return root.Parse(args).InvokeAsync(configuration);
-    }
-
-    /// <summary>
-    ///     Creates the <c>build</c> command, which installs a toolchain, builds its player, checks the player and caches it.
-    /// </summary>
-    /// <param name="output">The writer for the steps and the player folder.</param>
-    /// <param name="error">The writer for a failed step.</param>
-    /// <param name="toolchains">The toolchains the command can pick by name.</param>
-    /// <param name="openStore">
-    ///     The function that opens the cache store with the writer for the steps or returns <see langword="null"/> for none.
-    /// </param>
-    /// <param name="projectsDirectory">The folder with 1 player project folder per toolchain name.</param>
-    /// <returns>
-    ///     The command.
-    /// </returns>
-    private static Command NewBuildCommand(
-        TextWriter output,
-        TextWriter error,
-        IReadOnlyList<IToolchain> toolchains,
-        Func<TextWriter, ICacheStore?> openStore,
-        string projectsDirectory)
-    {
-        string[] names = new string[toolchains.Count];
-
-        for (int i = 0; i < names.Length; i++)
-        {
-            names[i] = toolchains[i].Name;
-        }
-
-        Argument<string> toolchainArgument = new("toolchain") { Description = SR.ToolchainDescription };
-        toolchainArgument.AcceptOnlyFromAmong(names);
+        toolchainArgument.AcceptOnlyFromAmong([.. toolchains.Select(static toolchain => toolchain.Name)]);
 
         Argument<string> versionArgument = new("version") { Description = SR.VersionDescription };
         Option<string> outputOption = new("--output") { Description = SR.OutputDescription, Required = true };
@@ -123,44 +80,26 @@ internal static class CommandLine
             outputOption,
         };
 
-        build.SetAction((parseResult, cancellationToken) =>
-        {
-            string name = parseResult.GetRequiredValue(toolchainArgument);
-            var toolchain = FindToolchain(toolchains, name);
+        build.SetAction((parseResult, cancellationToken) => BuildAsync(
+            parseResult.GetRequiredValue(toolchainArgument),
+            parseResult.GetRequiredValue(versionArgument),
+            parseResult.GetRequiredValue(outputOption),
+            openStore,
+            projectsDirectory,
+            output,
+            error,
+            cancellationToken));
 
-            return BuildAsync(
-                toolchain,
-                parseResult.GetRequiredValue(versionArgument),
-                parseResult.GetRequiredValue(outputOption),
-                openStore,
-                projectsDirectory,
-                output,
-                error,
-                cancellationToken);
+        RootCommand root = [with(SR.RootDescription), build];
+
+        // Print the help and fail, so a script that passes no command stops.
+        root.SetAction(parseResult =>
+        {
+            _ = new HelpAction().Invoke(parseResult);
+            return 1;
         });
 
-        return build;
-    }
-
-    /// <summary>
-    ///     Gets the toolchain called <paramref name="name"/>, compared ordinally.
-    /// </summary>
-    /// <param name="toolchains">The toolchains.</param>
-    /// <param name="name">The toolchain name from the command line, already checked by the parser.</param>
-    /// <returns>
-    ///     The toolchain.
-    /// </returns>
-    private static IToolchain FindToolchain(IReadOnlyList<IToolchain> toolchains, string name)
-    {
-        for (int i = 0; i < toolchains.Count; i++)
-        {
-            if (toolchains[i].Name.Equals(name, StringComparison.Ordinal))
-            {
-                return toolchains[i];
-            }
-        }
-
-        throw new UnreachableException(SR.FormatToolchainNotListed(name));
+        return root.Parse(args).InvokeAsync(new() { Output = output, Error = error });
     }
 
     /// <summary>

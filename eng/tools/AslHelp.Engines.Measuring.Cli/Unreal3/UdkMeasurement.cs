@@ -3,7 +3,6 @@ using AslHelp.Memory;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 
 namespace AslHelp.Engines.Measuring.Cli.Unreal3;
@@ -98,10 +97,6 @@ internal static class UdkMeasurement
                     }
 
                     break;
-                }
-                default:
-                {
-                    throw new UnreachableException();
                 }
             }
         }

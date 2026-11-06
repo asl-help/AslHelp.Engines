@@ -9,7 +9,7 @@ namespace AslHelp.Engines.Measuring.Cli.Unreal3;
 [JsonDerivedType(typeof(UdkNameArrayTarget), "nameArray")]
 [JsonDerivedType(typeof(UdkObjectArrayTarget), "objectArray")]
 [JsonDerivedType(typeof(UdkObjectSlotTarget), "objectSlot")]
-internal abstract record UdkTarget;
+internal closed record UdkTarget;
 
 /// <summary>
 ///     Describes the name array, found by the names it starts with.

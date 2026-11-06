@@ -826,17 +826,6 @@ public sealed class UdkMeasurementTests(
         Assert.That(measurement.Unmeasured[Engine], Is.EqualTo(UdkSR.FormatUnmeasuredSlot("Missing")));
     }
 
-    // A kind with no search fails the row, so no global goes missing from the report with no reason.
-    [Test]
-    public void Measure_KindWithoutASearch_Throws()
-    {
-        Dictionary<string, UdkTarget> targets = new(_targets) { ["Other"] = new OtherTarget() };
-
-        Assert.That(
-            () => UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, NullLogger.Instance),
-            Throws.TypeOf<UnreachableException>());
-    }
-
     private static PlayerMeasurement Measure(FakeImage image)
     {
         return UdkMeasurement.Measure(image.Memory, FakeImage.Base, image.Sections, _targets, NullLogger.Instance);
@@ -871,6 +860,4 @@ public sealed class UdkMeasurementTests(
             .Where(static target => target.Value is not UdkObjectSlotTarget)
             .ToDictionary();
     }
-
-    private sealed record OtherTarget : UdkTarget;
 }

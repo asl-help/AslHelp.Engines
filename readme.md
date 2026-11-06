@@ -112,6 +112,8 @@ The command runs each player on the current machine in version order until its f
 2026-11-06 14:03:12 info: measure[1] 2010-09 4/26 Starting player.
 2026-11-06 14:03:31 info: measure[101]   => Server ready after 19.0 s.
 2026-11-06 14:03:44 info: measure[2]   => Measured in 32.1 s: 4 globals, 15 offsets, 0 not found.
+2026-11-06 14:21:07 info: measure[9] offset group 1/2: 2010-08-BETA, 2010-09, 2010-10-BETA
+2026-11-06 14:21:07 info: measure[9] offset group 2/2: 2015-02
 ```
 
 A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. It deletes the log of each player afterward. A canceled run writes no report. A bad targets file fails before the 1st player starts.
@@ -142,6 +144,28 @@ A failed row has `error` and none of the maps. Numbers are hex strings:
   },
   "unmeasured": {}
 }
+```
+
+The report has a `groups` list after `players`. A group has its `versions` and their `offsets` in the same form as a row. 2 versions share a group when they have the same types, members and values, even with another version between them. The comparison ignores the globals. A member in `unmeasured` is missing from `offsets`, so its row stays apart from rows that have that member.
+
+A failed row and a row with empty `offsets` do not join a group. Every other row is in exactly 1 group, so a version with its own offsets forms a group of 1. The groups are in order of their 1st version and the versions of a group are in the order of the run. The command logs 1 line per group after the last player.
+
+```json
+"groups": [
+  {
+    "versions": [
+      "2010-08-BETA",
+      "2010-09",
+      "2011-03-BETA2"
+    ],
+    "offsets": {
+      "UObject": {
+        "Outer": "0x28",
+        "Name": "0x2C"
+      }
+    }
+  }
+]
 ```
 
 ### Unreal Engine 3 targets

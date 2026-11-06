@@ -79,7 +79,8 @@ internal static class CommandLine
     }
 
     /// <summary>
-    ///     Measures every player of the engine in <paramref name="playersDirectory"/> and writes the report.
+    ///     Measures every player of the engine in <paramref name="playersDirectory"/>,
+    ///     logs the groups of versions with equal offsets and writes the report.
     /// </summary>
     /// <param name="measurer">The measurer of the engine.</param>
     /// <param name="playersDirectory">The folder with the players.</param>
@@ -152,7 +153,15 @@ internal static class CommandLine
                 }
             }
 
-            MeasureReport report = new(measurer.Name, rows);
+            var groups = VersionGroups.Find(rows);
+
+            for (int group = 0; group < groups.Count; group++)
+            {
+                string versions = string.Join(", ", groups[group].Versions);
+                logger.OffsetGroup(group + 1, groups.Count, versions);
+            }
+
+            MeasureReport report = new(measurer.Name, rows, groups);
             string json = JsonSerializer.Serialize(report, MeasureReportContext.Default.MeasureReport);
             await File.WriteAllTextAsync(reportPath, json, cancellationToken).ConfigureAwait(false);
 

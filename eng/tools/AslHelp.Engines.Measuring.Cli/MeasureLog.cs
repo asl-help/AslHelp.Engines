@@ -49,4 +49,7 @@ internal static partial class MeasureLog
 
     [LoggerMessage(EventId = 8, Level = LogLevel.Information, Message = "Found {Players} players in '{Folder}'.")]
     public static partial void PlayersFound(this ILogger logger, int players, string folder);
+
+    [LoggerMessage(EventId = 9, Level = LogLevel.Information, Message = "offset group {Group}/{Groups}: {Versions}")]
+    public static partial void OffsetGroup(this ILogger logger, int group, int groups, string versions);
 }

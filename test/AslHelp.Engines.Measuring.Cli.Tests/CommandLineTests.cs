@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,7 +15,27 @@ public sealed class CommandLineTests
 {
     private const string First = "engine-1.0-0123456789abcdef";
     private const string Second = "engine-2.0-BETA-fedcba9876543210";
+    private const string Third = "engine-3.0-00112233445566ff";
 
+    // Found, then Starting and Measured for each of 3 players, then 1 line for each of the 2 groups and the report line.
+    private static readonly (int EventId, int Scopes)[] _linesOfTwoGroups =
+    [
+        (8, 0),
+        (1, 0),
+        (2, 1),
+        (1, 0),
+        (2, 1),
+        (1, 0),
+        (2, 1),
+        (9, 0),
+        (9, 0),
+        (7, 0),
+    ];
+
+    private static readonly string[] _oddVersions = ["{0}", "バー 1"];
+    private static readonly string[] _reportKeys = ["engine", "players", "groups"];
+    private static readonly string[] _sharedVersions = ["1.0", "3.0"];
+    private static readonly string[] _soleVersion = ["2.0-BETA"];
     private static readonly string[] _sortedMembers = ["Early", "Late"];
     private static readonly string[] _sortedTypes = ["A", "B"];
 
@@ -421,9 +442,248 @@ public sealed class CommandLineTests
         }
     }
 
+    // The groups follow the players in the JSON and their log lines come between the last player and the report line.
+    [Test]
+    public async Task RunAsync_SharedOffsets_WritesGroupsAndLogsThem()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Third));
+
+        int code = await RunAsync(new ScriptedMeasurer(static directory => new PlayerMeasurement(
+            new Dictionary<string, IReadOnlyList<uint>>(),
+            new Dictionary<string, int> { ["Type.Member"] = directory.EndsWith(Second, StringComparison.Ordinal) ? 0x2C : 0x28 },
+            new Dictionary<string, string>())));
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var groups = report.RootElement.GetProperty("groups");
+
+        Assert.That(groups.GetArrayLength(), Is.EqualTo(2));
+
+        string log = _output.ToString();
+        int lastPlayer = log.IndexOf("3.0 3/3 Starting", StringComparison.Ordinal);
+        int shared = log.IndexOf("offset group 1/2: 1.0, 3.0", StringComparison.Ordinal);
+        int sole = log.IndexOf("offset group 2/2: 2.0-BETA", StringComparison.Ordinal);
+        int written = log.IndexOf("Wrote '", StringComparison.Ordinal);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(report.RootElement.EnumerateObject().Select(static property => property.Name), Is.EqualTo(_reportKeys));
+            Assert.That(groups[0].GetProperty("versions").EnumerateArray().Select(static entry => entry.GetString()), Is.EqualTo(_sharedVersions));
+            Assert.That(groups[0].GetProperty("offsets").GetProperty("Type").GetProperty("Member").GetString(), Is.EqualTo("0x28"));
+            Assert.That(groups[1].GetProperty("versions").EnumerateArray().Select(static entry => entry.GetString()), Is.EqualTo(_soleVersion));
+            Assert.That(groups[1].GetProperty("offsets").GetProperty("Type").GetProperty("Member").GetString(), Is.EqualTo("0x2C"));
+            Assert.That(lastPlayer, Is.Not.Negative);
+            Assert.That(shared, Is.GreaterThan(lastPlayer));
+            Assert.That(sole, Is.GreaterThan(shared));
+            Assert.That(written, Is.GreaterThan(sole));
+        }
+    }
+
+    // A run where every player failed writes an empty list and does not log a group.
+    [Test]
+    public async Task RunAsync_EveryPlayerFails_WritesEmptyGroupsAndLogsNoGroup()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+
+        int code = await RunAsync(new FakeMeasurer(First, Second));
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(report.RootElement.GetProperty("groups").GetArrayLength(), Is.Zero);
+            Assert.That(_output.ToString(), Does.Not.Contain("offset group"));
+        }
+    }
+
+    // A run where every map is empty exits with 0 and writes an empty list, because VersionGroups.Find skips empty maps.
+    [Test]
+    public async Task RunAsync_EveryOffsetMapEmpty_WritesEmptyGroupsAndExitsWith0()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+
+        int code = await RunAsync(new ScriptedMeasurer(static _ => new PlayerMeasurement(
+            new Dictionary<string, IReadOnlyList<uint>>(),
+            new Dictionary<string, int>(),
+            new Dictionary<string, string>())));
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(report.RootElement.GetProperty("groups").GetArrayLength(), Is.Zero);
+            Assert.That(_output.ToString(), Does.Not.Contain("offset group"));
+        }
+    }
+
+    // A failed player between 2 equal players is in the rows and not in the group, so the log line counts 2 versions.
+    [Test]
+    public async Task RunAsync_FailedPlayerBetweenEqualPlayers_CountsOnlyTheMeasured()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Third));
+
+        int code = await RunAsync(new FakeMeasurer(Second));
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var groups = report.RootElement.GetProperty("groups");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(report.RootElement.GetProperty("players").GetArrayLength(), Is.EqualTo(3));
+            Assert.That(groups.GetArrayLength(), Is.EqualTo(1));
+            Assert.That(groups[0].GetProperty("versions").EnumerateArray().Select(static entry => entry.GetString()), Is.EqualTo(_sharedVersions));
+            Assert.That(_output.ToString(), Does.Contain(": 1.0, 3.0"));
+        }
+    }
+
+    // Each group gets 1 line after the last player and before the report line, with no player scope open, so the console does not indent it.
+    [Test]
+    public async Task RunAsync_Groups_LogsOneLinePerGroupOutsideAnyScope()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Third));
+        ScopeLogger logger = new();
+
+        int code = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report],
+            _output,
+            _error,
+            [
+                new ScriptedMeasurer(static directory => new PlayerMeasurement(
+                    new Dictionary<string, IReadOnlyList<uint>>(),
+                    new Dictionary<string, int> { ["Type.Member"] = directory.EndsWith(Second, StringComparison.Ordinal) ? 0x2C : 0x28 },
+                    new Dictionary<string, string>())),
+            ],
+            logger);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(logger.Lines, Is.EqualTo(_linesOfTwoGroups));
+        }
+    }
+
+    // The offsets of a group have the form of the offsets of its 1st row, with the types and members in the same order and the same keys.
+    [Test]
+    public async Task RunAsync_Groups_WritesOffsetsInTheFormOfTheFirstRow()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+
+        _ = await RunAsync(new ScriptedMeasurer(static _ => new PlayerMeasurement(
+            new Dictionary<string, IReadOnlyList<uint>>(),
+            new Dictionary<string, int> { ["B.Late"] = 8, ["B.Early"] = 4, ["A.Only"] = 12, ["Ü\".c.d"] = int.MaxValue },
+            new Dictionary<string, string>())));
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var row = report.RootElement.GetProperty("players")[0].GetProperty("offsets");
+        var group = report.RootElement.GetProperty("groups")[0].GetProperty("offsets");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(group.GetRawText(), Is.EqualTo(row.GetRawText()));
+            Assert.That(group.GetProperty("Ü\"").GetProperty("c.d").GetString(), Is.EqualTo("0x7FFFFFFF"));
+        }
+    }
+
+    // A version with letters outside ASCII and a placeholder in its folder comes through the JSON and the log line unchanged.
+    [Test]
+    public async Task RunAsync_OddVersions_WritesAndLogsThemUnchanged()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, "engine-{0}-0123456789abcdef"));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, "engine-バー 1-fedcba9876543210"));
+
+        int code = await RunAsync(new FakeMeasurer());
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var versions = report.RootElement.GetProperty("groups")[0].GetProperty("versions");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(versions.EnumerateArray().Select(static entry => entry.GetString()), Is.EqualTo(_oddVersions));
+            Assert.That(_output.ToString(), Does.Contain(": {0}, バー 1"));
+        }
+    }
+
+    // A canceled run stops before the groups, so it logs none.
+    [Test]
+    public async Task RunAsync_CanceledAfterFirstPlayer_LogsNoGroup()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+
+        int code = await RunAsync(new ScriptedMeasurer(static directory => directory.EndsWith(Second, StringComparison.Ordinal)
+            ? throw new OperationCanceledException()
+            : new PlayerMeasurement(
+                new Dictionary<string, IReadOnlyList<uint>>(),
+                new Dictionary<string, int> { ["Type.Member"] = 0x28 },
+                new Dictionary<string, string>())));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Not.Zero);
+            Assert.That(_output.ToString(), Does.Not.Contain("offset group"));
+            Assert.That(File.Exists(_report), Is.False);
+        }
+    }
+
+    // A report that cannot be written still logs the groups first and never logs the report line.
+    [Test]
+    public async Task RunAsync_ReportPathIsAFolder_LogsTheGroupAndNoReportLine()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(_report);
+
+        int code = await RunAsync(new FakeMeasurer());
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(_output.ToString(), Does.Contain(": 1.0").And.Not.Contain("Wrote '"));
+        }
+    }
+
     private Task<int> RunAsync(IEngineMeasurer measurer)
     {
         return CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [measurer], new WriterLogger(_output, _error));
+    }
+
+    // Records the event ID of each line with the number of scopes open at that line.
+    private sealed class ScopeLogger : ILogger
+    {
+        private readonly LoggerExternalScopeProvider _scopes = new();
+
+        public List<(int EventId, int Scopes)> Lines { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull
+        {
+            return _scopes.Push(state);
+        }
+
+        public bool IsEnabled(LogLevel logLevel)
+        {
+            return true;
+        }
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            StrongBox<int> scopes = new();
+            _scopes.ForEachScope(static (_, count) => count.Value++, scopes);
+
+            Lines.Add((eventId.Id, scopes.Value));
+        }
     }
 
     private sealed class ScriptedMeasurer(

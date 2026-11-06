@@ -10,9 +10,11 @@ namespace AslHelp.Engines.Measuring.Cli;
 /// </summary>
 /// <param name="Engine">The name of the engine.</param>
 /// <param name="Players">The rows of the players in version order.</param>
+/// <param name="Groups">The groups of versions with equal offsets, in order of their 1st version.</param>
 internal sealed record MeasureReport(
     string Engine,
-    IReadOnlyList<PlayerRow> Players);
+    IReadOnlyList<PlayerRow> Players,
+    IReadOnlyList<VersionGroup> Groups);
 
 /// <summary>
 ///     Describes the values found in the memory of 1 player.
@@ -88,6 +90,15 @@ internal sealed record PlayerRow(
         return $"0x{value:X}";
     }
 }
+
+/// <summary>
+///     Describes the versions whose players have the same offsets.
+/// </summary>
+/// <param name="Versions">The versions in the order of the run.</param>
+/// <param name="Offsets">The offset of each member in hex, by type and member.</param>
+internal sealed record VersionGroup(
+    List<string> Versions,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Offsets);
 
 /// <summary>
 ///     Serializes <see cref="MeasureReport"/> with generated code, so the write needs no reflection.

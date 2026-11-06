@@ -22,6 +22,7 @@ internal sealed record UdkMeasuredObjects(
 /// </summary>
 /// <remarks>
 ///     Reads through <see cref="ObjectReader"/> and <see cref="StructReader"/> with the offsets found so far and -1 for the others.
+///     Each search reads only the offsets found, so no read uses -1.
 ///     Each search then adds its offset to the layout the next search uses.
 /// </remarks>
 internal sealed class UdkMembers
@@ -144,7 +145,7 @@ internal sealed class UdkMembers
         _objects = new ObjectReader(memory, _names, _layout);
 
         // Read every name once, because the readers do not cache and each class lookup would read all objects again.
-        _objectsByName = objects.Pointers.ToLookup(_objects.NameOf);
+        _objectsByName = objects.Pointers.ToLookup(NameOrNull);
     }
 
     /// <summary>
@@ -156,12 +157,10 @@ internal sealed class UdkMembers
     /// <param name="offsets">The offset of each member, by member.</param>
     /// <param name="unmeasured">The reason for each member that was not found, by member.</param>
     /// <returns>
-    ///     The objects of the object array by base name, the class called Class and the reader with the offsets found.
+    ///     The objects of the object array by base name, the class called Class and the reader with the offsets found
+    ///     or a failure when the name, class or outer offset was not found or a class of the super chain does not exist.
     /// </returns>
-    /// <exception cref="InvalidOperationException">
-    ///     The name, class or outer offset was not found or a class of the super chain does not exist.
-    /// </exception>
-    public static UdkMeasuredObjects Measure(
+    public static Result<UdkMeasuredObjects> Measure(
         IMemoryReader memory,
         UdkNameArray names,
         UdkObjectArray objects,
@@ -172,10 +171,22 @@ internal sealed class UdkMembers
         offsets[EntryName] = names.Layout.Name;
         offsets[ObjectInternalInteger] = objects.IndexOffset;
 
-        UdkMembers members = new(memory, names, objects, FindNameOffset(memory, names, objects), offsets, unmeasured);
-        var classClass = members.FindClassOffset();
+        if (!FindNameOffset(memory, names, objects).TryUnwrap(out int nameOffset, out var error))
+        {
+            return error;
+        }
 
-        members.FindOuterAndStructMembers(classClass);
+        UdkMembers members = new(memory, names, objects, nameOffset, offsets, unmeasured);
+
+        if (!members.FindClassOffset().TryUnwrap(out var classClass, out error))
+        {
+            return error;
+        }
+
+        if (members.FindOuterAndStructMembers(classClass).TryUnwrapErr(out error))
+        {
+            return error;
+        }
 
         return new UdkMeasuredObjects(members._objectsByName, classClass, members._objects);
     }
@@ -188,9 +199,14 @@ internal sealed class UdkMembers
         }
     }
 
-    private static int FindNameOffset(IMemoryReader memory, UdkNameArray names, UdkObjectArray objects)
+    private static List<Address> ReadableItems(IEnumerable<Result<Address>> items)
     {
-        var sample = objects.Array.Read(SampleLength).Where(static obj => obj != Address.Zero).ToList();
+        return [.. items.TakeWhile(static item => item.IsOk).Select(static item => item.Value)];
+    }
+
+    private static Result<int> FindNameOffset(IMemoryReader memory, UdkNameArray names, UdkObjectArray objects)
+    {
+        var sample = ReadableItems(objects.Array.Read(SampleLength)).FindAll(static obj => obj != Address.Zero);
         int best = UnknownOffset;
         int mostDistinct = 0;
 
@@ -207,7 +223,7 @@ internal sealed class UdkMembers
 
             foreach (var obj in sample)
             {
-                if (reader.NameOf(obj) is { } name)
+                if (reader.NameOf(obj).TryUnwrap(out string? name))
                 {
                     named++;
                     _ = distinct.Add(name);
@@ -221,17 +237,16 @@ internal sealed class UdkMembers
             }
         }
 
-        return best == UnknownOffset ? throw new InvalidOperationException(UdkSR.NameOffsetNotFound) : best;
+        return best == UnknownOffset ? UdkError.NameOffsetNotFound() : best;
     }
 
     /// <summary>
     ///     Finds the class offset at which the object called Class points at itself.
     /// </summary>
     /// <returns>
-    ///     The class called Class.
+    ///     The class called Class or a failure when the offset was not found.
     /// </returns>
-    /// <exception cref="InvalidOperationException">The offset was not found.</exception>
-    private Address FindClassOffset()
+    private Result<Address> FindClassOffset()
     {
         foreach (var obj in _objectsByName["Class"])
         {
@@ -239,7 +254,7 @@ internal sealed class UdkMembers
 
             foreach (int at in OffsetsBy(_pointerSize))
             {
-                if (at != _layout.Name && new ObjectReader(_memory, _names, _layout with { Class = at }).ClassOf(obj) == obj)
+                if (at != _layout.Name && new ObjectReader(_memory, _names, _layout with { Class = at }).ClassOf(obj).UnwrapOr(Address.Zero) == obj)
                 {
                     found = at;
                 }
@@ -253,26 +268,38 @@ internal sealed class UdkMembers
             }
         }
 
-        throw new InvalidOperationException(UdkSR.ClassOffsetNotFound);
+        return UdkError.ClassOffsetNotFound();
     }
 
     /// <summary>
     ///     Finds the outer offset and then every struct and property member.
     /// </summary>
     /// <param name="classClass">The class called Class.</param>
-    /// <exception cref="InvalidOperationException">The outer offset was not found or a class of the super chain does not exist.</exception>
-    private void FindOuterAndStructMembers(Address classClass)
+    /// <returns>
+    ///     A failure when the outer offset was not found or a class of the super chain does not exist.
+    /// </returns>
+    private Result FindOuterAndStructMembers(Address classClass)
     {
-        var fieldClass = RequireClass(classClass, "Field");
-        var objectClass = RequireClass(classClass, "Object");
+        if (!RequireClass(classClass, "Field").TryUnwrap(out var fieldClass, out var error)
+            || !RequireClass(classClass, "Object").TryUnwrap(out var objectClass, out error)
+            || !FindOuterOffset(classClass, objectClass).TryUnwrap(out int outer, out error))
+        {
+            return error;
+        }
 
-        UseLayout(_layout with { Outer = FindOuterOffset(classClass, objectClass) });
+        UseLayout(_layout with { Outer = outer });
 
         _offsets[ObjectClass] = _layout.Class;
         _offsets[ObjectName] = _layout.Name;
         _offsets[ObjectOuter] = _layout.Outer;
 
-        Address[] chain = [classClass, RequireClass(classClass, "State"), RequireClass(classClass, "Struct"), fieldClass, objectClass];
+        if (!RequireClass(classClass, "State").TryUnwrap(out var stateClass, out error)
+            || !RequireClass(classClass, "Struct").TryUnwrap(out var structClass, out error))
+        {
+            return error;
+        }
+
+        Address[] chain = [classClass, stateClass, structClass, fieldClass, objectClass];
 
         Record(SuperField, FindSuperOffset(chain), UdkSR.UnmeasuredSuperField);
 
@@ -282,9 +309,11 @@ internal sealed class UdkMembers
 
         FindPropertyMembers(properties);
         FindMembersAtClassSizes(classClass, fieldClass, objectClass, sizeAt, properties);
+
+        return Result.Ok();
     }
 
-    private int FindOuterOffset(Address classClass, Address objectClass)
+    private Result<int> FindOuterOffset(Address classClass, Address objectClass)
     {
         int found = UnknownOffset;
 
@@ -294,15 +323,15 @@ internal sealed class UdkMembers
             {
                 ObjectReader reader = new(_memory, _names, _layout with { Outer = at });
 
-                if (string.Equals(_objects.NameOf(reader.OuterOf(classClass)), "Core", StringComparison.Ordinal)
-                    && string.Equals(_objects.NameOf(reader.OuterOf(objectClass)), "Core", StringComparison.Ordinal))
+                if (string.Equals(NameOrNull(reader.OuterOf(classClass).UnwrapOr(Address.Zero)), "Core", StringComparison.Ordinal)
+                    && string.Equals(NameOrNull(reader.OuterOf(objectClass).UnwrapOr(Address.Zero)), "Core", StringComparison.Ordinal))
                 {
                     found = at;
                 }
             }
         }
 
-        return found == UnknownOffset ? throw new InvalidOperationException(UdkSR.OuterOffsetNotFound) : found;
+        return found == UnknownOffset ? UdkError.OuterOffsetNotFound() : found;
     }
 
     private int FindSuperOffset(Address[] chain)
@@ -312,8 +341,8 @@ internal sealed class UdkMembers
             {
                 var reader = Structs(new StructLayout(at, UnknownOffset, UnknownOffset), UnknownOffset);
 
-                return reader.SuperOf(chain[^1]) == Address.Zero
-                    && chain.Zip(chain.Skip(1)).All(pair => reader.SuperOf(pair.First) == pair.Second);
+                return reader.SuperOf(chain[^1]).UnwrapOr(Address.Zero) == Address.Zero
+                    && chain.Zip(chain.Skip(1)).All(pair => reader.SuperOf(pair.First).UnwrapOr(Address.Zero) == pair.Second);
             },
             UnknownOffset);
     }
@@ -352,15 +381,15 @@ internal sealed class UdkMembers
         {
             StructLayout layout = new(UnknownOffset, children, UnknownOffset);
 
-            if (!Structs(layout, UnknownOffset).ChildrenOf(objectClass).Any())
+            if (!Structs(layout, UnknownOffset).ChildrenOf(objectClass).Any(static field => field.IsOk))
             {
                 continue;
             }
 
             foreach (int next in OffsetsBy(_pointerSize))
             {
-                var fields = Structs(layout, next).ChildrenOf(objectClass).ToList();
-                var names = fields.ConvertAll(_objects.NameOf);
+                var fields = ReadableItems(Structs(layout, next).ChildrenOf(objectClass));
+                var names = fields.ConvertAll(NameOrNull);
 
                 if (fields.Count >= LeastChildren && names.Contains("Outer") && names.Contains("Name") && names.Contains("Class"))
                 {
@@ -424,7 +453,9 @@ internal sealed class UdkMembers
     {
         HashSet<Address> properties =
         [
-            .. fields.Where(field => _objects.NameOf(_objects.ClassOf(field))?.EndsWith("Property", StringComparison.Ordinal) == true),
+            .. fields.Where(
+                field => NameOrNull(_objects.ClassOf(field).UnwrapOr(Address.Zero)) is { } name
+                    && name.EndsWith("Property", StringComparison.Ordinal)),
         ];
 
         return OffsetsBy(_pointerSize).FirstOrDefault(
@@ -489,19 +520,24 @@ internal sealed class UdkMembers
 
     private Address FieldCalled(List<Address> fields, string name)
     {
-        return fields.Find(field => string.Equals(_objects.NameOf(field), name, StringComparison.Ordinal));
+        return fields.Find(field => string.Equals(NameOrNull(field), name, StringComparison.Ordinal));
     }
 
     private Address FindClass(Address classClass, string name)
     {
-        return _objectsByName[name].FirstOrDefault(obj => _objects.ClassOf(obj) == classClass);
+        return _objectsByName[name].FirstOrDefault(obj => _objects.ClassOf(obj).UnwrapOr(Address.Zero) == classClass);
     }
 
-    private Address RequireClass(Address classClass, string name)
+    private string? NameOrNull(Address obj)
+    {
+        return _objects.NameOf(obj).UnwrapOrDefault();
+    }
+
+    private Result<Address> RequireClass(Address classClass, string name)
     {
         var found = FindClass(classClass, name);
 
-        return found == Address.Zero ? throw new InvalidOperationException(UdkSR.FormatClassNotFound(name)) : found;
+        return found == Address.Zero ? UdkError.ClassNotFound(name) : found;
     }
 
     private int Record(string member, int offset, string reason)

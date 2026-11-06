@@ -46,7 +46,7 @@ public sealed class UdkSectionsTests
         FakeMemory memory = new();
         memory.Add(_base + Rva + 0x1000, Filled(0x1000));
 
-        byte[] bytes = UdkSections.Read(file, memory, _base)[0].Bytes;
+        byte[] bytes = UdkSections.Read(file, memory, _base).Unwrap()[0].Bytes;
 
         using (Assert.EnterMultipleScope())
         {
@@ -63,7 +63,7 @@ public sealed class UdkSectionsTests
         FakeMemory memory = new();
         memory.Add(_base + Rva, Filled(0x1800));
 
-        byte[] bytes = UdkSections.Read(file, memory, _base)[0].Bytes;
+        byte[] bytes = UdkSections.Read(file, memory, _base).Unwrap()[0].Bytes;
 
         using (Assert.EnterMultipleScope())
         {
@@ -78,7 +78,7 @@ public sealed class UdkSectionsTests
     {
         string file = WritePe((0x1000, 0x200, Executable), (0x2000, 0, ReadOnly), (0x3000, 0x200, Writable));
 
-        var sections = UdkSections.Read(file, new FakeMemory(), _base);
+        var sections = UdkSections.Read(file, new FakeMemory(), _base).Unwrap();
 
         uint[] expected = [0x2000, 0x3000];
 
@@ -96,14 +96,14 @@ public sealed class UdkSectionsTests
     {
         string file = WritePe((Rva, 0x200, Executable | Writable));
 
-        Assert.That(UdkSections.Read(file, new FakeMemory(), _base), Is.Empty);
+        Assert.That(UdkSections.Read(file, new FakeMemory(), _base).Unwrap(), Is.Empty);
     }
 
     // A file with no sections has nothing to search.
     [Test]
     public void Read_NoSections_ReturnsNothing()
     {
-        Assert.That(UdkSections.Read(WritePe(), new FakeMemory(), _base), Is.Empty);
+        Assert.That(UdkSections.Read(WritePe(), new FakeMemory(), _base).Unwrap(), Is.Empty);
     }
 
     // A path with spaces and letters outside ASCII reads like any other.
@@ -115,19 +115,19 @@ public sealed class UdkSectionsTests
         string file = Path.Combine(folder, "file.bin");
         File.Copy(WritePe((Rva, 0x200, ReadOnly)), file);
 
-        Assert.That(UdkSections.Read(file, new FakeMemory(), _base), Has.Count.EqualTo(1));
+        Assert.That(UdkSections.Read(file, new FakeMemory(), _base).Unwrap(), Has.Count.EqualTo(1));
     }
 
-    // A file that is not a PE file fails with BadImageFormatException.
+    // A file that is not a PE file fails with its path.
     [TestCase(0)]
     [TestCase(16)]
     [TestCase(0x1000)]
-    public void Read_FileThatIsNoPeFile_ThrowsBadImageFormat(int length)
+    public void Read_FileThatIsNoPeFile_FailsWithPath(int length)
     {
         string file = Path.Combine(_folder.Root, "file.bin");
         File.WriteAllBytes(file, new byte[length]);
 
-        Assert.That(() => UdkSections.Read(file, new FakeMemory(), _base), Throws.TypeOf<BadImageFormatException>());
+        Assert.That(UdkSections.Read(file, new FakeMemory(), _base).UnwrapErr().Message, Is.EqualTo(SR.FormatExecutableNotPe(file)));
     }
 
     // A data pointer of 0 is no array.
@@ -214,7 +214,7 @@ public sealed class UdkSectionsTests
                 .Select(static section => (uint)section.VirtualAddress),
         ];
 
-        var sections = UdkSections.Read(_testAssembly, new FakeMemory(), _base);
+        var sections = UdkSections.Read(_testAssembly, new FakeMemory(), _base).Unwrap();
 
         using (Assert.EnterMultipleScope())
         {
@@ -227,7 +227,7 @@ public sealed class UdkSectionsTests
     [Test]
     public void Read_MemoryWithNoPages_KeepsZeros()
     {
-        var sections = UdkSections.Read(_testAssembly, new FakeMemory(), _base);
+        var sections = UdkSections.Read(_testAssembly, new FakeMemory(), _base).Unwrap();
 
         Assert.That(sections.SelectMany(static section => section.Bytes), Is.All.Zero);
     }
@@ -244,18 +244,29 @@ public sealed class UdkSectionsTests
         FakeMemory memory = new();
         memory.Add(_base + section.VirtualAddress, page);
 
-        var bytes = UdkSections.Read(_testAssembly, memory, _base).First(read => read.Rva == (uint)section.VirtualAddress);
+        var bytes = UdkSections.Read(_testAssembly, memory, _base).Unwrap().First(read => read.Rva == (uint)section.VirtualAddress);
 
         Assert.That(bytes.Bytes.Take(page.Length), Is.All.EqualTo((byte)0xAB));
     }
 
-    // A file that does not exist fails with its path, because the caller prints the message.
+    // A file that does not exist fails with its path, because the caller writes the message into the row.
     [Test]
-    public void Read_MissingFile_ThrowsFileNotFound()
+    public void Read_MissingFile_FailsWithThePath()
     {
         string missing = Path.Combine(Path.GetTempPath(), "missing-file.bin");
 
-        Assert.That(() => UdkSections.Read(missing, new FakeMemory(), _base), Throws.TypeOf<FileNotFoundException>().With.Message.Contain(missing));
+        Assert.That(UdkSections.Read(missing, new FakeMemory(), _base).UnwrapErr().Message, Does.StartWith($"Can't read '{missing}': "));
+    }
+
+    // A file that another program has open fails with its path and the message of the open.
+    [Test]
+    public void Read_FileOpenInAnotherProgram_FailsWithThePath()
+    {
+        string file = WritePe();
+
+        using FileStream locked = new(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+
+        Assert.That(UdkSections.Read(file, new FakeMemory(), _base).UnwrapErr().Message, Does.StartWith($"Can't read '{file}': "));
     }
 
     // A header at 2 does not count because it is not pointer-aligned. The same header at 4 does.

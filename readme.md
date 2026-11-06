@@ -4,7 +4,7 @@ AslHelp.Engines has the libraries that read game engines from memory and the too
 
 ## Libraries
 
-`AslHelp.Engines.Unreal` reads names, objects and structs from Unreal Engine 3 games given their layouts. We don't publish it to NuGet, because its API can still change.
+`AslHelp.Engines.Unreal` reads names, objects and structs from Unreal Engine 3 games given their layouts. The readers return `Result<T>`. A failed read has the address, the layout field to check and the read that failed in its message. A pointer of 0 is a success with `Address.Zero`. We don't publish it to NuGet, because its API can still change.
 
 ## Fixture players
 
@@ -121,7 +121,7 @@ The command runs each player on the current machine in version order until its f
 2026-11-06 14:21:20 info: measure[15]     => routes (0.8 s)
 ```
 
-A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. It deletes the log of each player afterward. A canceled run writes no report. A bad targets file fails before the 1st player starts.
+A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. The error lists each step that failed down to the memory read. The command deletes the log of each player afterward. A canceled run writes no report. A bad targets file fails before the 1st player starts.
 
 A row has the version and 3 maps:
 
@@ -223,6 +223,6 @@ A route covers a version when every match in the code sections of that version d
 | `objectArray` | | The array whose objects contain their own position. The file needs exactly 1 of this type. |
 | `objectSlot` | `class`, `object` | Every static that points at an object of `class` or of a class deriving from it. `object` is optional and is the name of the object in the name array. |
 
-The measurement reads the sections of `UDK.exe` without code from the running player and finds the 2 arrays in them by their contents. The classes `Class`, `State`, `Struct`, `Field` and `Object` then lead to the offsets because their names and super chain are the same in every build. The properties of `Object` contain the offsets found so far, which gives the offsets of the property members. A row fails when the name array, the object array, the name, class or outer offset or a class of that chain is not found or when 2 arrays with different data fit and neither is the longer one. Every other member goes to `unmeasured`.
+The measurement reads the sections of `UDK.exe` without code from the running player and finds the 2 arrays in them by their contents. The classes `Class`, `State`, `Struct`, `Field` and `Object` then lead to the offsets because their names and super chain are the same in every build. The properties of `Object` contain the offsets found so far, which gives the offsets of the property members. A row fails when the name array, the object array, the name, class or outer offset or a class of that chain is not found or when 2 arrays with different data fit and neither is the longer one. It also fails when a first name or the object array does not read. Every other member goes to `unmeasured`.
 
 The measurement then reads `IntValue` of the spawned `FixtureData` object through the offsets it found and the row fails when the value is not 1337. The row also fails when the class, the object or the field is not found or when `UStruct.Children`, `UField.Next` or `UProperty.Offset` is in `unmeasured`, because the check needs them. A `--targets` file does not turn the check off, because the class belongs to the fixture game.

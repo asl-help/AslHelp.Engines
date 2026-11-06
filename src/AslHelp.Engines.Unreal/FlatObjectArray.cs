@@ -1,3 +1,4 @@
+using AslHelp.Engines.Unreal.Errors;
 using AslHelp.Memory;
 using System;
 using System.Collections.Generic;
@@ -28,11 +29,15 @@ public sealed class FlatObjectArray(
     ///     Reads the count of the array.
     /// </summary>
     /// <returns>
-    ///     The count or -1 when the read fails.
+    ///     The count or a failure with the array and the failed read.
     /// </returns>
-    public int ReadCount()
+    public Result<int> ReadCount()
     {
-        return _memory.Read<int>(_array + _memory.Layout.PointerSize).UnwrapOr(-1);
+        var address = _array + _memory.Layout.PointerSize;
+
+        return _memory.Read<int>(address).TryUnwrap(out int count, out var error)
+            ? count
+            : ObjectArrayError.CountUnreadable(_array, address, error);
     }
 
     /// <summary>
@@ -41,18 +46,30 @@ public sealed class FlatObjectArray(
     /// <remarks>
     ///     Reads 1024 pointers at a time when the enumeration moves to them, so a caller can stop early.
     ///     Keeps <see cref="Address.Zero"/> for an empty position, so the position of a pointer stays the index of its object.
-    ///     Stops at the 1st block that fails to read.
+    ///     Ends at the 1st read that fails, with the failure as the last item, so the failure comes where the pointers stop.
     /// </remarks>
     /// <param name="count">The number of pointers to read.</param>
     /// <returns>
-    ///     The first <paramref name="count"/> pointers or fewer when the array is shorter.
+    ///     The first <paramref name="count"/> pointers or fewer when the array is shorter, then a failure if a read failed.
     /// </returns>
-    public IEnumerable<Address> Read(int count)
+    public IEnumerable<Result<Address>> Read(int count)
     {
-        int total = Math.Min(count, ReadCount());
-
-        if (total <= 0 || !_memory.ReadPointer(_array).TryUnwrap(out var data))
+        if (!ReadCount().TryUnwrap(out int arrayCount, out var error))
         {
+            yield return error;
+            yield break;
+        }
+
+        int total = Math.Min(count, arrayCount);
+
+        if (total <= 0)
+        {
+            yield break;
+        }
+
+        if (!_memory.ReadPointer(_array).TryUnwrap(out var data, out error))
+        {
+            yield return ObjectArrayError.DataUnreadable(_array, error);
             yield break;
         }
 
@@ -65,8 +82,9 @@ public sealed class FlatObjectArray(
 
             if (pointerSize == sizeof(ulong))
             {
-                if (!_memory.ReadArray<ulong>(start, length).TryUnwrap(out ulong[]? block))
+                if (!_memory.ReadArray<ulong>(start, length).TryUnwrap(out ulong[]? block, out error))
                 {
+                    yield return ObjectArrayError.BlockUnreadable(_array, position, length, start, error);
                     yield break;
                 }
 
@@ -77,8 +95,9 @@ public sealed class FlatObjectArray(
             }
             else
             {
-                if (!_memory.ReadArray<uint>(start, length).TryUnwrap(out uint[]? block))
+                if (!_memory.ReadArray<uint>(start, length).TryUnwrap(out uint[]? block, out error))
                 {
+                    yield return ObjectArrayError.BlockUnreadable(_array, position, length, start, error);
                     yield break;
                 }
 

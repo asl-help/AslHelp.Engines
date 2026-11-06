@@ -103,7 +103,12 @@ internal static class CommandLine
     {
         try
         {
-            measurer.LoadTargets(targetsPath);
+            if (measurer.LoadTargets(targetsPath).TryUnwrapErr(out var targetsError))
+            {
+                logger.RunFailed(targetsError.Message);
+
+                return 1;
+            }
 
             var players = PlayerFolder.Find(playersDirectory, measurer.Name);
 
@@ -131,7 +136,16 @@ internal static class CommandLine
 
                 try
                 {
-                    var measurement = await measurer.MeasureAsync(player.Directory, logger, cancellationToken).ConfigureAwait(false);
+                    var result = await measurer.MeasureAsync(player.Directory, logger, cancellationToken).ConfigureAwait(false);
+
+                    if (!result.TryUnwrap(out var measurement, out var error))
+                    {
+                        rows.Add(PlayerRow.Failed(player.Version, error.Message));
+                        logger.PlayerFailed(player.Version, error.Message);
+
+                        continue;
+                    }
+
                     rows.Add(PlayerRow.Measured(player.Version, measurement));
                     measurements[player.Version] = measurement;
 
@@ -150,7 +164,7 @@ internal static class CommandLine
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
-                    // Keep going, because a full run takes minutes and 1 failed player would throw away the rest.
+                    // Keep going, because a full run takes minutes and 1 player that does not start would throw away the rest.
                     rows.Add(PlayerRow.Failed(player.Version, exception.Message));
                     logger.PlayerFailed(player.Version, exception.Message);
                 }

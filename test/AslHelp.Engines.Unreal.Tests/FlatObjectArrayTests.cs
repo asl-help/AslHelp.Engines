@@ -1,5 +1,6 @@
 using AslHelp.Memory;
 using NUnit.Framework;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace AslHelp.Engines.Unreal.Tests;
@@ -24,21 +25,25 @@ public sealed class FlatObjectArrayTests(
     [Test]
     public void ReadCount_ReadableArray_ReturnsCount()
     {
-        Assert.That(new FlatObjectArray(MemoryWithObjects(20), _array).ReadCount(), Is.EqualTo(20));
+        Assert.That(new FlatObjectArray(MemoryWithObjects(20), _array).ReadCount().Unwrap(), Is.EqualTo(20));
     }
 
-    // A failed read returns -1 and does not throw.
+    // A failed read fails with the array and the failed read and does not throw.
     [Test]
-    public void ReadCount_UnreadableArray_ReturnsMinusOne()
+    public void ReadCount_UnreadableArray_FailsWithArrayAndCause()
     {
-        Assert.That(new FlatObjectArray(new FakeMemory { Layout = memoryLayout }, _array).ReadCount(), Is.EqualTo(-1));
+        var countAddress = _array + memoryLayout.PointerSize;
+
+        Assert.That(
+            new FlatObjectArray(new FakeMemory { Layout = memoryLayout }, _array).ReadCount().UnwrapErr().Message,
+            Is.EqualTo($"Can't read the count of the object array at {_array}: reading {countAddress} failed. No block contains {countAddress}."));
     }
 
     // A count past the array count stops at the array count.
     [Test]
     public void Read_CountAboveArrayCount_StopsAtArrayCount()
     {
-        var pointers = new FlatObjectArray(MemoryWithObjects(20), _array).Read(4_000_000).ToList();
+        var pointers = ReadAll(new FlatObjectArray(MemoryWithObjects(20), _array), 4_000_000);
 
         using (Assert.EnterMultipleScope())
         {
@@ -56,12 +61,12 @@ public sealed class FlatObjectArrayTests(
 
         Address[] expected = [ObjectAt(0), Address.Zero, ObjectAt(2)];
 
-        Assert.That(new FlatObjectArray(memory, _array).Read(3), Is.EqualTo(expected));
+        Assert.That(ReadAll(new FlatObjectArray(memory, _array), 3), Is.EqualTo(expected));
     }
 
-    // 2000 pointers with memory ending after 1500 give the 1st block of 1024 and the failed 2nd block does not throw.
+    // 2000 pointers with memory ending after 1500 give the 1st block of 1024 and then 1 failure with the position of the failed 2nd block.
     [Test]
-    public void Read_BlockPastReadableMemory_StopsBeforeIt()
+    public void Read_BlockPastReadableMemory_YieldsBlockThenFailure()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.Add(_array, new byte[memoryLayout.PointerSize + sizeof(int)]);
@@ -69,7 +74,19 @@ public sealed class FlatObjectArrayTests(
         memory.WriteInt32(_array + memoryLayout.PointerSize, 2000);
         memory.Add(_data, new byte[1500 * memoryLayout.PointerSize]);
 
-        Assert.That(new FlatObjectArray(memory, _array).Read(2000).Count(), Is.EqualTo(1024));
+        var items = new FlatObjectArray(memory, _array).Read(2000).ToList();
+        var block = _data + (1024 * memoryLayout.PointerSize);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(items, Has.Count.EqualTo(1025));
+            Assert.That(items.Take(1024).All(static item => item.IsOk), Is.True);
+            Assert.That(
+                items[^1].UnwrapErr().Message,
+                Is.EqualTo(
+                    $"Can't read the 976 pointers from position 1024 of the object array at {_array}: reading {block} failed. "
+                    + $"No block contains {block}."));
+        }
     }
 
     // A sample of 512 takes 1 read of the block and not 1 read per pointer, because a real read is a system call.
@@ -78,7 +95,7 @@ public sealed class FlatObjectArrayTests(
     {
         var memory = MemoryWithObjects(2000);
 
-        var pointers = new FlatObjectArray(memory, _array).Read(512).ToList();
+        var pointers = ReadAll(new FlatObjectArray(memory, _array), 512);
 
         using (Assert.EnterMultipleScope())
         {
@@ -95,7 +112,7 @@ public sealed class FlatObjectArrayTests(
     {
         var memory = MemoryWithObjects(2000);
 
-        var pointers = new FlatObjectArray(memory, _array).Read(2000).ToList();
+        var pointers = ReadAll(new FlatObjectArray(memory, _array), 2000);
 
         using (Assert.EnterMultipleScope())
         {
@@ -122,7 +139,7 @@ public sealed class FlatObjectArrayTests(
     {
         var memory = MemoryWithObjects(1024);
 
-        var pointers = new FlatObjectArray(memory, _array).Read(1024).ToList();
+        var pointers = ReadAll(new FlatObjectArray(memory, _array), 1024);
 
         using (Assert.EnterMultipleScope())
         {
@@ -139,7 +156,7 @@ public sealed class FlatObjectArrayTests(
     {
         var memory = MemoryWithObjects(1025);
 
-        var pointers = new FlatObjectArray(memory, _array).Read(1025).ToList();
+        var pointers = ReadAll(new FlatObjectArray(memory, _array), 1025);
 
         using (Assert.EnterMultipleScope())
         {
@@ -163,22 +180,57 @@ public sealed class FlatObjectArrayTests(
         Assert.That(new FlatObjectArray(memory, _array).Read(count), Is.Empty);
     }
 
-    // A header that does not read gives nothing and does not throw.
+    // A header that does not read yields 1 failure and does not throw.
     [Test]
-    public void Read_UnreadableHeader_GivesNothing()
+    public void Read_UnreadableHeader_YieldsOneFailure()
     {
-        Assert.That(new FlatObjectArray(new FakeMemory { Layout = memoryLayout }, _array).Read(3), Is.Empty);
+        var items = new FlatObjectArray(new FakeMemory { Layout = memoryLayout }, _array).Read(3).ToList();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(items, Has.Count.EqualTo(1));
+            Assert.That(items[0].UnwrapErr().Message, Does.StartWith($"Can't read the count of the object array at {_array}"));
+        }
     }
 
-    // A data pointer of 0 or into nothing gives nothing, because a header can be read before its array exists.
+    // A data pointer that does not read yields 1 failure with the array, because a count alone gives no pointers.
+    [Test]
+    public void Read_UnreadableDataPointer_YieldsOneFailure()
+    {
+        var countAddress = _array + memoryLayout.PointerSize;
+        FakeMemory memory = new() { Layout = memoryLayout };
+        memory.Add(countAddress, new byte[sizeof(int)]);
+        memory.WriteInt32(countAddress, 3);
+
+        var items = new FlatObjectArray(memory, _array).Read(3).ToList();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(items, Has.Count.EqualTo(1));
+            Assert.That(
+                items[0].UnwrapErr().Message,
+                Is.EqualTo($"Can't read the data pointer of the object array at {_array}: reading {_array} failed. No block contains {_array}."));
+        }
+    }
+
+    // A data pointer of 0 or into nothing yields 1 failure, because a header can be read before its array exists.
     [TestCase(0L)]
     [TestCase(0x1000L)]
-    public void Read_DataPointerIntoNothing_GivesNothing(long data)
+    public void Read_DataPointerIntoNothing_YieldsOneFailure(long data)
     {
         var memory = MemoryWithObjects(3);
-        memory.WritePointer(_array, new Address((ulong)data));
+        var start = new Address((ulong)data);
+        memory.WritePointer(_array, start);
 
-        Assert.That(new FlatObjectArray(memory, _array).Read(3), Is.Empty);
+        var items = new FlatObjectArray(memory, _array).Read(3).ToList();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(items, Has.Count.EqualTo(1));
+            Assert.That(
+                items[0].UnwrapErr().Message,
+                Does.Contain($"position 0 of the object array at {_array}").And.Contain($"reading {start} failed"));
+        }
     }
 
     // The header reads again on every call, because the engine moves the data when the array grows.
@@ -191,7 +243,7 @@ public sealed class FlatObjectArrayTests(
 
         memory.WriteInt32(_array + memoryLayout.PointerSize, 2);
 
-        Assert.That(array.Read(3).Count(), Is.EqualTo(2));
+        Assert.That(ReadAll(array, 3), Has.Count.EqualTo(2));
     }
 
     // A null memory throws with its parameter name.
@@ -199,6 +251,11 @@ public sealed class FlatObjectArrayTests(
     public void Constructor_NullMemory_ThrowsArgumentNullException()
     {
         Assert.That(() => new FlatObjectArray(null!, _array), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("memory"));
+    }
+
+    private static List<Address> ReadAll(FlatObjectArray array, int count)
+    {
+        return [.. array.Read(count).Select(static item => item.Unwrap())];
     }
 
     private Address ObjectAt(int position)

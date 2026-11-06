@@ -37,17 +37,17 @@ internal static class UdkFixtureCheck
     /// <param name="measured">The objects found and the reader with the offsets found.</param>
     /// <param name="offsets">The offsets found.</param>
     /// <param name="logger">The logger for the value read.</param>
-    /// <exception cref="InvalidOperationException">
-    ///     Children, Next or Offset was not found, the class, the spawned object or the field does not exist,
-    ///     the offset of the field or the value does not read or the value is not <see cref="ExpectedValue"/>.
-    /// </exception>
-    public static void Run(IMemoryReader memory, UdkMeasuredObjects measured, IReadOnlyDictionary<string, int> offsets, ILogger logger)
+    /// <returns>
+    ///     A failure when Children, Next or Offset was not found, the class, the spawned object or the field does not exist,
+    ///     the fields, the offset of the field or the value do not read or the value is not <see cref="ExpectedValue"/>.
+    /// </returns>
+    public static Result Run(IMemoryReader memory, UdkMeasuredObjects measured, IReadOnlyDictionary<string, int> offsets, ILogger logger)
     {
         foreach (string member in (string[])[UdkMembers.Children, UdkMembers.Next, UdkMembers.Offset])
         {
             if (!offsets.ContainsKey(member))
             {
-                throw new InvalidOperationException(UdkSR.FormatFixtureCheckNeeds(member));
+                return UdkError.FixtureCheckNeeds(member);
             }
         }
 
@@ -59,11 +59,12 @@ internal static class UdkFixtureCheck
             new FieldLayout(offsets[UdkMembers.Next]));
 
         // Compare the class and not only the name, because a property of the game has the same name as the class.
-        var fixtureClass = measured.ObjectsByName[ClassName].FirstOrDefault(obj => objects.ClassOf(obj) == measured.ClassClass);
+        var fixtureClass = measured.ObjectsByName[ClassName]
+            .FirstOrDefault(obj => objects.ClassOf(obj).UnwrapOr(Address.Zero) == measured.ClassClass);
 
         if (fixtureClass == Address.Zero)
         {
-            throw new InvalidOperationException(UdkSR.FormatClassNotFound(ClassName));
+            return UdkError.ClassNotFound(ClassName);
         }
 
         // Try the objects with the class name first, because the game spawns the instance under that name and each other object costs 1 read.
@@ -71,42 +72,67 @@ internal static class UdkFixtureCheck
         // Skip an object whose name does not read, because a live instance always has a name.
         var instance = measured.ObjectsByName[ClassName]
             .Concat(measured.ObjectsByName
-                .Where(static group => group.Key?.StartsWith(DefaultObjectPrefix, StringComparison.Ordinal) == false)
+                .Where(static group => group.Key is { } name && !name.StartsWith(DefaultObjectPrefix, StringComparison.Ordinal))
                 .SelectMany(static group => group))
-            .FirstOrDefault(obj => objects.ClassOf(obj) == fixtureClass);
+            .FirstOrDefault(obj => objects.ClassOf(obj).UnwrapOr(Address.Zero) == fixtureClass);
 
         if (instance == Address.Zero)
         {
-            throw new InvalidOperationException(UdkSR.FixtureInstanceNotFound);
+            return UdkError.FixtureInstanceNotFound();
         }
 
-        var field = structs.ChildrenOf(fixtureClass).FirstOrDefault(
-            child => string.Equals(objects.NameOf(child), FieldName, StringComparison.Ordinal));
+        var field = Address.Zero;
+        ResultError? firstNameError = null;
+
+        foreach (var child in structs.ChildrenOf(fixtureClass))
+        {
+            if (!child.TryUnwrap(out var address, out var chainError))
+            {
+                return UdkError.FixtureChildrenUnreadable(chainError);
+            }
+
+            // Go on past a name that does not read, because the field behind it can still be IntValue.
+            if (!objects.NameOf(address).TryUnwrap(out string? name, out var nameError))
+            {
+                firstNameError ??= nameError;
+
+                continue;
+            }
+
+            if (string.Equals(name, FieldName, StringComparison.Ordinal))
+            {
+                field = address;
+
+                break;
+            }
+        }
 
         if (field == Address.Zero)
         {
-            throw new InvalidOperationException(UdkSR.FixtureFieldNotFound);
+            return firstNameError is null ? UdkError.FixtureFieldNotFound() : UdkError.FixtureFieldNameUnreadable(firstNameError);
         }
 
         var offsetAddress = field + offsets[UdkMembers.Offset];
 
-        if (!memory.Read<int>(offsetAddress).TryUnwrap(out int fieldOffset))
+        if (!memory.Read<int>(offsetAddress).TryUnwrap(out int fieldOffset, out var error))
         {
-            throw new InvalidOperationException(UdkSR.FormatFixtureOffsetUnreadable(offsetAddress));
+            return UdkError.FixtureOffsetUnreadable(offsetAddress, error);
         }
 
         var valueAddress = instance + fieldOffset;
 
-        if (!memory.Read<int>(valueAddress).TryUnwrap(out int value))
+        if (!memory.Read<int>(valueAddress).TryUnwrap(out int value, out error))
         {
-            throw new InvalidOperationException(UdkSR.FormatFixtureValueUnreadable(valueAddress));
+            return UdkError.FixtureValueUnreadable(valueAddress, error);
         }
 
         if (value != ExpectedValue)
         {
-            throw new InvalidOperationException(UdkSR.FormatFixtureValueWrong(ExpectedValue, value));
+            return UdkError.FixtureValueWrong(ExpectedValue, value);
         }
 
         logger.FixtureValueRead(value, instance);
+
+        return Result.Ok();
     }
 }

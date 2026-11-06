@@ -18,16 +18,13 @@ internal static class UdkTargets
     ///     Reads <c>targets.json</c> from the resources of this assembly.
     /// </summary>
     /// <returns>
-    ///     The targets by global.
+    ///     The targets by global or a failure when the assembly does not have the resource or the resource is not a valid set of targets.
     /// </returns>
-    /// <exception cref="FileNotFoundException">The assembly has no <c>targets.json</c> resource.</exception>
-    /// <exception cref="InvalidDataException">The resource is not a valid set of targets.</exception>
-    public static IReadOnlyDictionary<string, UdkTarget> ReadEmbedded()
+    public static Result<IReadOnlyDictionary<string, UdkTarget>> ReadEmbedded()
     {
-        using var json = typeof(UdkTargets).Assembly.GetManifestResourceStream(TargetsResource)
-            ?? throw new FileNotFoundException(UdkSR.FormatTargetsNotEmbedded(TargetsResource), TargetsResource);
+        using var json = typeof(UdkTargets).Assembly.GetManifestResourceStream(TargetsResource);
 
-        return Read(json, TargetsResource);
+        return json is null ? UdkError.TargetsNotEmbedded(TargetsResource) : Read(json, TargetsResource);
     }
 
     /// <summary>
@@ -35,15 +32,25 @@ internal static class UdkTargets
     /// </summary>
     /// <param name="path">The path of the file.</param>
     /// <returns>
-    ///     The targets by global.
+    ///     The targets by global or a failure with <paramref name="path"/> when the file does not exist, does not read
+    ///     or is not a valid set of targets.
     /// </returns>
-    /// <exception cref="FileNotFoundException">The file does not exist.</exception>
-    /// <exception cref="InvalidDataException">The file is not a valid set of targets. The message has <paramref name="path"/>.</exception>
-    public static IReadOnlyDictionary<string, UdkTarget> ReadFile(string path)
+    public static Result<IReadOnlyDictionary<string, UdkTarget>> ReadFile(string path)
     {
-        using var json = File.OpenRead(path);
+        try
+        {
+            using var json = File.OpenRead(path);
 
-        return Read(json, path);
+            return Read(json, path);
+        }
+        catch (IOException exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return UdkError.TargetsNotFound(path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return UdkError.FileUnreadable(path, exception.Message);
+        }
     }
 
     /// <summary>
@@ -52,14 +59,11 @@ internal static class UdkTargets
     /// <param name="json">The UTF-8 JSON object of targets by global, each with <c>$type</c>.</param>
     /// <param name="path">The path of the file for the messages.</param>
     /// <returns>
-    ///     The targets by global.
+    ///     The targets by global or a failure with <paramref name="path"/> when the file is not an object of targets or does not have any targets,
+    ///     a target is null, lacks a key, has an unknown key, an unknown type or a blank value, a global appears twice,
+    ///     the name array has too few first names or the file does not have exactly 1 name array and 1 object array.
     /// </returns>
-    /// <exception cref="InvalidDataException">
-    ///     The file is not an object of targets or has no targets. A target is null, lacks a key, has an unknown key, an unknown type or a
-    ///     blank value. A global appears twice, the name array has too few first names or the file does not have exactly 1 name array and
-    ///     1 object array. The message has <paramref name="path"/>.
-    /// </exception>
-    public static IReadOnlyDictionary<string, UdkTarget> Read(Stream json, string path)
+    public static Result<IReadOnlyDictionary<string, UdkTarget>> Read(Stream json, string path)
     {
         Dictionary<string, UdkTarget>? targets;
 
@@ -70,17 +74,15 @@ internal static class UdkTargets
         catch (Exception exception) when (exception is JsonException or NotSupportedException)
         {
             // Catch NotSupportedException too, because a target without a type reads as the abstract record.
-            throw new InvalidDataException(UdkSR.FormatTargetsInvalid(path, exception.Message), exception);
+            return UdkError.TargetsInvalid(path, exception.Message);
         }
 
         if (targets is null or { Count: 0 })
         {
-            throw new InvalidDataException(UdkSR.FormatTargetsEmpty(path));
+            return UdkError.TargetsEmpty(path);
         }
 
-        Validate(targets, path);
-
-        return targets;
+        return Validate(targets, path).And(Result.Ok<IReadOnlyDictionary<string, UdkTarget>>(targets));
     }
 
     /// <summary>
@@ -88,38 +90,42 @@ internal static class UdkTargets
     /// </summary>
     /// <param name="targets">The targets by global.</param>
     /// <param name="path">The path of the file for the messages.</param>
-    /// <exception cref="InvalidDataException">A target breaks a rule of the file.</exception>
-    private static void Validate(Dictionary<string, UdkTarget> targets, string path)
+    /// <returns>
+    ///     A failure when a target breaks a rule of the file.
+    /// </returns>
+    private static Result Validate(Dictionary<string, UdkTarget> targets, string path)
     {
         foreach ((string global, var target) in targets)
         {
             // Check for null, because the nullable annotations of the parse do not reach the values of a dictionary.
             if (target is null)
             {
-                throw new InvalidDataException(UdkSR.FormatTargetsNull(path, global));
+                return UdkError.TargetsNull(path, global);
             }
 
             if (string.IsNullOrWhiteSpace(global) || HasBlankValue(target))
             {
-                throw new InvalidDataException(UdkSR.FormatTargetsBlankValue(path, global));
+                return UdkError.TargetsBlankValue(path, global);
             }
 
             if (target is UdkNameArrayTarget { FirstNames.Count: < LeastFirstNames })
             {
-                throw new InvalidDataException(UdkSR.FormatTargetsFewFirstNames(path, global, LeastFirstNames));
+                return UdkError.TargetsFewFirstNames(path, global, LeastFirstNames);
             }
         }
 
         if (targets.Values.OfType<UdkNameArrayTarget>().Count() != 1)
         {
-            throw new InvalidDataException(UdkSR.FormatTargetsNeedsOneNameArray(path));
+            return UdkError.TargetsNeedsOneNameArray(path);
         }
 
         // Require the object array too, because the search for every member and slot starts from it.
         if (targets.Values.OfType<UdkObjectArrayTarget>().Count() != 1)
         {
-            throw new InvalidDataException(UdkSR.FormatTargetsNeedsOneObjectArray(path));
+            return UdkError.TargetsNeedsOneObjectArray(path);
         }
+
+        return Result.Ok();
     }
 
     private static bool HasBlankValue(UdkTarget target)

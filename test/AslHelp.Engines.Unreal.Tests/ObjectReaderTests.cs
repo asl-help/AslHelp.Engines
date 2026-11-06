@@ -36,7 +36,7 @@ public sealed class ObjectReaderTests(
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, CoreId);
 
-        Assert.That(CreateReader(memory).NameOf(_object), Is.EqualTo("Core"));
+        Assert.That(CreateReader(memory).NameOf(_object).Unwrap(), Is.EqualTo("Core"));
     }
 
     // A positive number returns the base name with no suffix for the number.
@@ -46,7 +46,7 @@ public sealed class ObjectReaderTests(
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, CoreId, number: 5);
 
-        Assert.That(CreateReader(memory).NameOf(_object), Is.EqualTo("Core"));
+        Assert.That(CreateReader(memory).NameOf(_object).Unwrap(), Is.EqualTo("Core"));
     }
 
     // The largest number is still not negative, so the base name comes back.
@@ -56,90 +56,105 @@ public sealed class ObjectReaderTests(
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, CoreId, number: int.MaxValue);
 
-        Assert.That(CreateReader(memory).NameOf(_object), Is.EqualTo("Core"));
+        Assert.That(CreateReader(memory).NameOf(_object).Unwrap(), Is.EqualTo("Core"));
     }
 
-    // A negative number returns null even though the name id is valid.
+    // A negative number fails with the number and the name offset even though the name id is valid.
     [Test]
-    public void NameOf_NegativeNumber_ReturnsNull()
+    public void NameOf_NegativeNumber_FailsWithNumber()
     {
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, CoreId, number: -1);
 
-        Assert.That(CreateReader(memory).NameOf(_object), Is.Null);
+        Assert.That(
+            CreateReader(memory).NameOf(_object).UnwrapErr().Message,
+            Is.EqualTo(
+                $"The object at {_object} has the name number -1, which is below 0. "
+                + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
     }
 
-    // The smallest number reads as signed, so it returns null.
+    // The smallest number reads as signed, so it fails.
     [Test]
-    public void NameOf_SmallestNumber_ReturnsNull()
+    public void NameOf_SmallestNumber_FailsWithNumber()
     {
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, CoreId, number: int.MinValue);
 
-        Assert.That(CreateReader(memory).NameOf(_object), Is.Null);
+        Assert.That(CreateReader(memory).NameOf(_object).UnwrapErr().Message, Does.Contain($"name number {int.MinValue}"));
     }
 
-    // A number that turns negative returns null even though the table has the name in its cache.
+    // A number that turns negative fails even though the table has the name in its cache.
     [Test]
-    public void NameOf_NumberTurnsNegativeAfterNameCached_ReturnsNull()
+    public void NameOf_NumberTurnsNegativeAfterNameCached_Fails()
     {
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, CoreId);
         var reader = CreateReader(memory);
 
-        string? first = reader.NameOf(_object);
+        string first = reader.NameOf(_object).Unwrap();
         memory.WriteInt32(_object + layout.Name + sizeof(int), -1);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(first, Is.EqualTo("Core"));
-            Assert.That(reader.NameOf(_object), Is.Null);
+            Assert.That(reader.NameOf(_object).IsErr, Is.True);
         }
     }
 
-    // Address 0 returns null with no memory read, even when address 0 has a valid object.
+    // Address 0 fails with no memory read, even when address 0 has a valid object.
     [Test]
-    public void NameOf_AddressZero_ReturnsNull()
+    public void NameOf_AddressZero_FailsWithNoRead()
     {
         var memory = MemoryWithNames();
         memory.AddObject(Address.Zero, layout, CoreId);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(CreateReader(memory).NameOf(Address.Zero), Is.Null);
+            Assert.That(CreateReader(memory).NameOf(Address.Zero).UnwrapErr().Message, Is.EqualTo("The object pointer is 0."));
             Assert.That(memory.Reads, Is.Zero);
         }
     }
 
-    // An unreadable object returns null with no read of the name array.
+    // An unreadable object fails with the object and the name offset with no read of the name array.
     [Test]
-    public void NameOf_UnreadableObject_ReturnsNull()
+    public void NameOf_UnreadableObject_FailsWithNameOffset()
     {
         var memory = MemoryWithNames();
+        var address = _object + layout.Name;
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(CreateReader(memory).NameOf(_object), Is.Null);
+            Assert.That(
+                CreateReader(memory).NameOf(_object).UnwrapErr().Message,
+                Is.EqualTo(
+                    $"Can't read the name of the object at {_object}: reading {address} failed. No block contains {address}. "
+                    + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
             Assert.That(memory.ReadsAt(_nameArray), Is.Zero);
         }
     }
 
-    // A block that ends right after the name id fails the number read, so the valid id returns null.
+    // A block that ends right after the name id fails the number read, so the message has the address of the number.
     [Test]
-    public void NameOf_NumberOutsideReadableMemory_ReturnsNull()
+    public void NameOf_NumberOutsideReadableMemory_FailsWithNameOffset()
     {
         var memory = MemoryWithNames();
         memory.Add(_object, new byte[layout.Name + sizeof(int)]);
         memory.WriteInt32(_object + layout.Name, CoreId);
 
-        Assert.That(CreateReader(memory).NameOf(_object), Is.Null);
+        var address = _object + layout.Name + sizeof(int);
+
+        Assert.That(
+            CreateReader(memory).NameOf(_object).UnwrapErr().Message,
+            Is.EqualTo(
+                $"Can't read the name of the object at {_object}: reading {address} failed. No block contains {address}. "
+                + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
     }
 
     // An object at the end of the address range wraps around to unreadable memory and does not throw, although the build turns on overflow checks.
     [Test]
-    public void NameOf_ObjectAtEndOfAddressRange_ReturnsNull()
+    public void NameOf_ObjectAtEndOfAddressRange_Fails()
     {
-        Assert.That(CreateReader(MemoryWithNames()).NameOf(new Address(ulong.MaxValue)), Is.Null);
+        Assert.That(CreateReader(MemoryWithNames()).NameOf(new Address(ulong.MaxValue)).IsErr, Is.True);
     }
 
     // The 4 bytes to the number go on the address and not on the offset, so the largest offset does not overflow a 4-byte sum.
@@ -152,20 +167,24 @@ public sealed class ObjectReaderTests(
         memory.WriteInt32(name, CoreId);
         var reader = CreateReader(memory, layout with { Name = int.MaxValue });
 
-        Assert.That(reader.NameOf(_object), Is.EqualTo("Core"));
+        Assert.That(reader.NameOf(_object).Unwrap(), Is.EqualTo("Core"));
     }
 
-    // A name id outside the table returns null, because the table refuses it.
-    [TestCase(-1)]
-    [TestCase(3)]
-    [TestCase(int.MaxValue)]
-    [TestCase(int.MinValue)]
-    public void NameOf_NameIdOutsideTable_ReturnsNull(int id)
+    // A name id outside the table fails with the object, the id and the failure of the table.
+    [TestCase(-1, "Name -1 is below 0.")]
+    [TestCase(3, "Name 3 is outside the array of 3 names.")]
+    [TestCase(int.MaxValue, "Name 2147483647 is outside the array of 3 names.")]
+    [TestCase(int.MinValue, "Name -2147483648 is below 0.")]
+    public void NameOf_NameIdOutsideTable_WrapsTableError(int id, string tableError)
     {
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, id);
 
-        Assert.That(CreateReader(memory).NameOf(_object), Is.Null);
+        Assert.That(
+            CreateReader(memory).NameOf(_object).UnwrapErr().Message,
+            Is.EqualTo(
+                $"Can't read the name of the object at {_object} with the name id {id}. {tableError} "
+                + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
     }
 
     // A changed name id returns the new name, because the game can reuse the address of a freed object.
@@ -176,13 +195,13 @@ public sealed class ObjectReaderTests(
         memory.AddObject(_object, layout, CoreId);
         var reader = CreateReader(memory);
 
-        string? first = reader.NameOf(_object);
+        string first = reader.NameOf(_object).Unwrap();
         memory.WriteInt32(_object + layout.Name, EngineId);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(first, Is.EqualTo("Core"));
-            Assert.That(reader.NameOf(_object), Is.EqualTo("Engine"));
+            Assert.That(reader.NameOf(_object).Unwrap(), Is.EqualTo("Engine"));
         }
     }
 
@@ -197,8 +216,8 @@ public sealed class ObjectReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(reader.NameOf(_object), Is.EqualTo("Core"));
-            Assert.That(reader.NameOf(_otherObject), Is.EqualTo("Core"));
+            Assert.That(reader.NameOf(_object).Unwrap(), Is.EqualTo("Core"));
+            Assert.That(reader.NameOf(_otherObject).Unwrap(), Is.EqualTo("Core"));
             Assert.That(memory.ReadsAt(_otherObject + layout.Name), Is.EqualTo(1));
             Assert.That(memory.ReadsAt(_nameArray), Is.EqualTo(1));
         }
@@ -214,7 +233,7 @@ public sealed class ObjectReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(reader.NameOf(_object), Is.EqualTo("Core"));
+            Assert.That(reader.NameOf(_object).Unwrap(), Is.EqualTo("Core"));
             Assert.That(memory.ReadsAt(_object + UnknownOffset), Is.Zero);
         }
     }
@@ -226,14 +245,30 @@ public sealed class ObjectReaderTests(
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, CoreId, outer: _outer, klass: _class);
 
-        Assert.That(CreateReader(memory).ClassOf(_object), Is.EqualTo(_class));
+        Assert.That(CreateReader(memory).ClassOf(_object).Unwrap(), Is.EqualTo(_class));
     }
 
-    // A failed read returns address 0.
+    // A class pointer of 0 is a success, so it stays apart from memory that does not read.
     [Test]
-    public void ClassOf_UnreadableObject_ReturnsZero()
+    public void ClassOf_ZeroPointer_ReturnsOkZero()
     {
-        Assert.That(CreateReader(MemoryWithNames()).ClassOf(_object), Is.EqualTo(Address.Zero));
+        var memory = MemoryWithNames();
+        memory.AddObject(_object, layout, CoreId);
+
+        Assert.That(CreateReader(memory).ClassOf(_object), Is.EqualTo(Result.Ok(Address.Zero)));
+    }
+
+    // A failed read fails with the object, the address of the read, the class offset and the failed read.
+    [Test]
+    public void ClassOf_UnreadableObject_FailsWithClassOffset()
+    {
+        var address = _object + layout.Class;
+
+        Assert.That(
+            CreateReader(MemoryWithNames()).ClassOf(_object).UnwrapErr().Message,
+            Is.EqualTo(
+                $"Can't read the class of the object at {_object}: reading {address} failed. No block contains {address}. "
+                + $"Check ObjectLayout.Class (0x{layout.Class:X}) against this engine version."));
     }
 
     // A changed class returns the new pointer, because the game can reuse the address of a freed object.
@@ -244,13 +279,13 @@ public sealed class ObjectReaderTests(
         memory.AddObject(_object, layout, CoreId, klass: _class);
         var reader = CreateReader(memory);
 
-        var first = reader.ClassOf(_object);
+        var first = reader.ClassOf(_object).Unwrap();
         memory.WritePointer(_object + layout.Class, _outer);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(first, Is.EqualTo(_class));
-            Assert.That(reader.ClassOf(_object), Is.EqualTo(_outer));
+            Assert.That(reader.ClassOf(_object).Unwrap(), Is.EqualTo(_outer));
         }
     }
 
@@ -264,7 +299,7 @@ public sealed class ObjectReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(reader.ClassOf(_object), Is.EqualTo(_class));
+            Assert.That(reader.ClassOf(_object).Unwrap(), Is.EqualTo(_class));
             Assert.That(memory.Reads, Is.EqualTo(1));
         }
     }
@@ -276,14 +311,30 @@ public sealed class ObjectReaderTests(
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, CoreId, outer: _outer, klass: _class);
 
-        Assert.That(CreateReader(memory).OuterOf(_object), Is.EqualTo(_outer));
+        Assert.That(CreateReader(memory).OuterOf(_object).Unwrap(), Is.EqualTo(_outer));
     }
 
-    // A failed read returns address 0.
+    // An outer pointer of 0 is a success, because a package does not have an outer object.
     [Test]
-    public void OuterOf_UnreadableObject_ReturnsZero()
+    public void OuterOf_ZeroPointer_ReturnsOkZero()
     {
-        Assert.That(CreateReader(MemoryWithNames()).OuterOf(_object), Is.EqualTo(Address.Zero));
+        var memory = MemoryWithNames();
+        memory.AddObject(_object, layout, CoreId);
+
+        Assert.That(CreateReader(memory).OuterOf(_object), Is.EqualTo(Result.Ok(Address.Zero)));
+    }
+
+    // A failed read fails with the object, the address of the read, the outer offset and the failed read.
+    [Test]
+    public void OuterOf_UnreadableObject_FailsWithOuterOffset()
+    {
+        var address = _object + layout.Outer;
+
+        Assert.That(
+            CreateReader(MemoryWithNames()).OuterOf(_object).UnwrapErr().Message,
+            Is.EqualTo(
+                $"Can't read the outer object of the object at {_object}: reading {address} failed. No block contains {address}. "
+                + $"Check ObjectLayout.Outer (0x{layout.Outer:X}) against this engine version."));
     }
 
     // A changed outer object returns the new pointer, because the game can reuse the address of a freed object.
@@ -294,13 +345,13 @@ public sealed class ObjectReaderTests(
         memory.AddObject(_object, layout, CoreId, outer: _outer);
         var reader = CreateReader(memory);
 
-        var first = reader.OuterOf(_object);
+        var first = reader.OuterOf(_object).Unwrap();
         memory.WritePointer(_object + layout.Outer, _class);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(first, Is.EqualTo(_outer));
-            Assert.That(reader.OuterOf(_object), Is.EqualTo(_class));
+            Assert.That(reader.OuterOf(_object).Unwrap(), Is.EqualTo(_class));
         }
     }
 
@@ -314,7 +365,7 @@ public sealed class ObjectReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(reader.OuterOf(_object), Is.EqualTo(_outer));
+            Assert.That(reader.OuterOf(_object).Unwrap(), Is.EqualTo(_outer));
             Assert.That(memory.Reads, Is.EqualTo(1));
         }
     }

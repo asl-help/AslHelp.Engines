@@ -1,3 +1,4 @@
+using AslHelp.Engines.Unreal.Errors;
 using AslHelp.Memory;
 using System;
 using System.Collections.Generic;
@@ -36,11 +37,15 @@ public sealed class StructReader(
     /// </summary>
     /// <param name="type">The address of the struct.</param>
     /// <returns>
-    ///     The address of the super struct or <see cref="Address.Zero"/> when the read fails.
+    ///     The address of the super struct or a failure with the struct and the failed read. A pointer of 0 returns <see cref="Address.Zero"/>.
     /// </returns>
-    public Address SuperOf(Address type)
+    public Result<Address> SuperOf(Address type)
     {
-        return _memory.ReadPointer(type + _layout.SuperStruct).UnwrapOr(Address.Zero);
+        var address = type + _layout.SuperStruct;
+
+        return _memory.ReadPointer(address).TryUnwrap(out var super, out var error)
+            ? super
+            : StructError.SuperUnreadable(type, address, _layout.SuperStruct, error);
     }
 
     /// <summary>
@@ -52,12 +57,13 @@ public sealed class StructReader(
     /// <param name="type">The address of the struct.</param>
     /// <param name="name">The base name to find.</param>
     /// <returns>
-    ///     <see langword="true"/> when a struct on the chain is called <paramref name="name"/>.
+    ///     <see langword="true"/> when a struct on the chain is called <paramref name="name"/>, <see langword="false"/> when none is,
+    ///     or a failure with the level of the chain and the failed read when a name or a super pointer on the way does not read.
     /// </returns>
     /// <exception cref="ArgumentNullException">
     ///     <paramref name="name"/> is <see langword="null"/>.
     /// </exception>
-    public bool DerivesFrom(Address type, string name)
+    public Result<bool> DerivesFrom(Address type, string name)
     {
         ArgumentNullException.ThrowIfNull(name);
 
@@ -65,12 +71,20 @@ public sealed class StructReader(
 
         for (int depth = 0; depth < MaxDepth && current != Address.Zero; depth++)
         {
-            if (string.Equals(_objects.NameOf(current), name, StringComparison.Ordinal))
+            if (!_objects.NameOf(current).TryUnwrap(out string? currentName, out var error))
+            {
+                return StructError.ChainUnreadable(type, depth + 1, error);
+            }
+
+            if (string.Equals(currentName, name, StringComparison.Ordinal))
             {
                 return true;
             }
 
-            current = SuperOf(current);
+            if (!SuperOf(current).TryUnwrap(out current, out error))
+            {
+                return StructError.ChainUnreadable(type, depth + 1, error);
+            }
         }
 
         return false;
@@ -84,20 +98,46 @@ public sealed class StructReader(
     ///     Reads each field when the enumeration moves to it, so a caller can stop early.
     ///     Stops at <see cref="Address.Zero"/>, at a field whose outer object is not <paramref name="type"/> and after 4096 fields,
     ///     because a damaged chain can loop.
+    ///     Ends at the 1st read that fails, with the failure as the last item, so the failure comes where the fields stop.
     /// </remarks>
     /// <param name="type">The address of the struct.</param>
     /// <returns>
-    ///     The addresses of the fields.
+    ///     The addresses of the fields, then a failure if a read failed.
     /// </returns>
-    public IEnumerable<Address> ChildrenOf(Address type)
+    public IEnumerable<Result<Address>> ChildrenOf(Address type)
     {
-        var field = _memory.ReadPointer(type + _layout.Children).UnwrapOr(Address.Zero);
+        var childrenAddress = type + _layout.Children;
 
-        for (int count = 0; count < MaxChildren && field != Address.Zero && _objects.OuterOf(field) == type; count++)
+        if (!_memory.ReadPointer(childrenAddress).TryUnwrap(out var field, out var error))
         {
+            yield return StructError.ChildrenUnreadable(type, childrenAddress, _layout.Children, error);
+            yield break;
+        }
+
+        for (int count = 0; count < MaxChildren && field != Address.Zero; count++)
+        {
+            if (!_objects.OuterOf(field).TryUnwrap(out var outer, out error))
+            {
+                yield return StructError.FieldUnreadable(type, count + 1, error);
+                yield break;
+            }
+
+            if (outer != type)
+            {
+                yield break;
+            }
+
             yield return field;
 
-            field = _memory.ReadPointer(field + _fieldLayout.Next).UnwrapOr(Address.Zero);
+            var nextAddress = field + _fieldLayout.Next;
+
+            if (!_memory.ReadPointer(nextAddress).TryUnwrap(out var next, out error))
+            {
+                yield return StructError.NextUnreadable(field, nextAddress, _fieldLayout.Next, error);
+                yield break;
+            }
+
+            field = next;
         }
     }
 }

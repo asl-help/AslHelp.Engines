@@ -122,6 +122,74 @@ public sealed class CommandLineTests
         }
     }
 
+    // A failed result keeps its whole message chain in the row and on the failed line, because the causes at the end show what to check.
+    [Test]
+    public async Task RunAsync_FailedResult_WritesTheWholeMessageChain()
+    {
+        const string Chain = "The fields do not read. Can't read the next field after the field at 0x10. No block contains 0x4C.";
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+
+        int code = await RunAsync(new ScriptedMeasurer(static _ => new TextError(Chain)));
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(report.RootElement.GetProperty("players")[0].GetProperty("error").GetString(), Is.EqualTo(Chain));
+            Assert.That(_error.ToString(), Does.Contain($"failed: 1.0: {Chain}"));
+        }
+    }
+
+    // An exception from a measurer fails the row and the next player runs, because a player that does not start still throws.
+    [Test]
+    public async Task RunAsync_MeasurerThrows_FailsTheRowAndKeepsGoing()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        int measured = 0;
+
+        int code = await RunAsync(new ScriptedMeasurer(_ =>
+        {
+            measured++;
+
+            throw new IOException("The folder does not read.");
+        }));
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var players = report.RootElement.GetProperty("players");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(measured, Is.EqualTo(2));
+            Assert.That(players[0].GetProperty("error").GetString(), Is.EqualTo("The folder does not read."));
+        }
+    }
+
+    // A failed list logs its message and writes no report, because no player ran.
+    [Test]
+    public async Task RunAsync_LoadTargetsFails_LogsTheMessageAndWritesNoReport()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        string targets = Path.Combine(_folder.Root, "targets.bad");
+        FakeMeasurer measurer = new();
+
+        int code = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report, "--targets", targets],
+            _output,
+            _error,
+            [measurer],
+            new WriterLogger(_output, _error));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(_error.ToString(), Does.Contain($"'{targets}' is not valid."));
+            Assert.That(File.Exists(_report), Is.False);
+        }
+    }
+
     // A folder without a player of the engine fails, because an empty report reads like a run with nothing to find.
     [Test]
     public async Task RunAsync_NoPlayers_FailsWithTheFolder()
@@ -142,7 +210,12 @@ public sealed class CommandLineTests
     {
         string players = Path.Combine(_folder.Root, "missing");
 
-        int code = await CommandLine.RunAsync(["engine", players, "--output", _report], _output, _error, [new FakeMeasurer()], new WriterLogger(_output, _error));
+        int code = await CommandLine.RunAsync(
+            ["engine", players, "--output", _report],
+            _output,
+            _error,
+            [new FakeMeasurer()],
+            new WriterLogger(_output, _error));
 
         using (Assert.EnterMultipleScope())
         {
@@ -158,7 +231,12 @@ public sealed class CommandLineTests
         _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
         string report = Path.Combine(_folder.Root, "new", "report.json");
 
-        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", report], _output, _error, [new FakeMeasurer()], new WriterLogger(_output, _error));
+        int code = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", report],
+            _output,
+            _error,
+            [new FakeMeasurer()],
+            new WriterLogger(_output, _error));
 
         using (Assert.EnterMultipleScope())
         {
@@ -191,7 +269,12 @@ public sealed class CommandLineTests
         string targets = Path.Combine(_folder.Root, "targets.bad");
         FakeMeasurer measurer = new();
 
-        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report, "--targets", targets], _output, _error, [measurer], new WriterLogger(_output, _error));
+        int code = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report, "--targets", targets],
+            _output,
+            _error,
+            [measurer],
+            new WriterLogger(_output, _error));
 
         using (Assert.EnterMultipleScope())
         {
@@ -210,7 +293,12 @@ public sealed class CommandLineTests
         string targets = Path.Combine(_folder.Root, "targets.json");
         FakeMeasurer measurer = new();
 
-        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report, "--targets", targets], _output, _error, [measurer], new WriterLogger(_output, _error));
+        int code = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report, "--targets", targets],
+            _output,
+            _error,
+            [measurer],
+            new WriterLogger(_output, _error));
 
         using (Assert.EnterMultipleScope())
         {
@@ -225,7 +313,7 @@ public sealed class CommandLineTests
     {
         _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
         FakeMeasurer measurer = new();
-        measurer.LoadTargets("earlier.json");
+        _ = measurer.LoadTargets("earlier.json");
 
         int code = await RunAsync(measurer);
 
@@ -367,7 +455,12 @@ public sealed class CommandLineTests
         _ = Directory.CreateDirectory(Path.Combine(players, First));
         string report = Path.Combine(_folder.Root, "r\u00E9port \u30D5\u30A9\u30EB\u30C0", "report \u00FC.json");
 
-        int code = await CommandLine.RunAsync(["engine", players, "--output", report], _output, _error, [new FakeMeasurer()], new WriterLogger(_output, _error));
+        int code = await CommandLine.RunAsync(
+            ["engine", players, "--output", report],
+            _output,
+            _error,
+            [new FakeMeasurer()],
+            new WriterLogger(_output, _error));
 
         using (Assert.EnterMultipleScope())
         {
@@ -398,7 +491,12 @@ public sealed class CommandLineTests
         await File.WriteAllTextAsync(_report, "earlier");
         string targets = Path.Combine(_folder.Root, "targets.bad");
 
-        _ = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report, "--targets", targets], _output, _error, [new FakeMeasurer()], new WriterLogger(_output, _error));
+        _ = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report, "--targets", targets],
+            _output,
+            _error,
+            [new FakeMeasurer()],
+            new WriterLogger(_output, _error));
 
         Assert.That(await File.ReadAllTextAsync(_report), Is.EqualTo("earlier"));
     }
@@ -410,7 +508,12 @@ public sealed class CommandLineTests
         string targets = Path.Combine(_folder.Root, "targets.bad");
         FakeMeasurer measurer = new();
 
-        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report, "--targets", targets], _output, _error, [measurer], new WriterLogger(_output, _error));
+        int code = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report, "--targets", targets],
+            _output,
+            _error,
+            [measurer],
+            new WriterLogger(_output, _error));
 
         using (Assert.EnterMultipleScope())
         {
@@ -800,15 +903,16 @@ file sealed class ScopeLogger : ILogger
 }
 
 file sealed class ScriptedMeasurer(
-    Func<string, PlayerMeasurement> measure) : IEngineMeasurer
+    Func<string, Result<PlayerMeasurement>> measure) : IEngineMeasurer
 {
     public string Name => "engine";
 
-    public void LoadTargets(string? path)
+    public Result LoadTargets(string? path)
     {
+        return Result.Ok();
     }
 
-    public Task<PlayerMeasurement> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
+    public Task<Result<PlayerMeasurement>> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
     {
         return Task.FromResult(measure(playerDirectory));
     }

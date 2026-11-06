@@ -19,7 +19,7 @@ public sealed class UdkTargetsTests
     [Test]
     public void Read_EmbeddedFile_HasTheFourGlobals()
     {
-        var targets = UdkTargets.ReadEmbedded();
+        var targets = UdkTargets.ReadEmbedded().Unwrap();
 
         using (Assert.EnterMultipleScope())
         {
@@ -35,85 +35,85 @@ public sealed class UdkTargetsTests
     [Test]
     public void Read_TypeAfterOtherKeys_Parses()
     {
-        var targets = Read($$"""{ "Names": { "firstNames": ["A", "B"], "$type": "nameArray" }, {{ObjectArray}} }""");
+        var targets = Read($$"""{ "Names": { "firstNames": ["A", "B"], "$type": "nameArray" }, {{ObjectArray}} }""").Unwrap();
 
         Assert.That(targets["Names"], Is.TypeOf<UdkNameArrayTarget>());
     }
 
     // A type that no code handles fails with the path, because a member has no place in the file.
     [Test]
-    public void Read_UnknownType_ThrowsWithThePath()
+    public void Read_UnknownType_FailsWithThePath()
     {
         AssertRefused($$"""{ {{NameArray}}, {{ObjectArray}}, "Type.Member": { "$type": "member" } }""");
     }
 
     // A target without a type fails with the path and not with the error of the abstract record.
     [Test]
-    public void Read_MissingType_ThrowsWithThePath()
+    public void Read_MissingType_FailsWithThePath()
     {
         AssertRefused($$"""{ {{NameArray}}, {{ObjectArray}}, "Other": { } }""");
     }
 
     // A misspelled key fails the parse, because the optional object name would otherwise stay null with no error.
     [Test]
-    public void Read_UnknownKey_ThrowsWithThePath()
+    public void Read_UnknownKey_FailsWithThePath()
     {
         AssertRefused($$"""{ {{NameArray}}, {{ObjectArray}}, "Slot": { "$type": "objectSlot", "class": "A", "objekt": "B" } }""");
     }
 
     // A file with no targets fails before any player.
     [Test]
-    public void Read_EmptyObject_ThrowsWithThePath()
+    public void Read_EmptyObject_FailsWithThePath()
     {
         AssertRefused("{}");
     }
 
     // A null target fails with a message and not a null reference later.
     [Test]
-    public void Read_NullTarget_ThrowsWithTheGlobal()
+    public void Read_NullTarget_FailsWithTheGlobal()
     {
         Assert.That(
-            () => Read($$"""{ {{NameArray}}, {{ObjectArray}}, "Other": null }"""),
-            Throws.TypeOf<InvalidDataException>().With.Message.Contain("Other").And.Message.Contain(TargetsPath));
+            Read($$"""{ {{NameArray}}, {{ObjectArray}}, "Other": null }""").UnwrapErr().Message,
+            Does.Contain("Other").And.Contain(TargetsPath));
     }
 
     // A global written twice would lose the 1st target with no error.
     [Test]
-    public void Read_GlobalWrittenTwice_ThrowsWithThePath()
+    public void Read_GlobalWrittenTwice_FailsWithThePath()
     {
         AssertRefused($$"""{ {{NameArray}}, {{ObjectArray}}, "Objects": { "$type": "objectSlot", "class": "A" } }""");
     }
 
     // The name array search starts from 2 names, so 1 name is not enough.
     [Test]
-    public void Read_NameArrayWithOneFirstName_Throws()
+    public void Read_NameArrayWithOneFirstName_Fails()
     {
         Assert.That(
-            () => Read($$"""{ "Names": { "$type": "nameArray", "firstNames": ["A"] }, {{ObjectArray}} }"""),
-            Throws.TypeOf<InvalidDataException>().With.Message.Contain("Names").And.Message.Contain(TargetsPath));
+            Read($$"""{ "Names": { "$type": "nameArray", "firstNames": ["A"] }, {{ObjectArray}} }""").UnwrapErr().Message,
+            Does.Contain("Names").And.Contain(TargetsPath));
     }
 
     // 2 name arrays would search for 1 array twice, with 2 lists of names.
     [Test]
-    public void Read_TwoNameArrays_Throws()
+    public void Read_TwoNameArrays_Fails()
     {
         AssertRefused($$"""{ {{NameArray}}, "Other": { "$type": "nameArray", "firstNames": ["A", "B"] }, {{ObjectArray}} }""");
     }
 
     // Measuring the members needs the object array, so it is required even in a file that lists no slot.
     [Test]
-    public void Read_NoObjectArray_Throws()
+    public void Read_NoObjectArray_Fails()
     {
         AssertRefused($$"""{ {{NameArray}} }""");
     }
 
     // A path to --targets that does not exist fails with that path.
     [Test]
-    public void ReadFile_MissingFile_ThrowsFileNotFoundWithThePath()
+    public void ReadFile_MissingFile_FailsWithThePath()
     {
         string missing = Path.Combine(Path.GetTempPath(), "missing-targets.example");
 
-        Assert.That(() => UdkTargets.ReadFile(missing), Throws.TypeOf<FileNotFoundException>().With.Message.Contain(missing));
+        Assert.That(UdkTargets.ReadFile(missing).UnwrapErr().Message, Is.EqualTo(UdkSR.FormatTargetsNotFound(missing)));
     }
 
     // A file saved with a byte order mark parses, because Windows editors write one.
@@ -123,14 +123,14 @@ public sealed class UdkTargetsTests
         byte[] bom = Encoding.UTF8.GetPreamble();
         using MemoryStream stream = new([.. bom, .. Encoding.UTF8.GetBytes($$"""{ {{NameArray}}, {{ObjectArray}} }""")]);
 
-        Assert.That(UdkTargets.Read(stream, TargetsPath), Has.Count.EqualTo(2));
+        Assert.That(UdkTargets.Read(stream, TargetsPath).Unwrap(), Has.Count.EqualTo(2));
     }
 
     // Keys and types compare with their case, because a misspelled key has to fail.
     [TestCase(""" "Names": { "$type": "NAMEARRAY", "firstNames": ["A", "B"] } """)]
     [TestCase(""" "Names": { "$Type": "nameArray", "firstNames": ["A", "B"] } """)]
     [TestCase(""" "Names": { "$type": "nameArray", "FirstNames": ["A", "B"] } """)]
-    public void Read_KeyOrTypeInAnotherCase_ThrowsWithThePath(string target)
+    public void Read_KeyOrTypeInAnotherCase_FailsWithThePath(string target)
     {
         AssertRefused($$"""{ {{target}}, {{ObjectArray}} }""");
     }
@@ -144,7 +144,7 @@ public sealed class UdkTargetsTests
     [TestCase("{")]
     [TestCase("""{ "A": 1 }""")]
     [TestCase("""{ "A": [] }""")]
-    public void Read_NotAnObjectOfTargets_ThrowsWithThePath(string json)
+    public void Read_NotAnObjectOfTargets_FailsWithThePath(string json)
     {
         AssertRefused(json);
     }
@@ -153,7 +153,7 @@ public sealed class UdkTargetsTests
     [TestCase(""" "Names": { "$type": "nameArray" } """)]
     [TestCase(""" "Names": { "$type": "nameArray", "firstNames": null } """)]
     [TestCase(""" "Names": { "$type": "nameArray", "firstNames": "A" } """)]
-    public void Read_BadNameArray_ThrowsWithThePath(string target)
+    public void Read_BadNameArray_FailsWithThePath(string target)
     {
         AssertRefused($$"""{ {{target}}, {{ObjectArray}} }""");
     }
@@ -162,7 +162,7 @@ public sealed class UdkTargetsTests
     [TestCase(""" "Slot": { "$type": "objectSlot" } """)]
     [TestCase(""" "Slot": { "$type": "objectSlot", "class": null } """)]
     [TestCase(""" "Slot": { "$type": "objectSlot", "class": 1 } """)]
-    public void Read_SlotWithoutClass_ThrowsWithThePath(string target)
+    public void Read_SlotWithoutClass_FailsWithThePath(string target)
     {
         AssertRefused($$"""{ {{NameArray}}, {{ObjectArray}}, {{target}} }""");
     }
@@ -171,7 +171,7 @@ public sealed class UdkTargetsTests
     [Test]
     public void Read_SlotWithNullObject_Parses()
     {
-        var targets = Read($$"""{ {{NameArray}}, {{ObjectArray}}, "Slot": { "$type": "objectSlot", "class": "A", "object": null } }""");
+        var targets = Read($$"""{ {{NameArray}}, {{ObjectArray}}, "Slot": { "$type": "objectSlot", "class": "A", "object": null } }""").Unwrap();
 
         Assert.That(targets["Slot"], Is.EqualTo(new UdkObjectSlotTarget("A")));
     }
@@ -182,7 +182,7 @@ public sealed class UdkTargetsTests
     [TestCase("""["", "B"]""")]
     [TestCase("""["A", "  "]""")]
     [TestCase("""["A", "B", ""]""")]
-    public void Read_NullOrBlankFirstName_ThrowsWithThePath(string firstNames)
+    public void Read_NullOrBlankFirstName_FailsWithThePath(string firstNames)
     {
         AssertRefused($$"""{ "Names": { "$type": "nameArray", "firstNames": {{firstNames}} }, {{ObjectArray}} }""");
     }
@@ -192,28 +192,28 @@ public sealed class UdkTargetsTests
     [TestCase(""" "Slot": { "$type": "objectSlot", "class": "" } """)]
     [TestCase(""" "Slot": { "$type": "objectSlot", "class": " " } """)]
     [TestCase(""" "Slot": { "$type": "objectSlot", "class": "A", "object": "" } """)]
-    public void Read_BlankSlotValue_ThrowsWithThePath(string target)
+    public void Read_BlankSlotValue_FailsWithThePath(string target)
     {
         AssertRefused($$"""{ {{NameArray}}, {{ObjectArray}}, {{target}} }""");
     }
 
     // A name array with an empty list has the same problem as one with 1 name.
     [Test]
-    public void Read_NameArrayWithNoFirstNames_Throws()
+    public void Read_NameArrayWithNoFirstNames_Fails()
     {
         AssertRefused($$"""{ "Names": { "$type": "nameArray", "firstNames": [] }, {{ObjectArray}} }""");
     }
 
     // 2 object arrays would report 1 array under 2 globals.
     [Test]
-    public void Read_TwoObjectArrays_Throws()
+    public void Read_TwoObjectArrays_Fails()
     {
         AssertRefused($$"""{ {{NameArray}}, {{ObjectArray}}, "Other": { "$type": "objectArray" } }""");
     }
 
     // Every member search reads names, so the name array is required.
     [Test]
-    public void Read_NoNameArray_Throws()
+    public void Read_NoNameArray_Fails()
     {
         AssertRefused($$"""{ {{ObjectArray}} }""");
     }
@@ -222,7 +222,7 @@ public sealed class UdkTargetsTests
     [Test]
     public void Read_GlobalsDifferingInCase_Parses()
     {
-        var targets = Read($$"""{ {{NameArray}}, {{ObjectArray}}, "objects": { "$type": "objectSlot", "class": "A" } }""");
+        var targets = Read($$"""{ {{NameArray}}, {{ObjectArray}}, "objects": { "$type": "objectSlot", "class": "A" } }""").Unwrap();
 
         Assert.That(targets, Has.Count.EqualTo(3));
     }
@@ -231,12 +231,12 @@ public sealed class UdkTargetsTests
     [Test]
     public void Read_UnicodeGlobal_KeepsIt()
     {
-        var targets = Read($$"""{ {{NameArray}}, {{ObjectArray}}, "\u00DC": { "$type": "objectSlot", "class": "\u30AF" } }""");
+        var targets = Read($$"""{ {{NameArray}}, {{ObjectArray}}, "\u00DC": { "$type": "objectSlot", "class": "\u30AF" } }""").Unwrap();
 
         Assert.That(targets["\u00DC"], Is.EqualTo(new UdkObjectSlotTarget("\u30AF")));
     }
 
-    private static IReadOnlyDictionary<string, UdkTarget> Read(string json)
+    private static Result<IReadOnlyDictionary<string, UdkTarget>> Read(string json)
     {
         using MemoryStream stream = new(Encoding.UTF8.GetBytes(json));
 
@@ -245,6 +245,6 @@ public sealed class UdkTargetsTests
 
     private static void AssertRefused(string json)
     {
-        Assert.That(() => Read(json), Throws.TypeOf<InvalidDataException>().With.Message.Contain(TargetsPath));
+        Assert.That(Read(json).UnwrapErr().Message, Does.Contain(TargetsPath));
     }
 }

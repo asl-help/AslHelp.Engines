@@ -22,13 +22,11 @@ internal static class UdkMeasurement
     /// <param name="executablePath">The file of the executable of the player.</param>
     /// <param name="logger">The logger for the steps of the measurement.</param>
     /// <returns>
-    ///     The globals and the offsets found and the reason for each global or member that was not found.
+    ///     The globals and the offsets found and the reason for each global or member that was not found
+    ///     or a failure when an array, the name, class or outer offset or a class of the super chain was not found,
+    ///     2 arrays with different data fit or the fixture value does not read as 1337 through the offsets found.
     /// </returns>
-    /// <exception cref="InvalidOperationException">
-    ///     An array, the name, class or outer offset or a class of the super chain was not found, 2 arrays with different data fit
-    ///     or the fixture value does not read as 1337 through the offsets found.
-    /// </exception>
-    public static PlayerMeasurement Measure(
+    public static Result<PlayerMeasurement> Measure(
         IMemoryReader memory,
         Address moduleBase,
         IReadOnlyList<UdkSection> sections,
@@ -38,12 +36,18 @@ internal static class UdkMeasurement
     {
         var firstNames = targets.Values.OfType<UdkNameArrayTarget>().Single().FirstNames;
 
-        var names = UdkArrays.FindNames(memory, moduleBase, sections, firstNames);
+        if (!UdkArrays.FindNames(memory, moduleBase, sections, firstNames).TryUnwrap(out var names, out var error))
+        {
+            return error;
+        }
 
         string nameRvas = FormatRvas(names.Rvas);
         logger.NameArrayFound(nameRvas);
 
-        var objects = UdkArrays.FindObjects(memory, moduleBase, sections, names.Rvas);
+        if (!UdkArrays.FindObjects(memory, moduleBase, sections, names.Rvas).TryUnwrap(out var objects, out error))
+        {
+            return error;
+        }
 
         string objectRvas = FormatRvas(objects.Rvas);
         logger.ObjectArrayFound(objects.Pointers.Count, objectRvas);
@@ -51,11 +55,17 @@ internal static class UdkMeasurement
         Dictionary<string, int> offsets = [];
         Dictionary<string, string> unmeasured = [];
 
-        var measured = UdkMembers.Measure(memory, names, objects, offsets, unmeasured);
+        if (!UdkMembers.Measure(memory, names, objects, offsets, unmeasured).TryUnwrap(out var measured, out error))
+        {
+            return error;
+        }
 
         logger.OffsetsFound(offsets.Count);
 
-        UdkFixtureCheck.Run(memory, measured, offsets, logger);
+        if (UdkFixtureCheck.Run(memory, measured, offsets, logger).TryUnwrapErr(out error))
+        {
+            return error;
+        }
 
         Dictionary<string, IReadOnlyList<uint>> globals = [];
         HashSet<Address> known = [.. objects.Pointers];
@@ -137,8 +147,8 @@ internal static class UdkMeasurement
         foreach ((uint rva, var value) in UdkSections.Pointers(sections, memory.Layout))
         {
             if (known.Contains(value)
-                && structs.DerivesFrom(reader.ClassOf(value), slot.Class)
-                && (slot.Object is null || string.Equals(reader.NameOf(value), slot.Object, StringComparison.Ordinal)))
+                && structs.DerivesFrom(reader.ClassOf(value).UnwrapOr(Address.Zero), slot.Class).UnwrapOr(false)
+                && (slot.Object is null || string.Equals(reader.NameOf(value).UnwrapOrDefault(), slot.Object, StringComparison.Ordinal)))
             {
                 rvas.Add(rva);
             }

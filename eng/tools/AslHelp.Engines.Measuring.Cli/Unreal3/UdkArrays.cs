@@ -54,12 +54,10 @@ internal static class UdkArrays
     /// <param name="sections">The sections of the executable without code.</param>
     /// <param name="firstNames">The first names of the array in order.</param>
     /// <returns>
-    ///     The name array.
+    ///     The name array or a failure when no array fits, 2 arrays with different data fit
+    ///     or the array does not read or has another name at a position of <paramref name="firstNames"/>.
     /// </returns>
-    /// <exception cref="InvalidOperationException">
-    ///     No array fits, 2 arrays with different data fit or the array has another name at a position of <paramref name="firstNames"/>.
-    /// </exception>
-    public static UdkNameArray FindNames(
+    public static Result<UdkNameArray> FindNames(
         IMemoryReader memory,
         Address moduleBase,
         IReadOnlyList<UdkSection> sections,
@@ -69,7 +67,7 @@ internal static class UdkArrays
 
         if (candidates.Count == 0)
         {
-            throw new InvalidOperationException(UdkSR.FormatNameArrayNotFound(firstNames[0], firstNames[1]));
+            return UdkError.NameArrayNotFound(firstNames[0], firstNames[1]);
         }
 
         var (firstRva, data, layout) = candidates[0];
@@ -77,18 +75,21 @@ internal static class UdkArrays
 
         if (other >= 0)
         {
-            throw new InvalidOperationException(UdkSR.FormatNameArrayAmbiguous(Hex(firstRva), Hex(candidates[other].Rva)));
+            return UdkError.NameArrayAmbiguous(Hex(firstRva), Hex(candidates[other].Rva));
         }
 
         FlatNameTable table = new(memory, moduleBase + firstRva, layout);
 
         for (int id = 0; id < firstNames.Count; id++)
         {
-            string? name = table.Read(id);
+            if (!table.Read(id).TryUnwrap(out string? name, out var error))
+            {
+                return UdkError.NameArrayNameUnreadable(Hex(firstRva), id, error);
+            }
 
             if (!string.Equals(name, firstNames[id], StringComparison.Ordinal))
             {
-                throw new InvalidOperationException(UdkSR.FormatNameArrayWrongName(Hex(firstRva), name, id, firstNames[id]));
+                return UdkError.NameArrayWrongName(Hex(firstRva), name, id, firstNames[id]);
             }
         }
 
@@ -103,10 +104,10 @@ internal static class UdkArrays
     /// <param name="sections">The sections of the executable without code.</param>
     /// <param name="nameRvas">The RVAs of the name array, which also reads as an array of pointers.</param>
     /// <returns>
-    ///     The object array.
+    ///     The object array or a failure when no array fits, the longest 2 arrays have different data and the same count
+    ///     or the array does not read to its end.
     /// </returns>
-    /// <exception cref="InvalidOperationException">No array fits or the longest 2 arrays have different data and the same count.</exception>
-    public static UdkObjectArray FindObjects(
+    public static Result<UdkObjectArray> FindObjects(
         IMemoryReader memory,
         Address moduleBase,
         IReadOnlyList<UdkSection> sections,
@@ -114,13 +115,17 @@ internal static class UdkArrays
     {
         var candidates = UdkSections.Arrays(sections, memory.Layout, SmallestArray, MostObjects)
             .Where(array => !nameRvas.Contains(array.Rva))
-            .Select(array => (array.Rva, array.Data, array.Count, IndexOffset: FindIndexOffset(memory, new FlatObjectArray(memory, moduleBase + array.Rva))))
+            .Select(array => (
+                array.Rva,
+                array.Data,
+                array.Count,
+                IndexOffset: FindIndexOffset(memory, new FlatObjectArray(memory, moduleBase + array.Rva))))
             .Where(static candidate => candidate.IndexOffset != NotFound)
             .ToList();
 
         if (candidates.Count == 0)
         {
-            throw new InvalidOperationException(UdkSR.ObjectArrayNotFound);
+            return UdkError.ObjectArrayNotFound();
         }
 
         // Take the longest array, because a shorter array that starts with the same objects also fits the sample.
@@ -129,16 +134,30 @@ internal static class UdkArrays
 
         if (other >= 0)
         {
-            throw new InvalidOperationException(UdkSR.FormatObjectArrayAmbiguous(Hex(firstRva), Hex(candidates[other].Rva)));
+            return UdkError.ObjectArrayAmbiguous(Hex(firstRva), Hex(candidates[other].Rva));
         }
 
         FlatObjectArray array = new(memory, moduleBase + firstRva);
+        List<Address> pointers = [];
+
+        foreach (var item in array.Read(int.MaxValue))
+        {
+            if (!item.TryUnwrap(out var obj, out var error))
+            {
+                return UdkError.ObjectArrayUnreadable(Hex(firstRva), error);
+            }
+
+            if (obj != Address.Zero)
+            {
+                pointers.Add(obj);
+            }
+        }
 
         return new UdkObjectArray(
             [.. candidates.Where(candidate => candidate.Data == data).Select(static candidate => candidate.Rva)],
             array,
             indexOffset,
-            [.. array.Read(array.ReadCount()).Where(static obj => obj != Address.Zero)]);
+            pointers);
     }
 
     /// <summary>
@@ -218,9 +237,11 @@ internal static class UdkArrays
     /// </returns>
     private static int FindIndexOffset(IMemoryReader memory, FlatObjectArray array)
     {
+        // Stop at a failed read, because a miss is normal here and most arrays in the sections are false matches.
         var sample = array
             .Read(SampleLength)
-            .Select(static (obj, position) => (Object: obj, Position: position))
+            .TakeWhile(static item => item.IsOk)
+            .Select(static (item, position) => (Object: item.Value, Position: position))
             .Where(static pair => pair.Object != Address.Zero)
             .ToList();
 

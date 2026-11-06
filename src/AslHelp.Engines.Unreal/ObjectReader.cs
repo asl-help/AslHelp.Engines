@@ -1,3 +1,4 @@
+using AslHelp.Engines.Unreal.Errors;
 using AslHelp.Memory;
 using System;
 
@@ -32,20 +33,38 @@ public sealed class ObjectReader(
     /// </remarks>
     /// <param name="obj">The address of the object.</param>
     /// <returns>
-    ///     The base name or <see langword="null"/> when <paramref name="obj"/> is <see cref="Address.Zero"/>,
+    ///     The base name or a failure with the object and the failed read when <paramref name="obj"/> is <see cref="Address.Zero"/>,
     ///     a read fails or the name number is negative.
     /// </returns>
-    public string? NameOf(Address obj)
+    public Result<string> NameOf(Address obj)
     {
-        if (obj == Address.Zero
-            || !_memory.Read<int>(obj + _layout.Name).TryUnwrap(out int id)
-            || !_memory.Read<int>(obj + _layout.Name + sizeof(int)).TryUnwrap(out int number)
-            || number < 0)
+        if (obj == Address.Zero)
         {
-            return null;
+            return ObjectError.NullObject();
         }
 
-        return _names.Read(id);
+        var idAddress = obj + _layout.Name;
+
+        if (!_memory.Read<int>(idAddress).TryUnwrap(out int id, out var error))
+        {
+            return ObjectError.NameUnreadable(obj, idAddress, _layout.Name, error);
+        }
+
+        var numberAddress = idAddress + sizeof(int);
+
+        if (!_memory.Read<int>(numberAddress).TryUnwrap(out int number, out error))
+        {
+            return ObjectError.NameUnreadable(obj, numberAddress, _layout.Name, error);
+        }
+
+        if (number < 0)
+        {
+            return ObjectError.NegativeNumber(obj, number, _layout.Name);
+        }
+
+        return _names.Read(id).TryUnwrap(out string? name, out error)
+            ? name
+            : ObjectError.NameNotFound(obj, id, _layout.Name, error);
     }
 
     /// <summary>
@@ -53,11 +72,15 @@ public sealed class ObjectReader(
     /// </summary>
     /// <param name="obj">The address of the object.</param>
     /// <returns>
-    ///     The address of the class or <see cref="Address.Zero"/> when the read fails.
+    ///     The address of the class or a failure with the object and the failed read. A pointer of 0 returns <see cref="Address.Zero"/>.
     /// </returns>
-    public Address ClassOf(Address obj)
+    public Result<Address> ClassOf(Address obj)
     {
-        return _memory.ReadPointer(obj + _layout.Class).UnwrapOr(Address.Zero);
+        var address = obj + _layout.Class;
+
+        return _memory.ReadPointer(address).TryUnwrap(out var klass, out var error)
+            ? klass
+            : ObjectError.ClassUnreadable(obj, address, _layout.Class, error);
     }
 
     /// <summary>
@@ -65,10 +88,14 @@ public sealed class ObjectReader(
     /// </summary>
     /// <param name="obj">The address of the object.</param>
     /// <returns>
-    ///     The address of the outer object or <see cref="Address.Zero"/> when the read fails.
+    ///     The address of the outer object or a failure with the object and the failed read. A pointer of 0 returns <see cref="Address.Zero"/>.
     /// </returns>
-    public Address OuterOf(Address obj)
+    public Result<Address> OuterOf(Address obj)
     {
-        return _memory.ReadPointer(obj + _layout.Outer).UnwrapOr(Address.Zero);
+        var address = obj + _layout.Outer;
+
+        return _memory.ReadPointer(address).TryUnwrap(out var outer, out var error)
+            ? outer
+            : ObjectError.OuterUnreadable(obj, address, _layout.Outer, error);
     }
 }

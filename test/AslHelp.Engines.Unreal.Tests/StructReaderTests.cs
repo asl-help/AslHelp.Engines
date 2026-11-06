@@ -1,5 +1,6 @@
 using AslHelp.Memory;
 using NUnit.Framework;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace AslHelp.Engines.Unreal.Tests;
@@ -42,14 +43,27 @@ public sealed class StructReaderTests(
     [Test]
     public void SuperOf_ReadableType_ReturnsPointer()
     {
-        Assert.That(CreateReader(MemoryWithTypes()).SuperOf(_pawn), Is.EqualTo(_actor));
+        Assert.That(CreateReader(MemoryWithTypes()).SuperOf(_pawn).Unwrap(), Is.EqualTo(_actor));
     }
 
-    // A failed read returns address 0.
+    // A super pointer of 0 is a success, because the top of a chain does not have a super struct.
     [Test]
-    public void SuperOf_UnreadableType_ReturnsZero()
+    public void SuperOf_ZeroPointer_ReturnsOkZero()
     {
-        Assert.That(CreateReader(MemoryWithNames()).SuperOf(_pawn), Is.EqualTo(Address.Zero));
+        Assert.That(CreateReader(MemoryWithTypes()).SuperOf(_object), Is.EqualTo(Result.Ok(Address.Zero)));
+    }
+
+    // A failed read fails with the struct, the address of the read, the super offset and the failed read.
+    [Test]
+    public void SuperOf_UnreadableType_FailsWithSuperOffset()
+    {
+        var address = _pawn + layout.SuperStruct;
+
+        Assert.That(
+            CreateReader(MemoryWithNames()).SuperOf(_pawn).UnwrapErr().Message,
+            Is.EqualTo(
+                $"Can't read the super struct of the struct at {_pawn}: reading {address} failed. No block contains {address}. "
+                + $"Check StructLayout.SuperStruct (0x{layout.SuperStruct:X}) against this engine version."));
     }
 
     // A changed super returns the new pointer, because the game can reuse the address of a freed struct.
@@ -59,13 +73,13 @@ public sealed class StructReaderTests(
         var memory = MemoryWithTypes();
         var reader = CreateReader(memory);
 
-        var first = reader.SuperOf(_pawn);
+        var first = reader.SuperOf(_pawn).Unwrap();
         memory.WritePointer(_pawn + layout.SuperStruct, _object);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(first, Is.EqualTo(_actor));
-            Assert.That(reader.SuperOf(_pawn), Is.EqualTo(_object));
+            Assert.That(reader.SuperOf(_pawn).Unwrap(), Is.EqualTo(_object));
         }
     }
 
@@ -73,14 +87,14 @@ public sealed class StructReaderTests(
     [Test]
     public void DerivesFrom_TypeItself_ReturnsTrue()
     {
-        Assert.That(CreateReader(MemoryWithTypes()).DerivesFrom(_pawn, "Pawn"), Is.True);
+        Assert.That(CreateReader(MemoryWithTypes()).DerivesFrom(_pawn, "Pawn").Unwrap(), Is.True);
     }
 
     // A name 2 levels up the super chain matches.
     [Test]
     public void DerivesFrom_Ancestor_ReturnsTrue()
     {
-        Assert.That(CreateReader(MemoryWithTypes()).DerivesFrom(_pawn, "Object"), Is.True);
+        Assert.That(CreateReader(MemoryWithTypes()).DerivesFrom(_pawn, "Object").Unwrap(), Is.True);
     }
 
     // A name that is not on the chain returns false, even when it differs from a name on the chain only in case.
@@ -91,8 +105,8 @@ public sealed class StructReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(reader.DerivesFrom(_pawn, "Missing"), Is.False);
-            Assert.That(reader.DerivesFrom(_pawn, "object"), Is.False);
+            Assert.That(reader.DerivesFrom(_pawn, "Missing").Unwrap(), Is.False);
+            Assert.That(reader.DerivesFrom(_pawn, "object").Unwrap(), Is.False);
         }
     }
 
@@ -105,19 +119,22 @@ public sealed class StructReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(CreateReader(memory).DerivesFrom(Address.Zero, "Pawn"), Is.False);
+            Assert.That(CreateReader(memory).DerivesFrom(Address.Zero, "Pawn").Unwrap(), Is.False);
             Assert.That(memory.Reads, Is.Zero);
         }
     }
 
-    // A struct with no readable name does not end the chain, so the ancestor above it still matches.
+    // A struct with a negative name number fails the chain with the level and that number, because the real name of the struct stays unknown.
     [Test]
-    public void DerivesFrom_UnnamedTypeOnChain_ChecksItsAncestors()
+    public void DerivesFrom_UnnamedTypeOnChain_FailsWithNegativeNumber()
     {
         var memory = MemoryWithTypes();
         memory.WriteInt32(_actor + objectLayout.Name + sizeof(int), -1);
 
-        Assert.That(CreateReader(memory).DerivesFrom(_pawn, "Object"), Is.True);
+        Assert.That(
+            CreateReader(memory).DerivesFrom(_pawn, "Object").UnwrapErr().Message,
+            Does.StartWith($"Can't follow the super chain of the struct at {_pawn} at level 2.")
+                .And.Contain($"The object at {_actor} has the name number -1"));
     }
 
     // A struct with a number matches by its base name and not by a name with the number as a suffix.
@@ -130,44 +147,64 @@ public sealed class StructReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(reader.DerivesFrom(_pawn, "Actor"), Is.True);
-            Assert.That(reader.DerivesFrom(_pawn, "Actor_4"), Is.False);
+            Assert.That(reader.DerivesFrom(_pawn, "Actor").Unwrap(), Is.True);
+            Assert.That(reader.DerivesFrom(_pawn, "Actor_4").Unwrap(), Is.False);
         }
     }
 
-    // An empty name does not match a struct with no readable name, because a failed read is not an empty text.
+    // An empty name on a struct whose name does not read fails, because a failed read is not an empty text.
     [Test]
-    public void DerivesFrom_EmptyNameOnUnnamedType_ReturnsFalse()
+    public void DerivesFrom_EmptyNameOnUnnamedType_Fails()
     {
         var memory = MemoryWithTypes();
         memory.WriteInt32(_pawn + objectLayout.Name + sizeof(int), -1);
 
-        Assert.That(CreateReader(memory).DerivesFrom(_pawn, string.Empty), Is.False);
+        Assert.That(CreateReader(memory).DerivesFrom(_pawn, string.Empty).UnwrapErr().Message, Does.Contain("at level 1."));
     }
 
-    // A super pointer into unreadable memory ends the chain with no match.
+    // A super pointer into unreadable memory fails with the level and the failed read of the name and does not return false.
     [Test]
-    public void DerivesFrom_UnreadableAncestor_ReturnsFalse()
+    public void DerivesFrom_UnreadableAncestor_FailsWithLevelAndCause()
     {
         var memory = MemoryWithTypes();
         memory.WritePointer(_pawn + layout.SuperStruct, _unreadable);
 
-        Assert.That(CreateReader(memory).DerivesFrom(_pawn, "Object"), Is.False);
+        var nameAddress = _unreadable + objectLayout.Name;
+
+        Assert.That(
+            CreateReader(memory).DerivesFrom(_pawn, "Object").UnwrapErr().Message,
+            Does.StartWith($"Can't follow the super chain of the struct at {_pawn} at level 2.")
+                .And.Contain($"Can't read the name of the object at {_unreadable}")
+                .And.Contain($"No block contains {nameAddress}."));
     }
 
-    // A type that is its own super ends after 64 levels, because a damaged chain can loop.
+    // A super pointer that does not read fails with the level of the struct it belongs to.
     [Test]
-    public void DerivesFrom_LoopingChain_StopsAfter64Levels()
+    public void DerivesFrom_UnreadableSuperPointer_FailsWithSuperOffset()
+    {
+        var memory = MemoryWithNames();
+        memory.Add(_pawn, new byte[layout.SuperStruct]);
+        memory.WriteInt32(_pawn + objectLayout.Name, PawnId);
+
+        Assert.That(
+            CreateReader(memory).DerivesFrom(_pawn, "Object").UnwrapErr().Message,
+            Does.StartWith($"Can't follow the super chain of the struct at {_pawn} at level 1.")
+                .And.Contain($"StructLayout.SuperStruct (0x{layout.SuperStruct:X})"));
+    }
+
+    // A type that is its own super ends after 64 levels with no failure, because a damaged chain can loop.
+    [Test]
+    public void DerivesFrom_LoopingChain_ReturnsFalseAfter64Levels()
     {
         var memory = MemoryWithNames();
         memory.AddObject(_pawn, objectLayout, PawnId);
         memory.WritePointer(_pawn + layout.SuperStruct, _pawn);
 
-        bool derives = CreateReader(memory).DerivesFrom(_pawn, "Object");
+        var derives = CreateReader(memory).DerivesFrom(_pawn, "Object");
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(derives, Is.False);
+            Assert.That(derives, Is.EqualTo(Result.Ok(false)));
             Assert.That(memory.ReadsAt(_pawn + objectLayout.Name), Is.EqualTo(64));
         }
     }
@@ -189,7 +226,7 @@ public sealed class StructReaderTests(
 
         memory.WriteInt32(_chain + ((level - 1) * BlockSpacing) + objectLayout.Name, ObjectId);
 
-        Assert.That(CreateReader(memory).DerivesFrom(_chain, "Object"), Is.EqualTo(expected));
+        Assert.That(CreateReader(memory).DerivesFrom(_chain, "Object").Unwrap(), Is.EqualTo(expected));
     }
 
     // Text that is equal only under a culture compare does not match, because the compare is ordinal.
@@ -207,8 +244,8 @@ public sealed class StructReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(reader.DerivesFrom(_pawn, text), Is.True);
-            Assert.That(reader.DerivesFrom(_pawn, name), Is.False);
+            Assert.That(reader.DerivesFrom(_pawn, text).Unwrap(), Is.True);
+            Assert.That(reader.DerivesFrom(_pawn, name).Unwrap(), Is.False);
         }
     }
 
@@ -219,13 +256,13 @@ public sealed class StructReaderTests(
         var memory = MemoryWithTypes();
         var reader = CreateReader(memory);
 
-        bool first = reader.DerivesFrom(_pawn, "Object");
+        bool first = reader.DerivesFrom(_pawn, "Object").Unwrap();
         memory.WritePointer(_pawn + layout.SuperStruct, Address.Zero);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(first, Is.True);
-            Assert.That(reader.DerivesFrom(_pawn, "Object"), Is.False);
+            Assert.That(reader.DerivesFrom(_pawn, "Object").Unwrap(), Is.False);
         }
     }
 
@@ -241,7 +278,7 @@ public sealed class StructReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(reader.DerivesFrom(_pawn, "Object"), Is.True);
+            Assert.That(reader.DerivesFrom(_pawn, "Object").Unwrap(), Is.True);
             Assert.That(memory.ReadsAt(_pawn + UnknownOffset), Is.Zero);
         }
     }
@@ -266,7 +303,7 @@ public sealed class StructReaderTests(
     {
         Address[] expected = [_field1, _field2, _field3];
 
-        Assert.That(CreateReader(MemoryWithChain()).ChildrenOf(_pawn), Is.EqualTo(expected));
+        Assert.That(Fields(CreateReader(MemoryWithChain()), _pawn), Is.EqualTo(expected));
     }
 
     // A null children pointer enumerates nothing.
@@ -276,11 +313,22 @@ public sealed class StructReaderTests(
         Assert.That(CreateReader(MemoryWithTypes()).ChildrenOf(_pawn), Is.Empty);
     }
 
-    // An unreadable type enumerates nothing.
+    // An unreadable type yields 1 failure with the children offset.
     [Test]
-    public void ChildrenOf_UnreadableType_ReturnsNothing()
+    public void ChildrenOf_UnreadableType_YieldsOneFailure()
     {
-        Assert.That(CreateReader(MemoryWithNames()).ChildrenOf(_pawn), Is.Empty);
+        var items = CreateReader(MemoryWithNames()).ChildrenOf(_pawn).ToList();
+        var address = _pawn + layout.Children;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(items, Has.Count.EqualTo(1));
+            Assert.That(
+                items[0].UnwrapErr().Message,
+                Is.EqualTo(
+                    $"Can't read the fields of the struct at {_pawn}: reading {address} failed. No block contains {address}. "
+                    + $"Check StructLayout.Children (0x{layout.Children:X}) against this engine version."));
+        }
     }
 
     // A 1st field with another outer enumerates nothing.
@@ -293,64 +341,90 @@ public sealed class StructReaderTests(
         Assert.That(CreateReader(memory).ChildrenOf(_pawn), Is.Empty);
     }
 
-    // A field with another outer ends the chain before that field.
+    // A field with another outer ends the chain before that field with no failure.
     [Test]
-    public void ChildrenOf_FieldWithAnotherOuter_StopsBeforeIt()
+    public void ChildrenOf_FieldWithAnotherOuter_StopsWithoutFailure()
     {
         var memory = MemoryWithChain();
         memory.WritePointer(_field2 + objectLayout.Outer, _actor);
 
         Address[] expected = [_field1];
 
-        Assert.That(CreateReader(memory).ChildrenOf(_pawn), Is.EqualTo(expected));
+        Assert.That(Fields(CreateReader(memory), _pawn), Is.EqualTo(expected));
     }
 
-    // A next pointer into unreadable memory ends the chain before that field, because its outer reads as address 0.
+    // A next pointer into unreadable memory ends the chain with a failure that has the struct, the position of the field and its failed outer read.
     [Test]
-    public void ChildrenOf_UnreadableField_StopsBeforeIt()
+    public void ChildrenOf_UnreadableField_YieldsFieldThenFailure()
     {
         var memory = MemoryWithChain();
         memory.WritePointer(_field1 + fieldNext, _unreadable);
 
-        Address[] expected = [_field1];
+        var items = CreateReader(memory).ChildrenOf(_pawn).ToList();
+        var address = _unreadable + objectLayout.Outer;
 
-        Assert.That(CreateReader(memory).ChildrenOf(_pawn), Is.EqualTo(expected));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(items, Has.Count.EqualTo(2));
+            Assert.That(items[0].Unwrap(), Is.EqualTo(_field1));
+            Assert.That(
+                items[1].UnwrapErr().Message,
+                Is.EqualTo(
+                    $"Can't read field 2 of the struct at {_pawn}. "
+                    + $"Can't read the outer object of the object at {_unreadable}: reading {address} failed. No block contains {address}. "
+                    + $"Check ObjectLayout.Outer (0x{objectLayout.Outer:X}) against this engine version."));
+        }
     }
 
-    // A garbage next pointer at the top of the address range wraps around to unreadable memory and ends the chain before it.
+    // A garbage next pointer at the top of the address range wraps around to unreadable memory and ends the chain with a failure.
     [Test]
-    public void ChildrenOf_NextPointerAtEndOfAddressRange_StopsBeforeIt()
+    public void ChildrenOf_NextPointerAtEndOfAddressRange_YieldsFieldThenFailure()
     {
         var memory = MemoryWithChain();
         memory.WritePointer(_field1 + fieldNext, new Address(memoryLayout.PointerSize == sizeof(ulong) ? ulong.MaxValue : uint.MaxValue));
 
-        Address[] expected = [_field1];
+        var items = CreateReader(memory).ChildrenOf(_pawn).ToList();
 
-        Assert.That(CreateReader(memory).ChildrenOf(_pawn), Is.EqualTo(expected));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(items, Has.Count.EqualTo(2));
+            Assert.That(items[0].Unwrap(), Is.EqualTo(_field1));
+            Assert.That(items[1].IsErr, Is.True);
+        }
     }
 
-    // A field with an unreadable next pointer still comes back and ends the chain.
+    // A field with an unreadable next pointer still comes back and the failure after it has the next offset.
     [Test]
-    public void ChildrenOf_UnreadableNextPointer_StopsAfterField()
+    public void ChildrenOf_UnreadableNextPointer_YieldsFieldThenFailure()
     {
         var memory = MemoryWithTypes();
         memory.WritePointer(_pawn + layout.Children, _field1);
         memory.Add(_field1, new byte[fieldNext]);
         memory.WritePointer(_field1 + objectLayout.Outer, _pawn);
 
-        Address[] expected = [_field1];
+        var items = CreateReader(memory).ChildrenOf(_pawn).ToList();
+        var address = _field1 + fieldNext;
 
-        Assert.That(CreateReader(memory).ChildrenOf(_pawn), Is.EqualTo(expected));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(items, Has.Count.EqualTo(2));
+            Assert.That(items[0].Unwrap(), Is.EqualTo(_field1));
+            Assert.That(
+                items[1].UnwrapErr().Message,
+                Is.EqualTo(
+                    $"Can't read the next field after the field at {_field1}: reading {address} failed. No block contains {address}. "
+                    + $"Check FieldLayout.Next (0x{fieldNext:X}) against this engine version."));
+        }
     }
 
-    // A field that is its own next field ends after 4096 fields, because a damaged chain can loop.
+    // A field that is its own next field ends after 4096 fields with no failure, because a damaged chain can loop.
     [Test]
     public void ChildrenOf_LoopingChain_StopsAt4096()
     {
         var memory = MemoryWithChain();
         memory.WritePointer(_field1 + fieldNext, _field1);
 
-        Assert.That(CreateReader(memory).ChildrenOf(_pawn).Count(), Is.EqualTo(4096));
+        Assert.That(Fields(CreateReader(memory), _pawn), Has.Count.EqualTo(4096));
     }
 
     // A chain of 4096 ends at its null pointer and a chain of 4097 drops the last field with no read of its outer pointer.
@@ -369,7 +443,7 @@ public sealed class StructReaderTests(
             memory.WritePointer(field + fieldNext, i + 1 < length ? field + BlockSpacing : Address.Zero);
         }
 
-        var fields = CreateReader(memory).ChildrenOf(_pawn).ToList();
+        var fields = Fields(CreateReader(memory), _pawn);
 
         using (Assert.EnterMultipleScope())
         {
@@ -400,7 +474,7 @@ public sealed class StructReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(first, Is.EqualTo(_field1));
+            Assert.That(first.Unwrap(), Is.EqualTo(_field1));
             Assert.That(memory.ReadsAt(_field1 + fieldNext), Is.Zero);
             Assert.That(memory.ReadsAt(_field2 + objectLayout.Outer), Is.Zero);
         }
@@ -413,7 +487,7 @@ public sealed class StructReaderTests(
         var memory = MemoryWithChain();
         var children = CreateReader(memory).ChildrenOf(_pawn);
 
-        var first = children.ToList();
+        var first = children.Select(static item => item.Unwrap()).ToList();
         memory.WritePointer(_field1 + fieldNext, Address.Zero);
 
         Address[] expectedFirst = [_field1, _field2, _field3];
@@ -422,7 +496,7 @@ public sealed class StructReaderTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(first, Is.EqualTo(expectedFirst));
-            Assert.That(children, Is.EqualTo(expectedSecond));
+            Assert.That(children.Select(static item => item.Unwrap()), Is.EqualTo(expectedSecond));
         }
     }
 
@@ -443,7 +517,7 @@ public sealed class StructReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(reader.ChildrenOf(_pawn), Is.EqualTo(expected));
+            Assert.That(Fields(reader, _pawn), Is.EqualTo(expected));
             Assert.That(memory.ReadsAt(_pawn + UnknownOffset), Is.Zero);
             Assert.That(memory.ReadsAt(_field1 + UnknownOffset), Is.Zero);
             Assert.That(memory.ReadsAt(_nameArray), Is.Zero);
@@ -491,6 +565,11 @@ public sealed class StructReaderTests(
         Assert.That(
             () => new StructReader(memory, objects, layout, null!),
             Throws.ArgumentNullException.With.Property("ParamName").EqualTo("fieldLayout"));
+    }
+
+    private static List<Address> Fields(StructReader reader, Address type)
+    {
+        return [.. reader.ChildrenOf(type).Select(static item => item.Unwrap())];
     }
 
     private FakeMemory MemoryWithNames()

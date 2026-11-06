@@ -42,7 +42,7 @@ public sealed class UdkMeasurerTests
     {
         UdkMeasurer measurer = new();
 
-        measurer.LoadTargets(null);
+        measurer.LoadTargets(null).Unwrap();
 
         Assert.That(measurer.Targets, Has.Count.EqualTo(4));
     }
@@ -62,7 +62,7 @@ public sealed class UdkMeasurerTests
             """);
         UdkMeasurer measurer = new();
 
-        measurer.LoadTargets(path);
+        measurer.LoadTargets(path).Unwrap();
 
         Assert.That(measurer.Targets, Does.ContainKey("Names"));
     }
@@ -77,7 +77,7 @@ public sealed class UdkMeasurerTests
         File.WriteAllText(path, TargetsFile);
         UdkMeasurer measurer = new();
 
-        measurer.LoadTargets(path);
+        measurer.LoadTargets(path).Unwrap();
 
         Assert.That(measurer.Targets, Has.Count.EqualTo(2));
     }
@@ -129,11 +129,11 @@ public sealed class UdkMeasurerTests
         Assume.That(player is not null && Directory.Exists(player), $"Set {PlayerVariable} to a built player to run this test.");
 
         UdkMeasurer measurer = new();
-        measurer.LoadTargets(null);
+        measurer.LoadTargets(null).Unwrap();
 
         var measurement = await measurer.MeasureAsync(player!, NullLogger.Instance, CancellationToken.None);
 
-        Assert.That(measurement.Globals.Keys, Is.EquivalentTo(_globals));
+        Assert.That(measurement.Unwrap().Globals.Keys, Is.EquivalentTo(_globals));
     }
 
     private async Task<(int Code, string Error)> RunAsync(string targets)
@@ -144,7 +144,12 @@ public sealed class UdkMeasurerTests
         using StringWriter output = new();
         using StringWriter error = new();
 
-        int code = await CommandLine.RunAsync(["unreal3", _folder.Root, "--output", Report, "--targets", targets], output, error, [new UdkMeasurer()], new WriterLogger(output, error));
+        int code = await CommandLine.RunAsync(
+            ["unreal3", _folder.Root, "--output", Report, "--targets", targets],
+            output,
+            error,
+            [new UdkMeasurer()],
+            new WriterLogger(output, error));
 
         return (code, error.ToString());
     }

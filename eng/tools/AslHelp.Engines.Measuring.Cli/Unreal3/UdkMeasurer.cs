@@ -26,13 +26,22 @@ internal sealed class UdkMeasurer : IEngineMeasurer
     public IReadOnlyDictionary<string, UdkTarget> Targets { get; private set; } = new Dictionary<string, UdkTarget>();
 
     /// <inheritdoc/>
-    public void LoadTargets(string? path)
+    public Result LoadTargets(string? path)
     {
-        Targets = path is null ? UdkTargets.ReadEmbedded() : UdkTargets.ReadFile(path);
+        var read = path is null ? UdkTargets.ReadEmbedded() : UdkTargets.ReadFile(path);
+
+        if (!read.TryUnwrap(out var targets, out var error))
+        {
+            return error;
+        }
+
+        Targets = targets;
+
+        return Result.Ok();
     }
 
     /// <inheritdoc/>
-    public async Task<PlayerMeasurement> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
+    public async Task<Result<PlayerMeasurement>> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
     {
         long started = Stopwatch.GetTimestamp();
 
@@ -42,31 +51,33 @@ internal sealed class UdkMeasurer : IEngineMeasurer
         var startup = Stopwatch.GetElapsedTime(started);
         logger.ServerReady(startup.TotalSeconds);
 
-        try
+        var measurement = Measure(memory, playerDirectory, logger);
+
+        // Fail the row, because the members of a server that dies during the searches end up in unmeasured with the wrong reason.
+        // Put the exit first, because a dead server does not have a module and its sections read as zeros, which fail the search.
+        return player.Process.HasExited
+            ? UdkError.PlayerExitedDuringMeasurement(player.Process.ExitCode, measurement.Error)
+            : measurement;
+    }
+
+    private Result<PlayerMeasurement> Measure(RemoteProcessMemory memory, string playerDirectory, ILogger logger)
+    {
+        if (!memory.GetModule(UdkInstall.ExecutableName).TryUnwrap(out var module, out var moduleError))
         {
-            if (!memory.GetModule(UdkInstall.ExecutableName).TryUnwrap(out var module, out var error))
-            {
-                throw new InvalidOperationException(UdkSR.FormatModuleNotLoaded(UdkInstall.ExecutableName, error.Message));
-            }
-
-            var moduleBase = module.Range.Start;
-            string executablePath = Path.Combine(playerDirectory, UdkInstall.ServerPath);
-            var sections = UdkSections.Read(executablePath, memory, moduleBase);
-
-            int sectionBytes = sections.Sum(static section => section.Bytes.Length);
-            logger.SectionsRead(sections.Count, sectionBytes);
-
-            var measurement = UdkMeasurement.Measure(memory, moduleBase, sections, Targets, executablePath, logger);
-
-            // Fail the row, because the members of a server that dies during the searches end up in unmeasured with the wrong reason.
-            return player.Process.HasExited
-                ? throw new InvalidOperationException(UdkSR.FormatPlayerExitedDuringMeasurement(player.Process.ExitCode))
-                : measurement;
+            return UdkError.ModuleNotLoaded(UdkInstall.ExecutableName, moduleError);
         }
-        catch (InvalidOperationException exception) when (player.Process.HasExited)
+
+        var moduleBase = module.Range.Start;
+        string executablePath = Path.Combine(playerDirectory, UdkInstall.ServerPath);
+
+        if (!UdkSections.Read(executablePath, memory, moduleBase).TryUnwrap(out var sections, out var error))
         {
-            // Replace the failure, because a dead server has no module and its sections read as zeros, which fail the search.
-            throw new InvalidOperationException(UdkSR.FormatPlayerExitedDuringMeasurement(player.Process.ExitCode), exception);
+            return error;
         }
+
+        int sectionBytes = sections.Sum(static section => section.Bytes.Length);
+        logger.SectionsRead(sections.Count, sectionBytes);
+
+        return UdkMeasurement.Measure(memory, moduleBase, sections, Targets, executablePath, logger);
     }
 }

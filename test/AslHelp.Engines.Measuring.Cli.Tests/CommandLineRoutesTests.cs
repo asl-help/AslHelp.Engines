@@ -175,12 +175,13 @@ file sealed class ScriptedMeasurer(
 {
     public string Name => "engine";
 
-    public void LoadTargets(string? path)
+    public Result LoadTargets(string? path)
     {
+        return Result.Ok();
     }
 
-    public Task<PlayerMeasurement> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
+    public Task<Result<PlayerMeasurement>> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
     {
-        return Task.FromResult(measure(playerDirectory));
+        return Task.FromResult<Result<PlayerMeasurement>>(measure(playerDirectory));
     }
 }

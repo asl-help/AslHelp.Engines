@@ -32,7 +32,7 @@ public sealed class FlatNameTableTests(
         var memory = MemoryWithEntry(Id << 1, Text);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.EqualTo(Text));
+        Assert.That(table.Read(Id).Unwrap(), Is.EqualTo(Text));
     }
 
     // An index with the low bit set reads as UTF-16, so a char outside ASCII comes back intact.
@@ -42,132 +42,153 @@ public sealed class FlatNameTableTests(
         var memory = MemoryWithEntry((Id << 1) | 1, "Grüße");
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.EqualTo("Grüße"));
+        Assert.That(table.Read(Id).Unwrap(), Is.EqualTo("Grüße"));
     }
 
     // An id equal to the count is out of range, even when the block has a valid entry at that position.
     [Test]
-    public void Read_IdAtCount_ReturnsNull()
+    public void Read_IdAtCount_FailsWithoutRead()
     {
         var memory = MemoryWithEntry(Id << 1, Text, count: Id);
         FlatNameTable table = new(memory, _array, layout);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(table.Read(Id), Is.Null);
+            Assert.That(table.Read(Id).UnwrapErr().Message, Is.EqualTo($"Name {Id} is outside the array of {Id} names."));
             Assert.That(memory.ReadsAt(_data + (Id * memoryLayout.PointerSize)), Is.Zero);
         }
     }
 
-    // A negative id returns null with no memory read.
+    // A negative id fails with no memory read.
     [Test]
-    public void Read_NegativeId_ReturnsNull()
+    public void Read_NegativeId_FailsWithoutRead()
     {
         var memory = MemoryWithEntry(Id << 1, Text);
         FlatNameTable table = new(memory, _array, layout);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(table.Read(-1), Is.Null);
+            Assert.That(table.Read(-1).UnwrapErr().Message, Is.EqualTo("Name -1 is below 0."));
             Assert.That(memory.Reads, Is.Zero);
         }
     }
 
-    // A count of 0 or below returns null for id 0, even when the block has a valid entry at that position.
+    // A count of 0 or below fails for id 0 with the count, even when the block has a valid entry at that position.
     [TestCase(0)]
     [TestCase(-1)]
     [TestCase(int.MinValue)]
-    public void Read_CountNotPositive_ReturnsNull(int count)
+    public void Read_CountNotPositive_FailsWithTheCount(int count)
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddNameArray(_array, _data, count, _entry);
         memory.AddNameEntry(_entry, layout, 0, Text);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(0), Is.Null);
+        Assert.That(table.Read(0).UnwrapErr().Message, Is.EqualTo($"Name 0 is outside the array of {count} names."));
     }
 
-    // A null entry pointer returns null, even when address 0 has a valid entry.
+    // A null entry pointer fails with the id, even when address 0 has a valid entry.
     [Test]
-    public void Read_NullEntryPointer_ReturnsNull()
+    public void Read_NullEntryPointer_FailsWithTheId()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddNameArray(_array, _data, Id + 1, Address.Zero, Address.Zero, Address.Zero, Address.Zero);
         memory.AddNameEntry(Address.Zero, layout, Id << 1, Text);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.Null);
+        Assert.That(table.Read(Id).UnwrapErr().Message, Is.EqualTo($"The entry pointer of name {Id} is 0."));
     }
 
-    // An entry with the index of another id returns null even though the text is readable.
+    // An entry with the index of another id fails with both ids even though the text is readable.
     [Test]
-    public void Read_IndexOfAnotherId_ReturnsNull()
+    public void Read_IndexOfAnotherId_FailsWithBothIds()
     {
-        var memory = MemoryWithEntry((Id + 1) << 1, Text);
+        int index = (Id + 1) << 1;
+        var memory = MemoryWithEntry(index, Text);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.Null);
+        Assert.That(
+            table.Read(Id).UnwrapErr().Message,
+            Is.EqualTo(
+                $"The entry of name {Id} at {_entry} has index {index}, which is name {Id + 1}. "
+                + $"Check NameEntryLayout.Index (0x{layout.Index:X}) against this engine version."));
     }
 
     // An index of -1 shifts to -1 and does not match id 0, although -1 / 2 is 0.
     [Test]
-    public void Read_IndexOfMinusOneForIdZero_ReturnsNull()
+    public void Read_IndexOfMinusOneForIdZero_FailsWithTheIndex()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddNameArray(_array, _data, 1, _entry);
         memory.AddNameEntry(_entry, layout, -1, Text);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(0), Is.Null);
+        Assert.That(table.Read(0).UnwrapErr().Message, Does.Contain("has index -1, which is name -1."));
     }
 
-    // An entry pointer outside the blocks returns null, because a failed read is ordinary control flow.
+    // An entry pointer outside the blocks fails with the entry, the index offset and the failed read.
     [Test]
-    public void Read_EntryOutsideReadableMemory_ReturnsNull()
+    public void Read_EntryOutsideReadableMemory_FailsWithEntryAndCause()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddNameArray(_array, _data, Id + 1, Address.Zero, Address.Zero, Address.Zero, _entry);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.Null);
+        var indexAddress = _entry + layout.Index;
+
+        Assert.That(
+            table.Read(Id).UnwrapErr().Message,
+            Is.EqualTo(
+                $"Can't read the index of name {Id} from its entry at {_entry}: reading {indexAddress} failed. "
+                + $"No block contains {indexAddress}. Check NameEntryLayout.Index (0x{layout.Index:X}) against this engine version."));
     }
 
-    // A count past the block of entry pointers fails the read of the entry pointer, so the id returns null.
+    // A count past the block of entry pointers fails the read of the entry pointer, so the message has the address of that pointer.
     [Test]
-    public void Read_EntryPointerUnreadable_ReturnsNull()
+    public void Read_EntryPointerUnreadable_FailsWithThePointerAddress()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddNameArray(_array, _data, Id + 1, _entry);
         memory.AddNameEntry(_entry, layout, Id << 1, Text);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.Null);
+        var slot = _data + (Id * memoryLayout.PointerSize);
+
+        Assert.That(
+            table.Read(Id).UnwrapErr().Message,
+            Is.EqualTo($"Can't read the entry pointer of name {Id}: reading {slot} failed. No block contains {slot}."));
     }
 
-    // An array address outside the blocks returns null.
+    // An array address outside the blocks fails with the array and the failed read.
     [Test]
-    public void Read_ArrayOutsideReadableMemory_ReturnsNull()
+    public void Read_ArrayOutsideReadableMemory_FailsWithTheArray()
     {
         FlatNameTable table = new(new FakeMemory { Layout = memoryLayout }, _array, layout);
 
-        Assert.That(table.Read(Id), Is.Null);
+        var countAddress = _array + memoryLayout.PointerSize;
+
+        Assert.That(
+            table.Read(Id).UnwrapErr().Message,
+            Is.EqualTo($"Can't read the header of the name array at {_array}: reading {countAddress} failed. No block contains {countAddress}."));
     }
 
-    // A readable count beside an unreadable data pointer returns null.
+    // A readable count beside an unreadable data pointer fails with the array and the read of the data pointer.
     [Test]
-    public void Read_DataPointerUnreadable_ReturnsNull()
+    public void Read_DataPointerUnreadable_FailsWithTheArray()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.Add(_array + memoryLayout.PointerSize, new byte[sizeof(int)]);
         memory.WriteInt32(_array + memoryLayout.PointerSize, Id + 1);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.Null);
+        Assert.That(
+            table.Read(Id).UnwrapErr().Message,
+            Is.EqualTo($"Can't read the header of the name array at {_array}: reading {_array} failed. No block contains {_array}."));
     }
 
-    // A readable index with unreadable text behind it returns null.
+    // A readable index with unreadable text behind it fails with the name offset and the failed read.
     [Test]
-    public void Read_TextUnreadable_ReturnsNull()
+    public void Read_TextUnreadable_FailsWithNameOffset()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddNameArray(_array, _data, Id + 1, Address.Zero, Address.Zero, Address.Zero, _entry);
@@ -175,28 +196,32 @@ public sealed class FlatNameTableTests(
         memory.WriteInt32(_entry + layout.Index, Id << 1);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.Null);
+        Assert.That(
+            table.Read(Id).UnwrapErr().Message,
+            Does.Contain($"text of name {Id} from its entry at {_entry}")
+                .And.Contain($"reading {_entry + layout.Name} failed.")
+                .And.Contain($"NameEntryLayout.Name (0x{layout.Name:X})"));
     }
 
     // An array at the end of the address range wraps around to unreadable memory and does not throw, although the build turns on overflow checks.
     [Test]
-    public void Read_ArrayAtEndOfAddressRange_ReturnsNull()
+    public void Read_ArrayAtEndOfAddressRange_Fails()
     {
         FlatNameTable table = new(new FakeMemory { Layout = memoryLayout }, new Address(ulong.MaxValue), layout);
 
-        Assert.That(table.Read(Id), Is.Null);
+        Assert.That(table.Read(Id).IsErr, Is.True);
     }
 
-    // A memory with no pointer size refuses every pointer read, so the read returns null and does not throw.
+    // A memory with no pointer size refuses every pointer read, so the read fails with that reason and does not throw.
     [Test]
-    public void Read_MemoryWithoutPointerSize_ReturnsNull()
+    public void Read_MemoryWithoutPointerSize_FailsWithThePointerSize()
     {
         FakeMemory memory = new() { Layout = default };
         memory.Add(_array, new byte[sizeof(int)]);
         memory.WriteInt32(_array, Id + 1);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.Null);
+        Assert.That(table.Read(Id).UnwrapErr().Message, Does.Contain("pointer size of 0 bytes"));
     }
 
     // The offset of the largest id an index can match overflows a 4-byte number, so the read of its entry pointer needs 8-byte math.
@@ -211,7 +236,7 @@ public sealed class FlatNameTableTests(
         memory.AddNameEntry(_entry, layout, LargestMatchableId << 1, Text);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(LargestMatchableId), Is.EqualTo(Text));
+        Assert.That(table.Read(LargestMatchableId).Unwrap(), Is.EqualTo(Text));
     }
 
     // The 2nd read of an id returns the 1st text with no memory read, although the entry has changed since.
@@ -221,14 +246,14 @@ public sealed class FlatNameTableTests(
         var memory = MemoryWithEntry(Id << 1, Text);
         FlatNameTable table = new(memory, _array, layout);
 
-        string? first = table.Read(Id);
+        string first = table.Read(Id).Unwrap();
         int reads = memory.Reads;
         memory.WriteInt32(_entry + layout.Index, (Id + 1) << 1);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(first, Is.EqualTo(Text));
-            Assert.That(table.Read(Id), Is.EqualTo(Text));
+            Assert.That(table.Read(Id).Unwrap(), Is.EqualTo(Text));
             Assert.That(memory.Reads, Is.EqualTo(reads));
         }
     }
@@ -240,13 +265,13 @@ public sealed class FlatNameTableTests(
         var memory = MemoryWithEntry(Id << 1, string.Empty);
         FlatNameTable table = new(memory, _array, layout);
 
-        string? first = table.Read(Id);
+        string first = table.Read(Id).Unwrap();
         int reads = memory.Reads;
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(first, Is.Empty);
-            Assert.That(table.Read(Id), Is.Empty);
+            Assert.That(table.Read(Id).Unwrap(), Is.Empty);
             Assert.That(memory.Reads, Is.EqualTo(reads));
         }
     }
@@ -259,13 +284,13 @@ public sealed class FlatNameTableTests(
         memory.AddNameArray(_array, _data, Id + 1, Address.Zero, Address.Zero, Address.Zero, _entry);
         FlatNameTable table = new(memory, _array, layout);
 
-        string? first = table.Read(Id);
+        var first = table.Read(Id);
         memory.AddNameEntry(_entry, layout, Id << 1, Text);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(first, Is.Null);
-            Assert.That(table.Read(Id), Is.EqualTo(Text));
+            Assert.That(first.IsErr, Is.True);
+            Assert.That(table.Read(Id).Unwrap(), Is.EqualTo(Text));
         }
     }
 
@@ -276,13 +301,13 @@ public sealed class FlatNameTableTests(
         var memory = MemoryWithEntry(Id << 1, Text, count: Id);
         FlatNameTable table = new(memory, _array, layout);
 
-        string? first = table.Read(Id);
+        var first = table.Read(Id);
         memory.WriteInt32(_array + memoryLayout.PointerSize, Id + 1);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(first, Is.Null);
-            Assert.That(table.Read(Id), Is.EqualTo(Text));
+            Assert.That(first.IsErr, Is.True);
+            Assert.That(table.Read(Id).Unwrap(), Is.EqualTo(Text));
         }
     }
 
@@ -294,17 +319,17 @@ public sealed class FlatNameTableTests(
         var memory = MemoryWithEntry(Id << 1, text);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.EqualTo(text));
+        Assert.That(table.Read(Id).Unwrap(), Is.EqualTo(text));
     }
 
-    // A text with no terminator within 256 chars returns null.
+    // A text with no terminator within 256 chars fails with the limit.
     [Test]
-    public void Read_TextLongerThan256_ReturnsNull()
+    public void Read_TextLongerThan256_FailsWithTheLimit()
     {
         var memory = MemoryWithEntry(Id << 1, new string('x', 257));
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.Null);
+        Assert.That(table.Read(Id).UnwrapErr().Message, Does.Contain("no terminator within 256 characters"));
     }
 
     // The limit of a wide text counts chars and not bytes, so a text of 256 chars comes back.
@@ -315,17 +340,17 @@ public sealed class FlatNameTableTests(
         var memory = MemoryWithEntry((Id << 1) | 1, text);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.EqualTo(text));
+        Assert.That(table.Read(Id).Unwrap(), Is.EqualTo(text));
     }
 
-    // A wide text with no terminator within 256 chars returns null.
+    // A wide text with no terminator within 256 chars fails with the limit.
     [Test]
-    public void Read_WideTextLongerThan256_ReturnsNull()
+    public void Read_WideTextLongerThan256_FailsWithTheLimit()
     {
         var memory = MemoryWithEntry((Id << 1) | 1, new string('x', 257));
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.Null);
+        Assert.That(table.Read(Id).UnwrapErr().Message, Does.Contain("no terminator within 256 characters"));
     }
 
     // A char with a 0 low byte and a surrogate pair do not end a wide text early.
@@ -336,7 +361,7 @@ public sealed class FlatNameTableTests(
         var memory = MemoryWithEntry((Id << 1) | 1, text);
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id), Is.EqualTo(text));
+        Assert.That(table.Read(Id).Unwrap(), Is.EqualTo(text));
     }
 
     // A null memory throws with its parameter name.

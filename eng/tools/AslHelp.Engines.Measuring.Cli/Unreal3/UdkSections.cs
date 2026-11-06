@@ -21,23 +21,35 @@ internal static class UdkSections
     /// <param name="memory">The memory of the process.</param>
     /// <param name="moduleBase">The base of the executable in the process.</param>
     /// <returns>
-    ///     The sections in file order.
+    ///     The sections in file order or a failure when the file does not open or is not a PE file.
     /// </returns>
-    /// <exception cref="BadImageFormatException">The file is not a PE file.</exception>
-    /// <exception cref="FileNotFoundException">The file does not exist.</exception>
-    public static IReadOnlyList<UdkSection> Read(string executablePath, IMemoryReader memory, Address moduleBase)
+    public static Result<IReadOnlyList<UdkSection>> Read(string executablePath, IMemoryReader memory, Address moduleBase)
     {
-        using PEReader reader = new(File.OpenRead(executablePath));
+        PEHeaders headers;
+
+        try
+        {
+            using PEReader reader = new(File.OpenRead(executablePath));
+            headers = reader.PEHeaders;
+        }
+        catch (BadImageFormatException)
+        {
+            return UdkError.ExecutableNotPe(executablePath);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return UdkError.FileUnreadable(executablePath, exception.Message);
+        }
 
         // Check the optional header, because PEReader reads a file without the PE signature as an object file with no error.
-        if (reader.PEHeaders.PEHeader is null)
+        if (headers.PEHeader is null)
         {
-            throw new BadImageFormatException(UdkSR.FormatExecutableNotPe(executablePath));
+            return UdkError.ExecutableNotPe(executablePath);
         }
 
         List<UdkSection> sections = [];
 
-        foreach (var section in reader.PEHeaders.SectionHeaders)
+        foreach (var section in headers.SectionHeaders)
         {
             if ((section.SectionCharacteristics & SectionCharacteristics.MemExecute) == 0)
             {
@@ -48,7 +60,7 @@ internal static class UdkSections
             }
         }
 
-        return sections;
+        return Result.Ok<IReadOnlyList<UdkSection>>(sections);
     }
 
     /// <summary>

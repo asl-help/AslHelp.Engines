@@ -1,0 +1,35 @@
+{
+  "GNames": {
+    "$type": "nameArray",
+    "firstNames": [
+      "None",
+      "ByteProperty",
+      "IntProperty",
+      "BoolProperty",
+      "FloatProperty",
+      "ObjectProperty",
+      "NameProperty",
+      "DelegateProperty",
+      "ClassProperty",
+      "ArrayProperty",
+      "StructProperty",
+      "VectorProperty",
+      "RotatorProperty",
+      "StrProperty",
+      "MapProperty",
+      "InterfaceProperty"
+    ]
+  },
+  "GObjObjects": {
+    "$type": "objectArray"
+  },
+  "GEngine": {
+    "$type": "objectSlot",
+    "class": "Engine"
+  },
+  "GWorld": {
+    "$type": "objectSlot",
+    "class": "World",
+    "object": "TheWorld"
+  }
+}

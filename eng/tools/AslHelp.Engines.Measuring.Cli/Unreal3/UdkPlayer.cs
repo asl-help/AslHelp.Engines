@@ -31,6 +31,11 @@ internal sealed class UdkPlayer : IDisposable
     }
 
     /// <summary>
+    ///     Gets the process of the server.
+    /// </summary>
+    public Process Process => _player.Process;
+
+    /// <summary>
     ///     Starts the server of the player in <paramref name="playerDirectory"/> and waits for the ready line in its log.
     /// </summary>
     /// <param name="playerDirectory">The player folder.</param>

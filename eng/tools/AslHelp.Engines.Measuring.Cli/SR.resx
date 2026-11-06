@@ -15,22 +15,16 @@
   <data name="EngineDescription" xml:space="preserve">
     <value>The engine of the players.</value>
   </data>
-  <data name="Measuring" xml:space="preserve">
-    <value>Measuring {0}.</value>
-  </data>
-  <data name="NoPlayers" xml:space="preserve">
-    <value>'{0}' has no {1} players.</value>
-  </data>
   <data name="OutputDescription" xml:space="preserve">
     <value>The file for the report.</value>
-  </data>
-  <data name="PlayerFailed" xml:space="preserve">
-    <value>{0}: {1}</value>
   </data>
   <data name="PlayersDescription" xml:space="preserve">
     <value>The folder with the players that the fixtures command line built.</value>
   </data>
   <data name="RootDescription" xml:space="preserve">
     <value>Runs the fixture players of an engine and writes a report.</value>
+  </data>
+  <data name="TargetsDescription" xml:space="preserve">
+    <value>The file with the globals to find. Replaces the list built into the command.</value>
   </data>
 </root>

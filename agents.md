@@ -10,7 +10,7 @@ just encoding
 just check
 just fixtures <arguments>
 just fixtures-all <folder>
-just measure <engine> <players> --output <file>
+just measure <engine> <players> --output <file> [--targets <file>]
 ```
 
 `just check` runs the encoding check, the format check, the build and the tests, as CI does. Run it before a commit.
@@ -21,7 +21,7 @@ The tool and test projects target `net11.0-windows`, because the players only ru
 
 ## Layout
 
-- `src/AslHelp.Engines.Unreal` is the Unreal Engine library. It has 1 type per storage shape, such as `FlatNameTable`, because the shapes change between minor engine versions and not between major ones. `FlatNameTable`, `ObjectReader` and `StructReader` read names, objects and structs from memory with the offsets in `NameEntryLayout`, `ObjectLayout`, `StructLayout` and `FieldLayout`. `FlatNameTable` caches each name, because a name never changes once the engine has made it. The other readers read the memory on every call, because the game can free an object and reuse its address.
+- `src/AslHelp.Engines.Unreal` is the Unreal Engine library. It has 1 type per storage shape, such as `FlatNameTable`, because the shapes change between minor engine versions and not between major ones. `FlatNameTable`, `ObjectReader` and `StructReader` read names, objects and structs from memory with the offsets in `NameEntryLayout`, `ObjectLayout`, `StructLayout` and `FieldLayout`. `FlatObjectArray` reads the object pointers in blocks. `FlatNameTable` caches each name, because a name never changes once the engine has made it. The other readers read the memory on every call, because the game can free an object and reuse its address.
 - `eng/tools/AslHelp.Engines.Fixtures` is the fixtures library. It builds the cache keys, lists the inputs each key hashed and starts the players, 1 per machine, inside a kill-on-close job object, with the Windows hard-error dialogs off so a missing static import ends the player with STATUS_DLL_NOT_FOUND. Its `Unreal3/` folder has what every command line that runs UDK shares. `UdkInstall` defines the install paths and the server command line and finds the map. `UdkLogScan` finds the ready line in the server log.
 - `eng/tools/AslHelp.Engines.Fixtures.Cli` is the `fixtures` command line. Its `build` command installs a toolchain, builds the player, checks it and caches it as `<output>/<toolchain>-<version>-<hash>` and `players/<toolchain>/<version>/<hash>.tar.zst`, with a `<hash>.json` manifest beside the archive. It has the parts its commands use:
   - `Archive` packs and unpacks the `.tar.zst` archives, each zstd frame with a content checksum. The `build` command uses it for the cached players.
@@ -53,9 +53,17 @@ The tool and test projects target `net11.0-windows`, because the players only ru
   - `IToolchain` installs an engine release at a version, builds players in it, checks that they start and adds the inputs of its build to the player key with `AddKeyInputs`, which returns the version as the toolchain pins it.
 - `eng/tools/AslHelp.Engines.Measuring.Cli` is the `measure` command line. It runs the players that `fixtures` built and writes a report. It has the parts the run uses:
   - `PlayerFolder` finds the player folders of an engine and reads their versions.
-  - `IEngineMeasurer` is the part an engine plugs in. `CommandLine` picks it by name and the tests use a fake one.
-  - `MeasureReport` is the report and its JSON.
-  - `Unreal3/UdkMeasurer` is the UDK measurer and `Unreal3/UdkPlayer` runs a UDK server on a hidden desktop until the fixture game is ready.
+  - `IEngineMeasurer` is the part an engine plugs in. `CommandLine` picks it by name, calls `LoadTargets` before the 1st player and the tests use a fake one.
+  - `CommandLine` logs through Microsoft.Extensions.Logging to the console and takes an `ILogger`, so the tests pass a `WriterLogger`.
+  - `MeasureReport` is the report and its JSON. `PlayerMeasurement` is what a measurer returns, with the globals, the offsets and the reasons for what it did not find.
+  - `Unreal3/` has the UDK measurer. It is the only part that references `AslHelp.Memory.Remote`. Its reads go through the readers in `src/AslHelp.Engines.Unreal`. The memory searches are in this folder, not in the library.
+    - `UdkMeasurer` starts the player, opens its memory and calls the parts below.
+    - `UdkPlayer` runs a UDK server on a hidden desktop until the fixture game is ready.
+    - `targets.json` lists the globals to find and is embedded with its path as the name. `UdkTarget` is 1 global with 1 record per `$type`. `UdkTargets` reads and checks it. `--targets` swaps it.
+    - `UdkSections` reads the sections of the executable without code page by page and lists the arrays and pointers in them.
+    - `UdkArrays` finds the name array and the object array by their contents.
+    - `UdkMembers` lists the members and finds their offsets, with `ObjectReader` and `StructReader` built from the offsets found so far and -1 for the others.
+    - `UdkMeasurement` runs the searches and finds the object slots. It takes an `IMemoryReader`, so the tests drive it with a fake image.
 - `test/fixtures/unreal3` has the UnrealScript classes of the Unreal Engine 3 player. The CLI project copies them to its output as `projects/unreal3/Classes`.
 - Engine-specific code sits in a folder per engine, such as `Unreal3/`, with 1 `IToolchain` each in the CLI project. Engine names appear only in the engine folders (`src/AslHelp.Engines.Unreal`, `test/AslHelp.Engines.Unreal.Tests`, `Unreal3/` in each project and its tests, `test/fixtures/unreal3`), in `AslHelp.Engines.slnx`, in `Unreal3/UdkSR.resx`, in the toolchain list of `CommandLine`, in the CLI project items that copy or embed engine files, in the `fixtures-all` recipe and in the engine parts of this file and the readme. Everything else uses neutral names, with no engine in them.
 - `eng/CheckEncoding.cs` checks the encoding and the line endings of every tracked file. CI and `just check` run it as a file-based app with `dotnet eng/CheckEncoding.cs`.
@@ -66,9 +74,10 @@ The tool and test projects target `net11.0-windows`, because the players only ru
 
 - Text files are UTF-8 without a BOM. Git stores them with LF line endings.
 - Files under `test/fixtures` check out with CRLF on every machine, because the player cache key hashes their bytes.
-- Text that users read, such as messages, step lines and command help, sits in the `SR.resx` of its project. The UDK text sits in `Unreal3/UdkSR.resx`. `Microsoft.CodeAnalysis.ResxSourceGenerator` generates the `SR` and `UdkSR` classes, with a property for each message and a `Format` method for each message with placeholders, such as `SR.FormatFolderNotFound(path)`.
+- Log lines of the `measure` command sit in `[LoggerMessage]` methods of `MeasureLog` and `Unreal3/UdkLog`, because Microsoft.Extensions.Logging takes their templates at compile time.
+- Other text that users read, such as messages, step lines and command help, sits in the `SR.resx` of its project. The UDK text sits in `Unreal3/UdkSR.resx`. `Microsoft.CodeAnalysis.ResxSourceGenerator` generates the `SR` and `UdkSR` classes, with a property for each message and a `Format` method for each message with placeholders, such as `SR.FormatFolderNotFound(path)`.
 - `readme.md` and this file change in the same commit as the code they describe.
 - The player tests of both test projects take the machine-wide lock, so `just test`, `just check` and CI run the test projects 1 at a time. Run the tests while no build runs on the machine.
 - Tests never read the machine's `FIXTURES_DAV_*` variables. A `CommandLine` test passes a store or clears the variables first.
-- A test that needs a real UDK installer or install runs only when `FIXTURES_UDK_INSTALLER` is the path of a downloaded `UDKInstall-<version>.exe` or `FIXTURES_UDK_INSTALL` is the path of an extracted install. The tests change that install.
+- A test that needs a real UDK installer or install runs only when `FIXTURES_UDK_INSTALLER` is the path of a downloaded `UDKInstall-<version>.exe` or `FIXTURES_UDK_INSTALL` is the path of an extracted install. The tests change that install. A test that needs a built player runs only when `FIXTURES_UDK_PLAYER` is the path of a player folder.
 - Commit subjects are lowercase and imperative, with no body and no trailers.

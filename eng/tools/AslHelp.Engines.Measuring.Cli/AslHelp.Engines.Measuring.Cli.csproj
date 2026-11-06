@@ -7,11 +7,18 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="$(SrcPath)/AslHelp.Engines.Unreal/AslHelp.Engines.Unreal.csproj" />
     <ProjectReference Include="$(ToolsPath)/AslHelp.Engines.Fixtures/AslHelp.Engines.Fixtures.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AslHelp.Memory.Remote" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
     <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Unreal3/targets.json" LogicalName="Unreal3/targets.json" />
   </ItemGroup>
 
 </Project>

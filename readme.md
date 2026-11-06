@@ -95,7 +95,7 @@ Every pinned version from 2010-06-BETA on builds. The build refuses 2009-11-BETA
 ## Measuring
 
 ```
-just measure <engine> <players> --output <file>
+just measure <engine> <players> --output <file> [--targets <file>]
 ```
 
 | Argument | Value |
@@ -103,5 +103,62 @@ just measure <engine> <players> --output <file>
 | `<engine>` | The engine of the players, such as `unreal3`. |
 | `<players>` | The folder with the `<engine>-<version>-<hash>` players that `just fixtures build` made. |
 | `--output` | The file for the JSON report. |
+| `--targets` | The file with the globals to find. It replaces the list built into the command, so a change needs no rebuild. |
 
-The command runs each player on this machine in version order until its fixture game is ready and writes 1 row per player into the report. A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. It deletes the log of each player afterward. A canceled run writes no report.
+The command runs each player on the current machine in version order until its fixture game is ready, reads the player's memory and writes 1 row per player into the report. It logs each step to the console with the time and the level. Errors go to stderr:
+
+```
+2026-11-06 14:03:12 info: measure[1] Measuring 2010-09.
+2026-11-06 14:03:31 info: measure[101] Server ready after 19.0 s.
+```
+ A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. It deletes the log of each player afterward. A canceled run writes no report. A bad targets file fails before the 1st player starts.
+
+A row has the version and 3 maps:
+
+- `globals` has a list of RVAs in the executable for each global, because several statics can point at 1 object.
+- `offsets` has the offset of each member under its type, with the real names of the engine.
+- `unmeasured` has the reason for each global or member that was not found. The row still counts as measured.
+
+A failed row has `error` and none of the maps. Numbers are hex strings:
+
+```json
+{
+  "version": "2015-02",
+  "globals": {
+    "GWorld": [
+      "0x29D6984",
+      "0x29E6244",
+      "0x2A658D0"
+    ]
+  },
+  "offsets": {
+    "UObject": {
+      "Outer": "0x28",
+      "Name": "0x2C"
+    }
+  },
+  "unmeasured": {}
+}
+```
+
+### Unreal Engine 3 targets
+
+`eng/tools/AslHelp.Engines.Measuring.Cli/Unreal3/targets.json` lists the globals as an object, with the name of the global as the key and a `$type` in each value. The members are not in the file, because the search for each member is code.
+
+```json
+{
+  "GWorld": {
+    "$type": "objectSlot",
+    "class": "World",
+    "object": "TheWorld"
+  }
+}
+```
+
+| `$type` | Keys | Finds |
+|---|---|---|
+| `nameArray` | `firstNames` | The array whose first entries are these names. The file needs exactly 1 of this type. |
+| `objectArray` | | The array whose objects contain their own position. The file needs exactly 1 of this type. |
+| `objectSlot` | `class`, `object` | Every static that points at an object of `class` or of a class deriving from it. `object` is optional and is the name of the object in the name array. |
+
+The measurement reads the sections of `UDK.exe` without code from the running player and finds the 2 arrays in them by their contents. The classes `Class`, `State`, `Struct`, `Field` and `Object` then lead to the offsets because their names and super chain are the same in every build. The properties of `Object` contain the offsets found so far, which gives the offsets of the property members. A row fails when the name array, the object array, the name, class or outer offset or a class of that chain is not found or when 2 arrays with different data fit and neither is the longer one. Every other member goes to `unmeasured`.

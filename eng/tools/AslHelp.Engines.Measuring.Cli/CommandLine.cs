@@ -1,7 +1,10 @@
 using AslHelp.Engines.Measuring.Cli.Unreal3;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Console;
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -16,30 +19,40 @@ namespace AslHelp.Engines.Measuring.Cli;
 internal static class CommandLine
 {
     /// <summary>
-    ///     Parses <paramref name="args"/> and measures the players with every engine.
+    ///     Parses <paramref name="args"/> and measures the players with every engine, logging to the console.
     /// </summary>
     /// <param name="args">The arguments.</param>
-    /// <param name="output">The writer for help and progress.</param>
-    /// <param name="error">The writer for parse errors and failures.</param>
+    /// <param name="output">The writer for help.</param>
+    /// <param name="error">The writer for parse errors.</param>
     /// <returns>
     ///     The exit code of the run.
     /// </returns>
-    public static Task<int> RunAsync(string[] args, TextWriter output, TextWriter error)
+    public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error)
     {
-        return RunAsync(args, output, error, [new UdkMeasurer()]);
+        // Dispose the factory before the exit, because the console logger writes its lines from a queue.
+        using var factory = LoggerFactory.Create(static builder => builder
+            .AddConsole(static options => options.LogToStandardErrorThreshold = LogLevel.Error)
+            .AddSimpleConsole(static options =>
+            {
+                options.SingleLine = true;
+                options.TimestampFormat = "yyyy-MM-dd HH:mm:ss ";
+            }));
+
+        return await RunAsync(args, output, error, [new UdkMeasurer()], factory.CreateLogger("measure")).ConfigureAwait(false);
     }
 
     /// <summary>
     ///     Parses <paramref name="args"/> and measures the players with <paramref name="measurers"/>.
     /// </summary>
     /// <param name="args">The arguments.</param>
-    /// <param name="output">The writer for help and progress.</param>
-    /// <param name="error">The writer for parse errors and failures.</param>
+    /// <param name="output">The writer for help.</param>
+    /// <param name="error">The writer for parse errors.</param>
     /// <param name="measurers">The measurers the command can pick by engine name.</param>
+    /// <param name="logger">The logger for the steps and the failures of the run.</param>
     /// <returns>
     ///     The exit code of the run.
     /// </returns>
-    public static Task<int> RunAsync(string[] args, TextWriter output, TextWriter error, IReadOnlyList<IEngineMeasurer> measurers)
+    public static Task<int> RunAsync(string[] args, TextWriter output, TextWriter error, IReadOnlyList<IEngineMeasurer> measurers, ILogger logger)
     {
         Argument<IEngineMeasurer> engineArgument = new("engine")
         {
@@ -50,15 +63,16 @@ internal static class CommandLine
 
         Argument<string> playersArgument = new("players") { Description = SR.PlayersDescription };
         Option<string> outputOption = new("--output") { Description = SR.OutputDescription, Required = true };
+        Option<string?> targetsOption = new("--targets") { Description = SR.TargetsDescription };
 
-        RootCommand root = [with(SR.RootDescription), engineArgument, playersArgument, outputOption];
+        RootCommand root = [with(SR.RootDescription), engineArgument, playersArgument, outputOption, targetsOption];
 
         root.SetAction((parseResult, cancellationToken) => MeasureAsync(
             parseResult.GetRequiredValue(engineArgument),
             parseResult.GetRequiredValue(playersArgument),
             parseResult.GetRequiredValue(outputOption),
-            output,
-            error,
+            parseResult.GetValue(targetsOption),
+            logger,
             cancellationToken));
 
         return root.Parse(args).InvokeAsync(new() { Output = output, Error = error });
@@ -70,8 +84,8 @@ internal static class CommandLine
     /// <param name="measurer">The measurer of the engine.</param>
     /// <param name="playersDirectory">The folder with the players.</param>
     /// <param name="reportPath">The file for the report.</param>
-    /// <param name="output">The writer for the steps.</param>
-    /// <param name="error">The writer for failures.</param>
+    /// <param name="targetsPath">The file with the values to find or <see langword="null"/> for the list built into the measurer.</param>
+    /// <param name="logger">The logger for the steps and the failures of the run.</param>
     /// <param name="cancellationToken">The token that stops the run.</param>
     /// <returns>
     ///     0 if every player was measured or 1 otherwise.
@@ -81,18 +95,19 @@ internal static class CommandLine
         IEngineMeasurer measurer,
         string playersDirectory,
         string reportPath,
-        TextWriter output,
-        TextWriter error,
+        string? targetsPath,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         try
         {
+            measurer.LoadTargets(targetsPath);
+
             var players = PlayerFolder.Find(playersDirectory, measurer.Name);
 
             if (players.Count == 0)
             {
-                string none = SR.FormatNoPlayers(playersDirectory, measurer.Name);
-                await error.WriteLineAsync(none.AsMemory(), cancellationToken).ConfigureAwait(false);
+                logger.NoPlayers(playersDirectory, measurer.Name);
 
                 return 1;
             }
@@ -104,20 +119,34 @@ internal static class CommandLine
 
             foreach (var player in players)
             {
-                await output.WriteLineAsync(SR.FormatMeasuring(player.Version).AsMemory(), cancellationToken).ConfigureAwait(false);
+                logger.Measuring(player.Version);
+
+                long started = Stopwatch.GetTimestamp();
 
                 try
                 {
-                    await measurer.MeasureAsync(player.Directory, cancellationToken).ConfigureAwait(false);
-                    rows.Add(new PlayerRow(player.Version, null));
+                    var measurement = await measurer.MeasureAsync(player.Directory, logger, cancellationToken).ConfigureAwait(false);
+                    rows.Add(PlayerRow.Measured(player.Version, measurement));
+
+                    foreach ((string value, string reason) in measurement.Unmeasured)
+                    {
+                        logger.NotFound(value, reason);
+                    }
+
+                    var elapsed = Stopwatch.GetElapsedTime(started);
+
+                    logger.Measured(
+                        player.Version,
+                        elapsed.TotalSeconds,
+                        measurement.Globals.Count,
+                        measurement.Offsets.Count,
+                        measurement.Unmeasured.Count);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException)
                 {
                     // Keep going, because a full run takes minutes and 1 failed player would throw away the rest.
-                    rows.Add(new PlayerRow(player.Version, exception.Message));
-
-                    string failed = SR.FormatPlayerFailed(player.Version, exception.Message);
-                    await error.WriteLineAsync(failed.AsMemory(), cancellationToken).ConfigureAwait(false);
+                    rows.Add(PlayerRow.Failed(player.Version, exception.Message));
+                    logger.PlayerFailed(player.Version, exception.Message);
                 }
             }
 
@@ -125,11 +154,14 @@ internal static class CommandLine
             string json = JsonSerializer.Serialize(report, MeasureReportContext.Default.MeasureReport);
             await File.WriteAllTextAsync(reportPath, json, cancellationToken).ConfigureAwait(false);
 
-            return rows.Exists(static row => row.Error is not null) ? 1 : 0;
+            int measured = rows.Count(static row => row.Error is null);
+            logger.ReportWritten(reportPath, measured, rows.Count);
+
+            return measured == rows.Count ? 0 : 1;
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            await error.WriteLineAsync(exception.Message.AsMemory(), CancellationToken.None).ConfigureAwait(false);
+            logger.RunFailed(exception.Message);
 
             return 1;
         }

@@ -12,10 +12,97 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="ClassNotFound" xml:space="preserve">
+    <value>No class is called {0}.</value>
+  </data>
+  <data name="ClassOffsetNotFound" xml:space="preserve">
+    <value>No object called Class points at itself.</value>
+  </data>
+  <data name="ExecutableNotPe" xml:space="preserve">
+    <value>'{0}' is not a PE file.</value>
+  </data>
+  <data name="ModuleNotLoaded" xml:space="preserve">
+    <value>The server did not load {0}: {1}</value>
+  </data>
+  <data name="NameArrayAmbiguous" xml:space="preserve">
+    <value>The name arrays at RVAs 0x{0} and 0x{1} both fit.</value>
+  </data>
+  <data name="NameArrayNotFound" xml:space="preserve">
+    <value>No static is an array of names that starts with {0} and {1}.</value>
+  </data>
+  <data name="NameArrayWrongName" xml:space="preserve">
+    <value>The name array at RVA 0x{0} has '{1}' at position {2} and not '{3}'.</value>
+  </data>
+  <data name="NameOffsetNotFound" xml:space="preserve">
+    <value>No offset reads as a name on 95% of the objects.</value>
+  </data>
+  <data name="ObjectArrayAmbiguous" xml:space="preserve">
+    <value>The object arrays at RVAs 0x{0} and 0x{1} both fit.</value>
+  </data>
+  <data name="ObjectArrayNotFound" xml:space="preserve">
+    <value>No static is an array of objects that contain their own index.</value>
+  </data>
+  <data name="OuterOffsetNotFound" xml:space="preserve">
+    <value>The classes Class and Object have no pointer at Core at 1 offset.</value>
+  </data>
   <data name="PlayerExited" xml:space="preserve">
     <value>The server exited with code {0} before it was ready.</value>
   </data>
+  <data name="PlayerExitedDuringMeasurement" xml:space="preserve">
+    <value>The server exited with code {0} during the measurement.</value>
+  </data>
   <data name="PlayerNotReady" xml:space="preserve">
     <value>The server was not ready within {0} seconds.</value>
+  </data>
+  <data name="TargetsBlankValue" xml:space="preserve">
+    <value>'{0}': the target '{1}' has a blank value.</value>
+  </data>
+  <data name="TargetsEmpty" xml:space="preserve">
+    <value>'{0}' has no targets.</value>
+  </data>
+  <data name="TargetsFewFirstNames" xml:space="preserve">
+    <value>'{0}': {1} needs at least {2} first names.</value>
+  </data>
+  <data name="TargetsInvalid" xml:space="preserve">
+    <value>'{0}' is not a valid set of targets: {1}</value>
+  </data>
+  <data name="TargetsNeedsOneNameArray" xml:space="preserve">
+    <value>'{0}' needs exactly 1 target of the type nameArray.</value>
+  </data>
+  <data name="TargetsNeedsOneObjectArray" xml:space="preserve">
+    <value>'{0}' needs exactly 1 target of the type objectArray.</value>
+  </data>
+  <data name="TargetsNotEmbedded" xml:space="preserve">
+    <value>The command has no resource called {0}.</value>
+  </data>
+  <data name="TargetsNull" xml:space="preserve">
+    <value>'{0}': the target '{1}' is null.</value>
+  </data>
+  <data name="UnmeasuredChildren" xml:space="preserve">
+    <value>No pointer of the class Object starts a chain of 5 fields with Outer, Name and Class.</value>
+  </data>
+  <data name="UnmeasuredElementSize" xml:space="preserve">
+    <value>No int of the properties Outer, Name and Class reads as their element sizes.</value>
+  </data>
+  <data name="UnmeasuredNeeds" xml:space="preserve">
+    <value>Needs {0}.</value>
+  </data>
+  <data name="UnmeasuredOffset" xml:space="preserve">
+    <value>No int of the properties Outer, Name and Class reads as their offsets.</value>
+  </data>
+  <data name="UnmeasuredPropertyClass" xml:space="preserve">
+    <value>The property Outer does not point at the class Object at the size of Property.</value>
+  </data>
+  <data name="UnmeasuredPropertyLinkNext" xml:space="preserve">
+    <value>No pointer connects the properties of the class Object.</value>
+  </data>
+  <data name="UnmeasuredPropertySize" xml:space="preserve">
+    <value>No int grows from the class Object to the class Class.</value>
+  </data>
+  <data name="UnmeasuredSlot" xml:space="preserve">
+    <value>No static points at a fitting object of the class {0}.</value>
+  </data>
+  <data name="UnmeasuredSuperField" xml:space="preserve">
+    <value>No pointer connects the classes Class, State, Struct, Field and Object.</value>
   </data>
 </root>

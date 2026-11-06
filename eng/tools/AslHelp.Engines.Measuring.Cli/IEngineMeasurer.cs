@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,12 +16,20 @@ internal interface IEngineMeasurer
     string Name { get; }
 
     /// <summary>
+    ///     Loads the list of values to find, so a bad list fails before the 1st player starts.
+    /// </summary>
+    /// <param name="path">The file with the list or <see langword="null"/> for the list built into the measurer.</param>
+    /// <exception cref="InvalidDataException">The list is not valid.</exception>
+    void LoadTargets(string? path);
+
+    /// <summary>
     ///     Measures the player in <paramref name="playerDirectory"/>.
     /// </summary>
     /// <param name="playerDirectory">The player folder.</param>
+    /// <param name="logger">The logger for the steps of the measurement.</param>
     /// <param name="cancellationToken">The token that stops the measurement.</param>
     /// <returns>
-    ///     A task that completes once the player has ended.
+    ///     The values found, once the player has ended.
     /// </returns>
-    Task MeasureAsync(string playerDirectory, CancellationToken cancellationToken);
+    Task<PlayerMeasurement> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken);
 }

@@ -49,3 +49,12 @@ fixtures-all output:
         "$version exit=$code seconds=$([int]((Get-Date) - $started).TotalSeconds) $($lines | Select-Object -Last 1)"
     }
     exit $failed
+
+# Run the measuring command line with the arguments as typed, from the current folder.
+[no-cd]
+[positional-arguments]
+[script("pwsh", "-NoLogo", "-NoProfile")]
+measure *args:
+    dotnet run --project '{{ justfile_directory() }}/eng/tools/AslHelp.Engines.Measuring.Cli' -- @args
+    # Exit with the code of the run or with 1 when dotnet did not start, because the script exits 0 after a failed command.
+    exit ($LASTEXITCODE ?? 1)

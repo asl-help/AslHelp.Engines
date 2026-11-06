@@ -53,6 +53,20 @@ The archive goes up before the manifest, so a manifest in the store always has i
 
 A damaged or cut short `players/<toolchain>/<version>/<hash>.tar.zst` fails the build with that path. The build deletes its download. Delete the file from the store and build again, so the next run builds and uploads the player.
 
+## Measuring
+
+```
+just measure <engine> <players> --output <file>
+```
+
+| Argument | Value |
+|---|---|
+| `<engine>` | The engine of the players, such as `unreal3`. |
+| `<players>` | The folder with the `<engine>-<version>-<hash>` players that `just fixtures build` made. |
+| `--output` | The file for the JSON report. |
+
+The command runs each player on this machine in version order until its fixture game is ready and writes 1 row per player into the report. A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. It deletes the log of each player afterward. A canceled run writes no report.
+
 ## Unreal Engine 3
 
 Unreal Engine 3 players are built with UDK, the free Unreal Engine 3 release.

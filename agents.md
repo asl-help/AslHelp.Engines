@@ -10,6 +10,7 @@ just encoding
 just check
 just fixtures <arguments>
 just fixtures-all <folder>
+just measure <engine> <players> --output <file>
 ```
 
 `just check` runs the encoding check, the format check, the build and the tests, as CI does. Run it before a commit.
@@ -49,6 +50,11 @@ Every project targets `net11.0-windows`, because the players only run on Windows
     - `UdkRedist` opens the install's `UE3Redist.exe`, finds the cabinet of a DLL and extracts entries. It also refuses an install with the PhysX installer.
     - `PeImports` reads the import DLL names of a PE file.
   - `IToolchain` installs an engine release at a version, builds players in it, checks that they start and adds the inputs of its build to the player key with `AddKeyInputs`, which returns the version as the toolchain pins it.
+- `eng/tools/AslHelp.Engines.Measuring.Cli` is the `measure` command line. It runs the players that `fixtures` built and writes a report. It has the parts the run uses:
+  - `PlayerFolder` finds the player folders of an engine and reads their versions.
+  - `IEngineMeasurer` is the part an engine plugs in. `CommandLine` picks it by name and the tests use a fake one.
+  - `MeasureReport` is the report and its JSON.
+  - `Unreal3/UdkMeasurer` is the UDK measurer and `Unreal3/UdkPlayer` runs a UDK server on a hidden desktop until the fixture game is ready.
 - `test/fixtures/unreal3` has the UnrealScript classes of the Unreal Engine 3 player. The CLI project copies them to its output as `projects/unreal3/Classes`.
 - Engine-specific code sits in a folder per engine, such as `Unreal3/`, with 1 `IToolchain` each in the CLI project. Engine names appear only in the engine folders (`Unreal3/` in each project and its tests, `test/fixtures/unreal3`), in `Unreal3/UdkSR.resx`, in the toolchain list of `CommandLine`, in the CLI project items that copy or embed engine files, in the `fixtures-all` recipe and in the engine parts of this file and the readme. Everything else uses neutral names, with no engine in them.
 - `eng/CheckEncoding.cs` checks the encoding and the line endings of every tracked file. CI and `just check` run it as a file-based app with `dotnet eng/CheckEncoding.cs`.

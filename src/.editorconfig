@@ -1,0 +1,7 @@
+root = false
+
+#### Suppressions ####
+
+[*.cs]
+# CA
+dotnet_diagnostic.CA2225.severity = none # Operator overloads have named alternates

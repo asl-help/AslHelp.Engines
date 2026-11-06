@@ -50,7 +50,6 @@ file_header_template = unset
 dotnet_diagnostic.IDE0001.severity = warning    # Simplify name
 dotnet_diagnostic.IDE0002.severity = warning    # Simplify member access
 dotnet_diagnostic.IDE0004.severity = warning    # Remove unnecessary cast
-# Turn off missing-case checks, because the build never runs them and a default case already covers the rest.
 dotnet_diagnostic.IDE0010.severity = none       # Add missing cases to switch statement
 dotnet_diagnostic.IDE0035.severity = warning    # Remove unreachable code
 dotnet_diagnostic.IDE0050.severity = warning    # Convert anonymous type to tuple

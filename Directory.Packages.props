@@ -5,10 +5,14 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
-  <!-- Shared package versions. -->
+  <!-- AslHelp packages. -->
   <ItemGroup>
     <PackageVersion Include="AslHelp.Memory" Version="0.1.0-alpha.1" />
     <PackageVersion Include="AslHelp.Memory.Remote" Version="0.1.0-alpha.1" />
+  </ItemGroup>
+
+  <!-- Shared package versions. -->
+  <ItemGroup>
     <PackageVersion Include="Docker.DotNet.Enhanced" Version="4.3.3" />
     <PackageVersion Include="Iced" Version="1.22.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.14" />

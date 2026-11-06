@@ -85,7 +85,7 @@ internal static class UdkClrConfig
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            throw new IOException(SR.Format(UdkSR.PartialNotMoved, partialPath, path), exception);
+            throw new IOException(UdkSR.FormatPartialNotMoved(partialPath, path), exception);
         }
     }
 }

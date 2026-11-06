@@ -39,7 +39,7 @@ internal static class UdkRuntimes
 
         if (!File.Exists(serverPath))
         {
-            throw new FileNotFoundException(SR.Format(UdkSR.ServerNotFound, serverPath), serverPath);
+            throw new FileNotFoundException(UdkSR.FormatServerNotFound(serverPath), serverPath);
         }
 
         SortedSet<string> runtimes = [with(StringComparer.OrdinalIgnoreCase)];
@@ -156,8 +156,7 @@ internal static class UdkRuntimes
 
         string redistPath = UdkRedist.FindPath(installDirectory)
             ?? throw new FileNotFoundException(
-                SR.Format(
-                    UdkSR.RedistNotFound,
+                UdkSR.FormatRedistNotFound(
                     Path.Combine(installDirectory, UdkRedist.RedistPath),
                     Path.Combine(installDirectory, UdkRedist.WindowsRedistPath),
                     binaries,
@@ -197,7 +196,7 @@ internal static class UdkRuntimes
             {
                 if (!File.Exists(Path.Combine(tempDirectory, runtime)))
                 {
-                    throw new InvalidDataException(SR.Format(UdkSR.RedistRuntimeMissing, redistPath, runtime, binaries));
+                    throw new InvalidDataException(UdkSR.FormatRedistRuntimeMissing(redistPath, runtime));
                 }
             }
 
@@ -215,7 +214,7 @@ internal static class UdkRuntimes
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
                 {
-                    throw new IOException(SR.Format(UdkSR.PartialNotMoved, partialPath, runtimePath), exception);
+                    throw new IOException(UdkSR.FormatPartialNotMoved(partialPath, runtimePath), exception);
                 }
             }
         }

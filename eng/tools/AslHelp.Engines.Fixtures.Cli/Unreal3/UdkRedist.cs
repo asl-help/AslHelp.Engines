@@ -112,7 +112,7 @@ internal sealed class UdkRedist : IDisposable
         // Refuse the install, because the engine stops at startup until that installer has run on the machine.
         if (redist._archive.GetEntry(PhysXInstallerEntry) is not null)
         {
-            throw new InvalidOperationException(SR.Format(UdkSR.UdkNeedsPhysXInstaller, version));
+            throw new InvalidOperationException(UdkSR.FormatUdkNeedsPhysXInstaller(version));
         }
     }
 
@@ -182,7 +182,7 @@ internal sealed class UdkRedist : IDisposable
         ArgumentNullException.ThrowIfNull(directory);
 
         var entry = _archive.GetEntry(entryName)
-            ?? throw new InvalidDataException(SR.Format(UdkSR.RedistEntryMissing, FilePath, entryName));
+            ?? throw new InvalidDataException(UdkSR.FormatRedistEntryMissing(FilePath, entryName));
 
         entry.ExtractToFile(Path.Combine(directory, Path.GetFileName(entryName)));
     }
@@ -224,7 +224,7 @@ internal sealed class UdkRedist : IDisposable
             catch (InvalidDataException exception)
             {
                 // Put the redist, the entry and the fix in the message, because Cabinet.ReadNames gets only a stream.
-                throw new InvalidDataException(SR.Format(UdkSR.RedistEntryDamaged, name, FilePath, exception.Message), exception);
+                throw new InvalidDataException(UdkSR.FormatRedistEntryDamaged(name, FilePath, exception.Message), exception);
             }
 
             foreach (string file in files)

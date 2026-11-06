@@ -87,9 +87,9 @@ internal static class VisualCppRuntimes
             return;
         }
 
-        string importer = SR.Format(UdkSR.VcImporter, Path.Combine(binariesDirectory, UdkInstall.ExecutableName));
+        string importer = UdkSR.FormatVcImporter(Path.Combine(binariesDirectory, UdkInstall.ExecutableName));
 
-        throw new InvalidOperationException(SR.Format(UdkSR.VcOtherUnsupported, importer, runtime));
+        throw new InvalidOperationException(UdkSR.FormatVcOtherUnsupported(importer, runtime));
     }
 
     /// <summary>
@@ -102,7 +102,7 @@ internal static class VisualCppRuntimes
     {
         if (!redist.HasVc2010)
         {
-            throw new InvalidDataException(SR.Format(UdkSR.Vc2010InstallerMissing, redist.FilePath, UdkRedist.Vc2010Entry, binariesDirectory));
+            throw new InvalidDataException(UdkSR.FormatVc2010InstallerMissing(redist.FilePath, UdkRedist.Vc2010Entry, binariesDirectory));
         }
     }
 

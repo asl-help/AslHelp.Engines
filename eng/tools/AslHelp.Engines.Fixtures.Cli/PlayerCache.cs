@@ -77,7 +77,7 @@ internal sealed class PlayerCache(
         // Check the pinned version first, because it becomes a folder name and a store path segment.
         if (!IsFolderName(pinned))
         {
-            throw new ArgumentException(SR.Format(SR.VersionNotFolderName, pinned, toolchain.Name), nameof(toolchain));
+            throw new ArgumentException(SR.FormatVersionNotFolderName(pinned, toolchain.Name), nameof(toolchain));
         }
 
         var key = builder.Build();
@@ -85,7 +85,7 @@ internal sealed class PlayerCache(
         // Compare the returned version with the hashed one, because the paths use the 1st and the manifest lists the 2nd.
         if (!builder.Inputs.Contains(new CacheKeyInput(VersionInput, pinned)))
         {
-            throw new InvalidOperationException(SR.Format(SR.VersionNotHashed, toolchain.Name, pinned));
+            throw new InvalidOperationException(SR.FormatVersionNotHashed(toolchain.Name, pinned));
         }
 
         return new(key, toolchain.Name, pinned, builder.Inputs);
@@ -125,21 +125,21 @@ internal sealed class PlayerCache(
         string remote = RemotePath(key, ArchiveExtension);
         string archive = ArchivePath(key);
 
-        await output.WriteLineAsync(SR.Format(SR.CacheDownloading, remote).AsMemory(), cancellationToken).ConfigureAwait(false);
+        await output.WriteLineAsync(SR.FormatCacheDownloading(remote).AsMemory(), cancellationToken).ConfigureAwait(false);
 
         bool downloaded = await bars.ShowAsync(remote, progress => store.TryDownloadAsync(remote, archive, progress, cancellationToken))
             .ConfigureAwait(false);
 
         if (!downloaded)
         {
-            await output.WriteLineAsync(SR.Format(SR.CacheMiss, remote).AsMemory(), cancellationToken).ConfigureAwait(false);
+            await output.WriteLineAsync(SR.FormatCacheMiss(remote).AsMemory(), cancellationToken).ConfigureAwait(false);
             return null;
         }
 
         // Check the token first, because the unpack is synchronous and cannot stop halfway.
         cancellationToken.ThrowIfCancellationRequested();
 
-        await output.WriteLineAsync(SR.Format(SR.CacheUnpacking, archive, player).AsMemory(), cancellationToken).ConfigureAwait(false);
+        await output.WriteLineAsync(SR.FormatCacheUnpacking(archive, player).AsMemory(), cancellationToken).ConfigureAwait(false);
 
         try
         {
@@ -152,7 +152,7 @@ internal sealed class PlayerCache(
 
             // Put the store path in the message, because a fresh download that fails to unpack means the store copy is bad.
             // Keep the reason of the failed unpack as the cause and not the archive message, whose fix points at the deleted download.
-            throw new InvalidDataException(SR.Format(SR.StoreCopyDamaged, remote), exception.InnerException ?? exception);
+            throw new InvalidDataException(SR.FormatStoreCopyDamaged(remote), exception.InnerException ?? exception);
         }
 
         // Delete quietly, because the player is complete and a scanner that has the archive open must not fail the run.
@@ -183,10 +183,10 @@ internal sealed class PlayerCache(
         string player = PlayerPath(key);
         string installManifest = Path.Combine(installDirectory, ManifestFileName);
 
-        await output.WriteLineAsync(SR.Format(SR.CacheWritingManifest, installManifest).AsMemory(), cancellationToken).ConfigureAwait(false);
+        await output.WriteLineAsync(SR.FormatCacheWritingManifest(installManifest).AsMemory(), cancellationToken).ConfigureAwait(false);
         await WriteManifestAsync(key, installManifest, cancellationToken).ConfigureAwait(false);
 
-        await output.WriteLineAsync(SR.Format(SR.CacheMoving, installDirectory, player).AsMemory(), cancellationToken).ConfigureAwait(false);
+        await output.WriteLineAsync(SR.FormatCacheMoving(installDirectory, player).AsMemory(), cancellationToken).ConfigureAwait(false);
         Directory.Move(installDirectory, player);
 
         string manifest = Path.Combine(player, ManifestFileName);
@@ -203,14 +203,14 @@ internal sealed class PlayerCache(
         string remoteArchive = RemotePath(key, ArchiveExtension);
         string remoteManifest = RemotePath(key, ManifestExtension);
 
-        await output.WriteLineAsync(SR.Format(SR.CachePacking, player, archive).AsMemory(), cancellationToken).ConfigureAwait(false);
+        await output.WriteLineAsync(SR.FormatCachePacking(player, archive).AsMemory(), cancellationToken).ConfigureAwait(false);
         Archive.Pack(player, archive);
 
-        await output.WriteLineAsync(SR.Format(SR.CacheUploading, archive, remoteArchive).AsMemory(), cancellationToken).ConfigureAwait(false);
+        await output.WriteLineAsync(SR.FormatCacheUploading(archive, remoteArchive).AsMemory(), cancellationToken).ConfigureAwait(false);
         await bars.ShowAsync(remoteArchive, progress => store.UploadAsync(archive, remoteArchive, progress, cancellationToken)).ConfigureAwait(false);
 
         // Send the manifest without a bar, because a file of about 1 KB goes up at once.
-        await output.WriteLineAsync(SR.Format(SR.CacheUploading, manifest, remoteManifest).AsMemory(), cancellationToken).ConfigureAwait(false);
+        await output.WriteLineAsync(SR.FormatCacheUploading(manifest, remoteManifest).AsMemory(), cancellationToken).ConfigureAwait(false);
         await store.UploadAsync(manifest, remoteManifest, progress: null, cancellationToken).ConfigureAwait(false);
 
         // Delete quietly, because the player is complete and a scanner that has the archive open must not fail the run.

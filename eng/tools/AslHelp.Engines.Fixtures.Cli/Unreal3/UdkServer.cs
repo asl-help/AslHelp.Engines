@@ -24,8 +24,9 @@ internal static class UdkServer
     /// </summary>
     /// <remarks>
     ///     <c>Binaries/Win32/UDK.exe server &lt;map&gt;?game=Fixture.FixtureGame</c> runs in <paramref name="host"/>. The map is the 1st
-    ///     <c>.udk</c> file under <c>UDKGame/Content/Maps</c> in ordinal order of its relative path. The check waits for the line <c>ScriptLog: Fixture ready</c> in <c>UDKGame/Logs/Launch.log</c>,
-    ///     which <c>FixtureGame</c> logs once it has spawned the fixture actor. The log is deleted before the start, so a
+    ///     <c>.udk</c> file under <c>UDKGame/Content/Maps</c> in ordinal order of its relative path. The check waits for
+    ///     the line <c>ScriptLog: Fixture ready</c> in <c>UDKGame/Logs/Launch.log</c>, which <c>FixtureGame</c> logs once
+    ///     it has spawned the fixture actor. The log is deleted before the start, so a
     ///     line from an earlier run does not count. It is deleted after a pass too, so the player has no log of the build
     ///     machine. A missing <c>UDK.exe</c> or map throws before anything starts.
     ///     Any exit of the server is a failure, because the server runs until it is stopped.
@@ -39,7 +40,9 @@ internal static class UdkServer
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
     /// <exception cref="FileNotFoundException">The install has no <c>UDK.exe</c> or no map.</exception>
-    /// <exception cref="InvalidOperationException">The host cannot run anything or the server exits before the check finds the ready line.</exception>
+    /// <exception cref="InvalidOperationException">
+    ///     The host cannot run anything or the server exits before the check finds the ready line.
+    /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     /// <exception cref="TimeoutException">The ready line is not in the log within <paramref name="timeout"/>.</exception>
     public static async Task CheckAsync(IPlayerHost host, string installDirectory, TimeSpan timeout, CancellationToken cancellationToken)
@@ -51,7 +54,7 @@ internal static class UdkServer
 
         if (!File.Exists(serverPath))
         {
-            throw new FileNotFoundException(SR.Format(UdkSR.ServerNotFound, serverPath), serverPath);
+            throw new FileNotFoundException(UdkSR.FormatServerNotFound(serverPath), serverPath);
         }
 
         string map = UdkInstall.FindMap(installDirectory);
@@ -124,10 +127,10 @@ internal static class UdkServer
             {
                 // Point at the log only if it exists, because UDK.exe can hang before the engine opens it.
                 string next = File.Exists(logPath)
-                    ? SR.Format(UdkSR.ServerProgressFix, logPath)
-                    : SR.Format(UdkSR.ServerStartFix, serverPath);
+                    ? UdkSR.FormatServerProgressFix(logPath)
+                    : UdkSR.FormatServerStartFix(serverPath);
 
-                throw new TimeoutException(SR.Format(UdkSR.ServerNotReady, UdkLogScan.ReadyLine, timeout.TotalSeconds, next));
+                throw new TimeoutException(UdkSR.FormatServerNotReady(UdkLogScan.ReadyLine, timeout.TotalSeconds, next));
             }
 
             await Task.Delay(_logPollInterval, cancellationToken).ConfigureAwait(false);
@@ -147,9 +150,9 @@ internal static class UdkServer
     {
         // Point at the log only if it exists, because UDK.exe can fail before the engine opens it.
         string next = File.Exists(logPath)
-            ? SR.Format(UdkSR.ServerLogFix, logPath)
-            : SR.Format(UdkSR.ServerStartFix, serverPath);
+            ? UdkSR.FormatServerLogFix(logPath)
+            : UdkSR.FormatServerStartFix(serverPath);
 
-        return new InvalidOperationException(SR.Format(UdkSR.ServerFailed, exitCode, next));
+        return new InvalidOperationException(UdkSR.FormatServerFailed(exitCode, next));
     }
 }

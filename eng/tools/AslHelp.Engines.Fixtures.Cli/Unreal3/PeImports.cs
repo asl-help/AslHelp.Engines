@@ -159,6 +159,6 @@ internal static class PeImports
     /// </returns>
     private static InvalidDataException Damaged(string path, Exception? inner)
     {
-        return new InvalidDataException(SR.Format(UdkSR.PeImportsUnreadable, path), inner);
+        return new InvalidDataException(UdkSR.FormatPeImportsUnreadable(path), inner);
     }
 }

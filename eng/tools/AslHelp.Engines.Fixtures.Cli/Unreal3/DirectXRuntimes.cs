@@ -64,7 +64,7 @@ internal static class DirectXRuntimes
         foreach (string runtime in runtimes)
         {
             string cabinet = redist.FindCabinet(runtime)
-                ?? throw new InvalidOperationException(SR.Format(UdkSR.DirectXRuntimeNotInRedist, redist.FilePath, runtime, binariesDirectory));
+                ?? throw new InvalidOperationException(UdkSR.FormatDirectXRuntimeNotInRedist(redist.FilePath, runtime, binariesDirectory));
 
             if (!cabinets.Contains(cabinet))
             {

@@ -55,7 +55,8 @@ internal sealed class ContainerPlayerHost : IPlayerHost, IDisposable
 
             try
             {
-                _ = await _client.Containers.StartContainerAsync(container.ID, new ContainerStartParameters(), cancellationToken).ConfigureAwait(false);
+                _ = await _client.Containers.StartContainerAsync(container.ID, new ContainerStartParameters(), cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch
             {
@@ -74,7 +75,7 @@ internal sealed class ContainerPlayerHost : IPlayerHost, IDisposable
         }
         catch (Exception exception) when (exception is DockerApiException or HttpRequestException or IOException or TimeoutException)
         {
-            throw new InvalidOperationException(SR.Format(SR.DockerFailed, Image, exception.Message), exception);
+            throw new InvalidOperationException(SR.FormatDockerFailed(Image, exception.Message), exception);
         }
     }
 

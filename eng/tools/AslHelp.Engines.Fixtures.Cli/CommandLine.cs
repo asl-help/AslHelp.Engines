@@ -160,7 +160,7 @@ internal static class CommandLine
             }
         }
 
-        throw new UnreachableException(SR.Format(SR.ToolchainNotListed, name));
+        throw new UnreachableException(SR.FormatToolchainNotListed(name));
     }
 
     /// <summary>
@@ -206,16 +206,16 @@ internal static class CommandLine
 
             if (player is null)
             {
-                string installing = SR.Format(SR.Installing, toolchain.Name, key.Version, outputDirectory);
+                string installing = SR.FormatInstalling(toolchain.Name, key.Version, outputDirectory);
                 await output.WriteLineAsync(installing.AsMemory(), cancellationToken).ConfigureAwait(false);
                 string install = await bars.ShowAsync(
                     $"{toolchain.Name} {key.Version}",
                     progress => toolchain.InstallAsync(key.Version, outputDirectory, progress, cancellationToken)).ConfigureAwait(false);
 
-                await output.WriteLineAsync(SR.Format(SR.Building, project, install).AsMemory(), cancellationToken).ConfigureAwait(false);
+                await output.WriteLineAsync(SR.FormatBuilding(project, install).AsMemory(), cancellationToken).ConfigureAwait(false);
                 await toolchain.BuildAsync(install, project, cancellationToken).ConfigureAwait(false);
 
-                await output.WriteLineAsync(SR.Format(SR.Checking, install).AsMemory(), cancellationToken).ConfigureAwait(false);
+                await output.WriteLineAsync(SR.FormatChecking(install).AsMemory(), cancellationToken).ConfigureAwait(false);
                 await toolchain.CheckAsync(install, cancellationToken).ConfigureAwait(false);
 
                 player = await cache.StoreAsync(key, install, cancellationToken).ConfigureAwait(false);

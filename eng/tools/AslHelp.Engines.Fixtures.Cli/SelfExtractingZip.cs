@@ -82,7 +82,7 @@ internal static class SelfExtractingZip
 
         if (Path.Exists(destination))
         {
-            throw new IOException(SR.Format(SR.ExtractDestinationExists, destination));
+            throw new IOException(SR.FormatExtractDestinationExists(destination));
         }
 
         string tempDirectory = destination + TempPaths.PartialSuffix;
@@ -133,7 +133,7 @@ internal static class SelfExtractingZip
 
         if (end < 0)
         {
-            throw new InvalidDataException(SR.Format(SR.ZipNotFound, path));
+            throw new InvalidDataException(SR.FormatZipNotFound(path));
         }
 
         long directorySize;
@@ -149,7 +149,7 @@ internal static class SelfExtractingZip
 
             if (record < 0 || !tail.AsSpan(record).StartsWith("PK\u0006\u0006"u8))
             {
-                throw new InvalidDataException(SR.Format(SR.Zip64ExtraData, path));
+                throw new InvalidDataException(SR.FormatZip64ExtraData(path));
             }
 
             directorySize = BinaryPrimitives.ReadInt64LittleEndian(tail.AsSpan(record + 40));
@@ -171,7 +171,7 @@ internal static class SelfExtractingZip
             || directorySize > directoryEndPosition
             || directoryOffset > directoryEndPosition - directorySize)
         {
-            throw new InvalidDataException(SR.Format(SR.ZipOffsetsOutside, path));
+            throw new InvalidDataException(SR.FormatZipOffsetsOutside(path));
         }
 
         return directoryEndPosition - directorySize - directoryOffset;

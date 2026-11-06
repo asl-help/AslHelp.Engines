@@ -55,7 +55,7 @@ internal static class UdkInstallers
 
         // Throw InvalidOperationException, because the CLI prints the message as is and ArgumentException adds a parameter suffix.
         throw new InvalidOperationException(
-            SR.Format(UdkSR.UdkVersionNotPinned, version, string.Join(", ", versions), UdkInstaller.Item, InstallersPath));
+            UdkSR.FormatUdkVersionNotPinned(version, string.Join(", ", versions), UdkInstaller.Item, InstallersPath));
     }
 
     /// <summary>
@@ -83,12 +83,12 @@ internal static class UdkInstallers
         catch (JsonException exception)
         {
             // Wrap the JSON error, so the CLI message points at the file to fix and not only a JSON path.
-            throw new InvalidDataException(SR.Format(UdkSR.InstallersInvalid, InstallersPath, exception.Message), exception);
+            throw new InvalidDataException(UdkSR.FormatInstallersInvalid(InstallersPath, exception.Message), exception);
         }
 
         if (installers is null)
         {
-            throw new InvalidDataException(SR.Format(UdkSR.InstallersNull, InstallersPath));
+            throw new InvalidDataException(UdkSR.FormatInstallersNull(InstallersPath));
         }
 
         // Parse every sha1 at load, so a bad pin fails every build and not only one that downloads.
@@ -100,7 +100,7 @@ internal static class UdkInstallers
             }
             catch (FormatException exception)
             {
-                throw new InvalidDataException(SR.Format(UdkSR.InstallersBadSha1, InstallersPath, installer.Sha1, installer.Version), exception);
+                throw new InvalidDataException(UdkSR.FormatInstallersBadSha1(InstallersPath, installer.Sha1, installer.Version), exception);
             }
         }
 
@@ -117,7 +117,7 @@ internal static class UdkInstallers
     private static IReadOnlyList<UdkInstaller> ReadEmbedded()
     {
         using var json = typeof(UdkInstallers).Assembly.GetManifestResourceStream(InstallersResource)
-            ?? throw new FileNotFoundException(SR.Format(UdkSR.InstallersNotEmbedded, InstallersResource), InstallersResource);
+            ?? throw new FileNotFoundException(UdkSR.FormatInstallersNotEmbedded(InstallersResource), InstallersResource);
 
         return Read(json);
     }

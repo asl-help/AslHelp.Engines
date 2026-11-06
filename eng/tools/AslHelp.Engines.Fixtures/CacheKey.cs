@@ -84,7 +84,7 @@ public sealed record CacheKey
 
         if (!IsName(value))
         {
-            throw new ArgumentException(SR.Format(SR.InvalidKeyName, value), paramName);
+            throw new ArgumentException(SR.FormatInvalidKeyName(value), paramName);
         }
     }
 

@@ -157,7 +157,7 @@ public sealed class CacheKeyBuilder
         string fullPath = Path.GetFullPath(path);
         if (!Directory.Exists(fullPath))
         {
-            throw new DirectoryNotFoundException(SR.Format(SR.FolderNotFound, path));
+            throw new DirectoryNotFoundException(SR.FormatFolderNotFound(path));
         }
 
         _entries.Add(name, (IsDirectory: true, fullPath));
@@ -223,7 +223,7 @@ public sealed class CacheKeyBuilder
 
         if (_entries.ContainsKey(name))
         {
-            throw new ArgumentException(SR.Format(SR.DuplicateInputName, name), nameof(name));
+            throw new ArgumentException(SR.FormatDuplicateInputName(name), nameof(name));
         }
     }
 
@@ -260,7 +260,7 @@ public sealed class CacheKeyBuilder
         }
         catch (EncoderFallbackException ex)
         {
-            throw new IOException(SR.Format(SR.LoneSurrogateFileName, root), ex);
+            throw new IOException(SR.FormatLoneSurrogateFileName(root), ex);
         }
     }
 
@@ -284,7 +284,7 @@ public sealed class CacheKeyBuilder
             int read = stream.Read(buffer, 0, (int)Math.Min(buffer.Length, remaining));
             if (read == 0)
             {
-                throw new IOException(SR.Format(SR.FileShorterThanLength, path, remaining));
+                throw new IOException(SR.FormatFileShorterThanLength(path, remaining));
             }
 
             sink.Append(buffer.AsSpan(0, read));

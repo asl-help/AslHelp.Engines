@@ -5,6 +5,11 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
 
+  <!-- Generate the message classes in every project that has a .resx file. -->
+  <ItemGroup>
+    <GlobalPackageReference Include="Microsoft.CodeAnalysis.ResxSourceGenerator" Version="5.0.0-1.25277.114" />
+  </ItemGroup>
+
   <!-- Shared package versions. -->
   <ItemGroup>
     <PackageVersion Include="coverlet.collector" Version="10.1.0" />

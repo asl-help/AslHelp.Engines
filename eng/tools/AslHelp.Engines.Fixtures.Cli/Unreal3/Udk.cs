@@ -163,7 +163,9 @@ internal sealed class Udk(
     ///     <see cref="UdkServer.CheckAsync"/> runs the server and waits up to <see cref="CheckTimeout"/> for the ready line.
     /// </remarks>
     /// <exception cref="FileNotFoundException">The install has no <c>UDK.exe</c> or no map.</exception>
-    /// <exception cref="InvalidOperationException">The host cannot run anything or the server exits before the check finds the ready line.</exception>
+    /// <exception cref="InvalidOperationException">
+    ///     The host cannot run anything or the server exits before the check finds the ready line.
+    /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     /// <exception cref="TimeoutException">The ready line is not in the log within <see cref="CheckTimeout"/>.</exception>
     public Task CheckAsync(string installDirectory, CancellationToken cancellationToken)

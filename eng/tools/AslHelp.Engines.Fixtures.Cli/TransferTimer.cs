@@ -181,12 +181,14 @@ internal sealed class TransferTimer : IDisposable
     {
         if (!_source.IsCancellationRequested)
         {
-            return new TimeoutException(SR.Format(SR.TransferNoConnection, method, target, fix), exception.InnerException);
+            return new TimeoutException(SR.FormatTransferNoConnection(method, target, fix), exception.InnerException);
         }
 
-        string format = _waitsForResponse ? SR.TransferNoResponse : SR.TransferStalled;
+        string message = _waitsForResponse
+            ? SR.FormatTransferNoResponse(method, target, _limit.TotalSeconds, fix)
+            : SR.FormatTransferStalled(method, target, _limit.TotalSeconds, fix);
 
-        return new TimeoutException(SR.Format(format, method, target, _limit.TotalSeconds, fix));
+        return new TimeoutException(message);
     }
 
     /// <summary>

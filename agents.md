@@ -59,7 +59,7 @@ Every project targets `net11.0-windows`, because the players only run on Windows
 
 - Text files are UTF-8 without a BOM. Git stores them with LF line endings.
 - Files under `test/fixtures` check out with CRLF on every machine, because the player cache key hashes their bytes.
-- Text that users read, such as messages, step lines and command help, sits in the `SR.resx` of its project. The UDK text sits in `Unreal3/UdkSR.resx`. The code reads it through the generated `SR` and `UdkSR` classes and fills placeholders with `SR.Format`. `Directory.Build.targets` generates the classes in design-time builds too, so `dotnet format` compiles them.
+- Text that users read, such as messages, step lines and command help, sits in the `SR.resx` of its project. The UDK text sits in `Unreal3/UdkSR.resx`. `Microsoft.CodeAnalysis.ResxSourceGenerator` generates the `SR` and `UdkSR` classes, with a property for each message and a `Format` method for each message with placeholders, such as `SR.FormatFolderNotFound(path)`.
 - `readme.md` and this file change in the same commit as the code they describe.
 - The player tests of both test projects take the machine-wide lock, so `just test`, `just check` and CI run the test projects 1 at a time. Run the tests while no build runs on the machine.
 - Tests never read the machine's `FIXTURES_DAV_*` variables. A `CommandLine` test passes a store or clears the variables first.

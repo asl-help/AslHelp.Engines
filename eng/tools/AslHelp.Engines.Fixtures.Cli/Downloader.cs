@@ -114,7 +114,7 @@ internal sealed class Downloader : IDisposable
 
         if (!url.IsAbsoluteUri)
         {
-            throw new ArgumentException(SR.Format(SR.DownloadUrlRelative, url), nameof(url));
+            throw new ArgumentException(SR.FormatDownloadUrlRelative(url), nameof(url));
         }
 
         byte[] buffer = new byte[CopyBufferSize];
@@ -245,7 +245,7 @@ internal sealed class Downloader : IDisposable
                 {
                     string range = response.Content.Headers.ContentRange?.ToString() ?? SR.NoContentRange;
 
-                    throw new HttpRequestException(SR.Format(SR.DownloadBadRange, url, range, offset, partialFile), null, response.StatusCode);
+                    throw new HttpRequestException(SR.FormatDownloadBadRange(url, range, offset, partialFile), null, response.StatusCode);
                 }
                 case HttpStatusCode.RequestedRangeNotSatisfiable when offset > 0:
                 {
@@ -277,7 +277,7 @@ internal sealed class Downloader : IDisposable
     {
         FileInfo partial = new(partialFile);
 
-        return partial.Exists && partial.Length > 0 ? SR.Format(SR.DownloadResumeFix, partial.Length) : SR.DownloadRetryFix;
+        return partial.Exists && partial.Length > 0 ? SR.FormatDownloadResumeFix(partial.Length) : SR.DownloadRetryFix;
     }
 
     /// <summary>
@@ -427,7 +427,7 @@ internal sealed class Downloader : IDisposable
         {
             TempPaths.DeleteFileQuietly(partialFile);
 
-            throw new InvalidDataException(SR.Format(SR.DownloadHashMismatch, url, PinnedHash.Algorithm, actualHex, hash.Hex));
+            throw new InvalidDataException(SR.FormatDownloadHashMismatch(url, PinnedHash.Algorithm, actualHex, hash.Hex));
         }
 
         File.Move(partialFile, destinationFile, overwrite: true);
@@ -443,6 +443,6 @@ internal sealed class Downloader : IDisposable
     /// </returns>
     private static HttpRequestException UnexpectedStatus(Uri url, HttpStatusCode status)
     {
-        return new HttpRequestException(SR.Format(SR.DownloadFailed, url, (int)status, status), null, status);
+        return new HttpRequestException(SR.FormatDownloadFailed(url, (int)status, status), null, status);
     }
 }

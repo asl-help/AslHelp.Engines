@@ -85,7 +85,7 @@ public static class UdkInstall
             : null;
 
         return first is null
-            ? throw new FileNotFoundException(SR.Format(SR.MapNotFound, MapPattern, mapsDirectory), mapsDirectory)
+            ? throw new FileNotFoundException(SR.FormatMapNotFound(MapPattern, mapsDirectory), mapsDirectory)
             : Path.GetFileNameWithoutExtension(first);
     }
 }

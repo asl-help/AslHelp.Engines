@@ -132,12 +132,12 @@ public sealed class Player : IDisposable
         {
             string path = executablePath ?? info.ExecutablePath;
 
-            throw new FileNotFoundException(SR.Format(SR.PlayerNotFound, path), path);
+            throw new FileNotFoundException(SR.FormatPlayerNotFound(path), path);
         }
 
         if (workingDirectory is null || !Directory.Exists(workingDirectory))
         {
-            throw new DirectoryNotFoundException(SR.Format(SR.WorkingFolderNotFound, workingDirectory ?? info.WorkingDirectory));
+            throw new DirectoryNotFoundException(SR.FormatWorkingFolderNotFound(workingDirectory ?? info.WorkingDirectory));
         }
 
         var playerLock = PlayerLock.Acquire(info.LockTimeout);
@@ -270,7 +270,7 @@ public sealed class Player : IDisposable
             if (PInvoke.ResumeThread(threadHandle) == uint.MaxValue)
             {
                 int error = Marshal.GetLastPInvokeError();
-                throw Win32Error(error, SR.Format(SR.ResumeFailed, executablePath), SR.ResumeFix);
+                throw Win32Error(error, SR.FormatResumeFailed(executablePath), SR.ResumeFix);
             }
 
             var started = (processHandle, process);
@@ -308,7 +308,7 @@ public sealed class Player : IDisposable
         if (!PInvoke.InitializeProcThreadAttributeList(attributeList, AttributeCount, 0, &size))
         {
             int error = Marshal.GetLastPInvokeError();
-            throw Win32Error(error, SR.Format(SR.JobListFailed, executablePath), SR.JobListFix);
+            throw Win32Error(error, SR.FormatJobListFailed(executablePath), SR.JobListFix);
         }
 
         // Keep the job handle in a local that outlives the list, because the list points at it until the list is deleted.
@@ -327,7 +327,7 @@ public sealed class Player : IDisposable
                 null))
             {
                 int error = Marshal.GetLastPInvokeError();
-                throw Win32Error(error, SR.Format(SR.JobListFailed, executablePath), SR.JobListFix);
+                throw Win32Error(error, SR.FormatJobListFailed(executablePath), SR.JobListFix);
             }
 
             fixed (char* desktopPointer = desktop)
@@ -363,7 +363,7 @@ public sealed class Player : IDisposable
                     {
                         // Read the error before the SetErrorMode in finally, because that call may change it.
                         int error = Marshal.GetLastPInvokeError();
-                        throw Win32Error(error, SR.Format(SR.StartFailed, executablePath), SR.StartFix);
+                        throw Win32Error(error, SR.FormatStartFailed(executablePath), SR.StartFix);
                     }
 
                     return information;

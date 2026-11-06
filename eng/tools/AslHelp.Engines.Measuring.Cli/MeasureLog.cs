@@ -8,8 +8,22 @@ namespace AslHelp.Engines.Measuring.Cli;
 /// </summary>
 internal static partial class MeasureLog
 {
+    private static readonly Func<ILogger, string, IDisposable?> _groupScope = LoggerMessage.DefineScope<string>("[{Versions}]");
     private static readonly Func<ILogger, IDisposable?> _groupsScope = LoggerMessage.DefineScope("groups");
     private static readonly Func<ILogger, string, IDisposable?> _playerScope = LoggerMessage.DefineScope<string>("{Version}");
+
+    /// <summary>
+    ///     Opens the scope of the lines of 1 version group.
+    /// </summary>
+    /// <param name="logger">The logger.</param>
+    /// <param name="versions">The versions of the group.</param>
+    /// <returns>
+    ///     The scope to dispose after the last line of the group.
+    /// </returns>
+    public static IDisposable? BeginGroupScope(this ILogger logger, string versions)
+    {
+        return _groupScope(logger, versions);
+    }
 
     /// <summary>
     ///     Opens the scope of the lines of the version groups.
@@ -68,4 +82,19 @@ internal static partial class MeasureLog
 
     [LoggerMessage(EventId = 10, Level = LogLevel.Information, Message = "[{Versions}]")]
     public static partial void Group(this ILogger logger, string versions);
+
+    [LoggerMessage(EventId = 11, Level = LogLevel.Information, Message = "{Global}: forward {Forward}, offset {Offset}, versions {Covered}/{Total}")]
+    public static partial void RouteFound(this ILogger logger, string global, string forward, int offset, int covered, int total);
+
+    [LoggerMessage(EventId = 12, Level = LogLevel.Warning, Message = "{Global}: uncovered [{Versions}]")]
+    public static partial void RouteUncovered(this ILogger logger, string global, string versions);
+
+    [LoggerMessage(EventId = 13, Level = LogLevel.Warning, Message = "{Global}: no route, uncovered [{Versions}]")]
+    public static partial void NoRoute(this ILogger logger, string global, string versions);
+
+    [LoggerMessage(EventId = 14, Level = LogLevel.Warning, Message = "{Version}: executable not read: {Reason}")]
+    public static partial void ExecutableNotRead(this ILogger logger, string version, string reason);
+
+    [LoggerMessage(EventId = 15, Level = LogLevel.Information, Message = "routes ({Seconds:F1} s)")]
+    public static partial void RoutesDone(this ILogger logger, double seconds);
 }

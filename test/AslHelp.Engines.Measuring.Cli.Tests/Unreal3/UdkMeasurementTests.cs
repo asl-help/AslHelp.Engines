@@ -37,6 +37,13 @@ public sealed class UdkMeasurementTests(
         _image = new FakeImage(layout, FirstNames);
     }
 
+    // The path of the executable comes back unchanged, because the route search reads the file after the player ended.
+    [Test]
+    public void Measure_FakeImage_ReturnsTheExecutablePath()
+    {
+        Assert.That(Measure().ExecutablePath, Is.EqualTo("file.bin"));
+    }
+
     // Every member comes back at the offset of the build, in a build whose offsets all differ from the expected table too.
     [Test]
     public void Measure_FakeImage_FindsEveryOffset()
@@ -143,7 +150,7 @@ public sealed class UdkMeasurementTests(
         Dictionary<string, UdkTarget> targets = new() { [Names] = new UdkNameArrayTarget(firstNames), [Objects] = new UdkObjectArrayTarget() };
 
         Assert.That(
-            () => UdkMeasurement.Measure(image.Memory, FakeImage.Base, image.Sections, targets, NullLogger.Instance),
+            () => UdkMeasurement.Measure(image.Memory, FakeImage.Base, image.Sections, targets, "file.bin", NullLogger.Instance),
             Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.FormatNameArrayNotFound(firstNames[0], firstNames[1])));
     }
 
@@ -218,7 +225,7 @@ public sealed class UdkMeasurementTests(
         using StringWriter output = new();
         using StringWriter error = new();
 
-        _ = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, new WriterLogger(output, error));
+        _ = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", new WriterLogger(output, error));
 
         Assert.That(output.ToString(), Does.Contain($"FixtureData.IntValue: 1337 at {_image.FixtureInstance}"));
     }
@@ -382,7 +389,7 @@ public sealed class UdkMeasurementTests(
     {
         var targets = WithoutSlots();
 
-        var measurement = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, NullLogger.Instance);
+        var measurement = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, "file.bin", NullLogger.Instance);
 
         string[] expected = [Names, Objects];
 
@@ -809,7 +816,7 @@ public sealed class UdkMeasurementTests(
         var targets = WithoutSlots();
         targets[World] = new UdkObjectSlotTarget("World", "theworld");
 
-        var measurement = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, NullLogger.Instance);
+        var measurement = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, "file.bin", NullLogger.Instance);
 
         Assert.That(measurement.Unmeasured[World], Is.EqualTo(UdkSR.FormatUnmeasuredSlot("World")));
     }
@@ -821,14 +828,14 @@ public sealed class UdkMeasurementTests(
         var targets = WithoutSlots();
         targets[Engine] = new UdkObjectSlotTarget("Missing");
 
-        var measurement = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, NullLogger.Instance);
+        var measurement = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, "file.bin", NullLogger.Instance);
 
         Assert.That(measurement.Unmeasured[Engine], Is.EqualTo(UdkSR.FormatUnmeasuredSlot("Missing")));
     }
 
     private static PlayerMeasurement Measure(FakeImage image)
     {
-        return UdkMeasurement.Measure(image.Memory, FakeImage.Base, image.Sections, _targets, NullLogger.Instance);
+        return UdkMeasurement.Measure(image.Memory, FakeImage.Base, image.Sections, _targets, "file.bin", NullLogger.Instance);
     }
 
     private static uint[] Rvas(params uint[] rvas)
@@ -838,7 +845,7 @@ public sealed class UdkMeasurementTests(
 
     private PlayerMeasurement Measure()
     {
-        return UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, NullLogger.Instance);
+        return UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", NullLogger.Instance);
     }
 
     private (Dictionary<string, int> Offsets, Dictionary<string, string> Unmeasured) MeasureMembers()

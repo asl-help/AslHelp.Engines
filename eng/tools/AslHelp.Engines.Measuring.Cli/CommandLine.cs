@@ -1,3 +1,4 @@
+using AslHelp.Engines.Measuring.Cli.Routes;
 using AslHelp.Engines.Measuring.Cli.Unreal3;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
@@ -80,7 +81,7 @@ internal static class CommandLine
 
     /// <summary>
     ///     Measures every player of the engine in <paramref name="playersDirectory"/>,
-    ///     logs the groups of versions with equal offsets and writes the report.
+    ///     logs the groups of versions with equal offsets and the routes they share and writes the report.
     /// </summary>
     /// <param name="measurer">The measurer of the engine.</param>
     /// <param name="playersDirectory">The folder with the players.</param>
@@ -119,6 +120,7 @@ internal static class CommandLine
             _ = Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(reportPath))!);
 
             List<PlayerRow> rows = [];
+            Dictionary<string, PlayerMeasurement> measurements = [with(StringComparer.Ordinal)];
 
             foreach (var player in players)
             {
@@ -131,6 +133,7 @@ internal static class CommandLine
                 {
                     var measurement = await measurer.MeasureAsync(player.Directory, logger, cancellationToken).ConfigureAwait(false);
                     rows.Add(PlayerRow.Measured(player.Version, measurement));
+                    measurements[player.Version] = measurement;
 
                     foreach ((string value, string reason) in measurement.Unmeasured)
                     {
@@ -153,18 +156,18 @@ internal static class CommandLine
                 }
             }
 
-            var groups = VersionGroups.Find(rows);
+            var measuredGroups = VersionGroups.Find(rows);
+            List<VersionGroup> groups = [];
 
-            if (groups.Count > 0)
+            if (measuredGroups.Count > 0)
             {
                 logger.GroupsHeader();
 
                 using var scope = logger.BeginGroupsScope();
 
-                foreach (var group in groups)
+                foreach (var group in measuredGroups)
                 {
-                    string versions = string.Join(", ", group.Versions);
-                    logger.Group(versions);
+                    groups.Add(FindRoutes(group, measurements, logger, cancellationToken));
                 }
             }
 
@@ -183,5 +186,63 @@ internal static class CommandLine
 
             return 1;
         }
+    }
+
+    /// <summary>
+    ///     Logs <paramref name="group"/> and searches the routes that its versions share.
+    /// </summary>
+    /// <param name="group">The group.</param>
+    /// <param name="measurements">The measurement of each measured version.</param>
+    /// <param name="logger">The logger for the steps and the failures of the run.</param>
+    /// <param name="cancellationToken">The token that stops the search.</param>
+    /// <returns>
+    ///     The group with its routes.
+    /// </returns>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
+    private static VersionGroup FindRoutes(
+        VersionGroup group,
+        Dictionary<string, PlayerMeasurement> measurements,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        string versions = string.Join(", ", group.Versions);
+        logger.Group(versions);
+
+        using var scope = logger.BeginGroupScope(versions);
+        long started = Stopwatch.GetTimestamp();
+
+        RouteVersion[] routeVersions =
+        [
+            .. group.Versions.Select(version => new RouteVersion(version, measurements[version].ExecutablePath, measurements[version].Globals)),
+        ];
+
+        var routes = SharedRoutes.Find(routeVersions, logger, cancellationToken);
+
+        foreach ((string global, var globalRoutes) in routes)
+        {
+            foreach (var route in globalRoutes.Routes)
+            {
+                logger.RouteFound(global, route.Forward, route.Offset, route.Versions.Count, group.Versions.Count);
+            }
+
+            if (globalRoutes.Uncovered is { } uncovered)
+            {
+                string uncoveredVersions = string.Join(", ", uncovered.Keys);
+
+                if (globalRoutes.Routes.Count == 0)
+                {
+                    logger.NoRoute(global, uncoveredVersions);
+                }
+                else
+                {
+                    logger.RouteUncovered(global, uncoveredVersions);
+                }
+            }
+        }
+
+        var elapsed = Stopwatch.GetElapsedTime(started);
+        logger.RoutesDone(elapsed.TotalSeconds);
+
+        return group with { Routes = routes };
     }
 }

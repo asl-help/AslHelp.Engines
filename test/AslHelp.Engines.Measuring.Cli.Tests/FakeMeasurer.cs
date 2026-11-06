@@ -38,6 +38,7 @@ internal sealed class FakeMeasurer(params string[] failing) : IEngineMeasurer
         return Task.FromResult(new PlayerMeasurement(
             new Dictionary<string, IReadOnlyList<uint>> { ["Global"] = [0x100, 0x200] },
             new Dictionary<string, int> { ["Type.Member"] = 40 },
-            new Dictionary<string, string> { ["Type.Other"] = "Not found." }));
+            new Dictionary<string, string> { ["Type.Other"] = "Not found." },
+            Path.Combine(playerDirectory, "missing.exe")));
     }
 }

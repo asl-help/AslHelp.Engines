@@ -15,6 +15,12 @@
   <data name="EngineDescription" xml:space="preserve">
     <value>The engine of the players.</value>
   </data>
+  <data name="ExecutableMachineUnsupported" xml:space="preserve">
+    <value>'{0}' is not an x86 or x64 executable.</value>
+  </data>
+  <data name="ExecutableNotPe" xml:space="preserve">
+    <value>'{0}' is not a PE file.</value>
+  </data>
   <data name="OutputDescription" xml:space="preserve">
     <value>The file for the report.</value>
   </data>
@@ -26,5 +32,11 @@
   </data>
   <data name="TargetsDescription" xml:space="preserve">
     <value>The file with the globals to find. Replaces the list built into the command.</value>
+  </data>
+  <data name="UncoveredNoCandidate" xml:space="preserve">
+    <value>No signature of the group reaches 1 RVA of the global.</value>
+  </data>
+  <data name="UncoveredNotFound" xml:space="preserve">
+    <value>The measurer did not find the global.</value>
   </data>
 </root>

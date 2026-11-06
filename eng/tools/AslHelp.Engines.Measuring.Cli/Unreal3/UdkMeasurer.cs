@@ -50,12 +50,13 @@ internal sealed class UdkMeasurer : IEngineMeasurer
             }
 
             var moduleBase = module.Range.Start;
-            var sections = UdkSections.Read(Path.Combine(playerDirectory, UdkInstall.ServerPath), memory, moduleBase);
+            string executablePath = Path.Combine(playerDirectory, UdkInstall.ServerPath);
+            var sections = UdkSections.Read(executablePath, memory, moduleBase);
 
             int sectionBytes = sections.Sum(static section => section.Bytes.Length);
             logger.SectionsRead(sections.Count, sectionBytes);
 
-            var measurement = UdkMeasurement.Measure(memory, moduleBase, sections, Targets, logger);
+            var measurement = UdkMeasurement.Measure(memory, moduleBase, sections, Targets, executablePath, logger);
 
             // Fail the row, because the members of a server that dies during the searches end up in unmeasured with the wrong reason.
             return player.Process.HasExited

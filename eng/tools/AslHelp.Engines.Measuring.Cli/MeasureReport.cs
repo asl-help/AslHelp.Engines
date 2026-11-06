@@ -1,3 +1,4 @@
+using AslHelp.Engines.Measuring.Cli.Routes;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -22,10 +23,12 @@ internal sealed record MeasureReport(
 /// <param name="Globals">The RVAs in the executable of each global, by global.</param>
 /// <param name="Offsets">The offset of each member, by <c>Type.Member</c>.</param>
 /// <param name="Unmeasured">The reason for each global or member that was not found, by global or <c>Type.Member</c>.</param>
+/// <param name="ExecutablePath">The file of the executable whose RVAs <paramref name="Globals"/> lists.</param>
 internal sealed record PlayerMeasurement(
     IReadOnlyDictionary<string, IReadOnlyList<uint>> Globals,
     IReadOnlyDictionary<string, int> Offsets,
-    IReadOnlyDictionary<string, string> Unmeasured);
+    IReadOnlyDictionary<string, string> Unmeasured,
+    string ExecutablePath);
 
 /// <summary>
 ///     Describes the result of 1 player.
@@ -96,9 +99,11 @@ internal sealed record PlayerRow(
 /// </summary>
 /// <param name="Versions">The versions in the order of the run.</param>
 /// <param name="Offsets">The offset of each member in hex, by type and member.</param>
+/// <param name="Routes">The signature routes that the versions share, by global.</param>
 internal sealed record VersionGroup(
     List<string> Versions,
-    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Offsets);
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Offsets,
+    IReadOnlyDictionary<string, GlobalRoutes> Routes);
 
 /// <summary>
 ///     Serializes <see cref="MeasureReport"/> with generated code, so the write needs no reflection.

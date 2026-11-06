@@ -31,6 +31,15 @@ public sealed class VersionGroupsTests
         }
     }
 
+    // A new group doesn't have routes, because the search runs afterward in CommandLine.
+    [Test]
+    public void Find_NewGroup_HasNoRoutes()
+    {
+        var groups = VersionGroups.Find([Row("a", ("Type.Member", 0x28))]);
+
+        Assert.That(groups[0].Routes, Is.Empty);
+    }
+
     // 1 member with another value is enough to keep 2 rows apart.
     [Test]
     public void Find_DifferentValue_SeparatesTheVersions()
@@ -213,6 +222,7 @@ public sealed class VersionGroupsTests
         return PlayerRow.Measured(version, new PlayerMeasurement(
             globals,
             offsets.ToDictionary(static offset => offset.Key, static offset => offset.Offset),
-            unmeasured));
+            unmeasured,
+            "file.bin"));
     }
 }

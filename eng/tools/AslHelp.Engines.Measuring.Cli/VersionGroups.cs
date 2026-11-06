@@ -1,3 +1,4 @@
+using AslHelp.Engines.Measuring.Cli.Routes;
 using System.Collections.Generic;
 
 namespace AslHelp.Engines.Measuring.Cli;
@@ -13,7 +14,8 @@ internal static class VersionGroups
     /// </summary>
     /// <param name="rows">The rows of the players in the order of the run.</param>
     /// <returns>
-    ///     The groups in order of their 1st version, with the versions of each group in the order of <paramref name="rows"/>.
+    ///     The groups in order of their 1st version, with the versions of each group in the order of <paramref name="rows"/>
+    ///     and no routes.
     /// </returns>
     public static IReadOnlyList<VersionGroup> Find(IReadOnlyList<PlayerRow> rows)
     {
@@ -30,7 +32,7 @@ internal static class VersionGroups
 
             if (group is null)
             {
-                groups.Add(new VersionGroup([row.Version], rowOffsets));
+                groups.Add(new VersionGroup([row.Version], rowOffsets, new Dictionary<string, GlobalRoutes>()));
             }
             else
             {

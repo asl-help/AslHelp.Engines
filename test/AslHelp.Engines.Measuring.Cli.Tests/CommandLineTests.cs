@@ -1,3 +1,4 @@
+using AslHelp.Engines.Measuring.Cli.Tests.Routes;
 using Microsoft.Extensions.Logging;
 using NUnit.Framework;
 using System;
@@ -17,7 +18,7 @@ public sealed class CommandLineTests
     private const string Second = "engine-2.0-BETA-fedcba9876543210";
     private const string Third = "engine-3.0-00112233445566ff";
 
-    // Players, then the start and done lines for each of 3 players, then 1 line for each of the 2 groups and the report line.
+    // Players, then the start and done lines for each of 3 players, then 2 lines for each of the 2 groups and the report line.
     private static readonly (int EventId, int Scopes)[] _linesOfTwoGroups =
     [
         (8, 0),
@@ -29,9 +30,24 @@ public sealed class CommandLineTests
         (2, 1),
         (9, 0),
         (10, 1),
+        (15, 2),
         (10, 1),
+        (15, 2),
         (7, 0),
     ];
+
+    // The group line, then inside its scope the read failure of each of 2 versions, the global without a route and the duration.
+    private static readonly (int EventId, int Scopes)[] _linesOfOneGroup =
+    [
+        (10, 1),
+        (14, 2),
+        (14, 2),
+        (13, 2),
+        (15, 2),
+    ];
+
+    private static readonly string[] _globalKeys = ["Global"];
+    private static readonly string[] _groupKeys = ["versions", "offsets", "routes"];
 
     private static readonly string[] _oddVersions = ["{0}", "バー 1"];
     private static readonly string[] _reportKeys = ["engine", "players", "groups"];
@@ -262,7 +278,8 @@ public sealed class CommandLineTests
         _ = await RunAsync(new ScriptedMeasurer(static _ => new PlayerMeasurement(
             new Dictionary<string, IReadOnlyList<uint>>(),
             new Dictionary<string, int> { ["B.Late"] = 8, ["B.Early"] = 4, ["A.Only"] = 12 },
-            new Dictionary<string, string>())));
+            new Dictionary<string, string>(),
+            "file.bin")));
 
         using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
         var offsets = report.RootElement.GetProperty("players")[0].GetProperty("offsets");
@@ -303,7 +320,8 @@ public sealed class CommandLineTests
         int code = await RunAsync(new ScriptedMeasurer(static _ => new PlayerMeasurement(
             new Dictionary<string, IReadOnlyList<uint>>(),
             new Dictionary<string, int>(),
-            new Dictionary<string, string>())));
+            new Dictionary<string, string>(),
+            "file.bin")));
 
         using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
         var row = report.RootElement.GetProperty("players")[0];
@@ -326,7 +344,8 @@ public sealed class CommandLineTests
         int code = await RunAsync(new ScriptedMeasurer(static _ => new PlayerMeasurement(
             new Dictionary<string, IReadOnlyList<uint>> { ["\u00DCber"] = [uint.MaxValue] },
             new Dictionary<string, int> { ["a\"b.c.d"] = int.MaxValue },
-            new Dictionary<string, string> { ["c"] = "\u30A8\u30E9\u30FC 'x' <y>" })));
+            new Dictionary<string, string> { ["c"] = "\u30A8\u30E9\u30FC 'x' <y>" },
+            "file.bin")));
 
         using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
         var row = report.RootElement.GetProperty("players")[0];
@@ -454,7 +473,8 @@ public sealed class CommandLineTests
         int code = await RunAsync(new ScriptedMeasurer(static directory => new PlayerMeasurement(
             new Dictionary<string, IReadOnlyList<uint>>(),
             new Dictionary<string, int> { ["Type.Member"] = directory.EndsWith(Second, StringComparison.Ordinal) ? 0x2C : 0x28 },
-            new Dictionary<string, string>())));
+            new Dictionary<string, string>(),
+            "file.bin")));
 
         using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
         var groups = report.RootElement.GetProperty("groups");
@@ -511,7 +531,8 @@ public sealed class CommandLineTests
         int code = await RunAsync(new ScriptedMeasurer(static _ => new PlayerMeasurement(
             new Dictionary<string, IReadOnlyList<uint>>(),
             new Dictionary<string, int>(),
-            new Dictionary<string, string>())));
+            new Dictionary<string, string>(),
+            "file.bin")));
 
         using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
 
@@ -563,7 +584,8 @@ public sealed class CommandLineTests
                 new ScriptedMeasurer(static directory => new PlayerMeasurement(
                     new Dictionary<string, IReadOnlyList<uint>>(),
                     new Dictionary<string, int> { ["Type.Member"] = directory.EndsWith(Second, StringComparison.Ordinal) ? 0x2C : 0x28 },
-                    new Dictionary<string, string>())),
+                    new Dictionary<string, string>(),
+                    "file.bin")),
             ],
             logger);
 
@@ -584,7 +606,8 @@ public sealed class CommandLineTests
         _ = await RunAsync(new ScriptedMeasurer(static _ => new PlayerMeasurement(
             new Dictionary<string, IReadOnlyList<uint>>(),
             new Dictionary<string, int> { ["B.Late"] = 8, ["B.Early"] = 4, ["A.Only"] = 12, ["Ü\".c.d"] = int.MaxValue },
-            new Dictionary<string, string>())));
+            new Dictionary<string, string>(),
+            "file.bin")));
 
         using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
         var row = report.RootElement.GetProperty("players")[0].GetProperty("offsets");
@@ -629,7 +652,8 @@ public sealed class CommandLineTests
             : new PlayerMeasurement(
                 new Dictionary<string, IReadOnlyList<uint>>(),
                 new Dictionary<string, int> { ["Type.Member"] = 0x28 },
-                new Dictionary<string, string>())));
+                new Dictionary<string, string>(),
+                "file.bin")));
 
         using (Assert.EnterMultipleScope())
         {
@@ -652,6 +676,93 @@ public sealed class CommandLineTests
         {
             Assert.That(code, Is.EqualTo(1));
             Assert.That(_output.ToString(), Does.Contain("[1.0]").And.Not.Contain("report: '"));
+        }
+    }
+
+    // Each group has its routes after its offsets, with 1 entry per global of the measurements.
+    [Test]
+    public async Task RunAsync_SharedOffsets_WritesRoutesUnderEachGroup()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+
+        int code = await RunAsync(new FakeMeasurer());
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var group = report.RootElement.GetProperty("groups")[0];
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(group.EnumerateObject().Select(static property => property.Name), Is.EqualTo(_groupKeys));
+            Assert.That(group.GetProperty("routes").EnumerateObject().Select(static property => property.Name), Is.EqualTo(_globalKeys));
+        }
+    }
+
+    // A real executable written by the measurer gets its route with the reached RVA in the report and in the log line.
+    [Test]
+    public async Task RunAsync_ExecutableWithALoad_WritesTheRouteAndLogsIt()
+    {
+        string first = Path.Combine(_folder.Root, First);
+        _ = Directory.CreateDirectory(first);
+        string executable = Path.Combine(first, "file.bin");
+        CodeBuilder.WritePe(executable, new CodeBuilder(false).MovEcx(0x2000).Ret().Build());
+
+        int code = await RunAsync(new ScriptedMeasurer(_ => new PlayerMeasurement(
+            new Dictionary<string, IReadOnlyList<uint>> { ["Global"] = [0x2000] },
+            new Dictionary<string, int> { ["Type.Member"] = 0x28 },
+            new Dictionary<string, string>(),
+            executable)));
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var global = report.RootElement.GetProperty("groups")[0].GetProperty("routes").GetProperty("Global");
+        var route = global.GetProperty("routes")[0];
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(route.GetProperty("forward").GetString(), Is.EqualTo("8B 0D ????????"));
+            Assert.That(route.GetProperty("offset").GetInt32(), Is.EqualTo(2));
+            Assert.That(route.GetProperty("reached").GetProperty("1.0").GetString(), Is.EqualTo("0x2000"));
+            Assert.That(global.TryGetProperty("uncovered", out _), Is.False);
+            Assert.That(_output.ToString(), Does.Contain("Global: forward 8B 0D ????????, offset 2, versions 1/1"));
+        }
+    }
+
+    // An executable that does not exist ends in the uncovered map with its path and the run still exits with 0.
+    [Test]
+    public async Task RunAsync_MeasurerWithoutExecutable_WritesUncoveredReason()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+
+        int code = await RunAsync(new FakeMeasurer());
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var global = report.RootElement.GetProperty("groups")[0].GetProperty("routes").GetProperty("Global");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(global.GetProperty("routes").GetArrayLength(), Is.Zero);
+            Assert.That(global.GetProperty("uncovered").GetProperty("1.0").GetString(), Does.Contain("missing.exe"));
+            Assert.That(_output.ToString(), Does.Contain("Global: no route, uncovered [1.0]"));
+        }
+    }
+
+    // The route lines sit inside a scope of the group, so the console indents them under its line.
+    [Test]
+    public async Task RunAsync_Groups_LogsRoutesInsideTheGroupScope()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Third));
+        ScopeLogger logger = new();
+
+        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [new FakeMeasurer()], logger);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(logger.Lines.SkipWhile(static line => line.EventId != 10).Take(_linesOfOneGroup.Length), Is.EqualTo(_linesOfOneGroup));
         }
     }
 

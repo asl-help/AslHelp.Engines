@@ -10,6 +10,7 @@
     <PackageVersion Include="AslHelp.Memory" Version="0.1.0-alpha.1" />
     <PackageVersion Include="AslHelp.Memory.Remote" Version="0.1.0-alpha.1" />
     <PackageVersion Include="Docker.DotNet.Enhanced" Version="4.3.3" />
+    <PackageVersion Include="Iced" Version="1.22.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Windows.CsWin32" Version="0.3.369" />
     <PackageVersion Include="Spectre.Console" Version="0.57.2" />

@@ -54,9 +54,15 @@ The tool and test projects target `net11.0-windows`, because the players only ru
 - `eng/tools/AslHelp.Engines.Measuring.Cli` is the `measure` command line. It runs the players that `fixtures` built and writes a report. It has the parts the run uses:
   - `PlayerFolder` finds the player folders of an engine and reads their versions.
   - `IEngineMeasurer` is the part an engine plugs in. `CommandLine` picks it by name, calls `LoadTargets` before the 1st player and the tests use a fake one.
-  - `CommandLine` logs through Microsoft.Extensions.Logging to the console and takes an `ILogger`, so the tests pass a `WriterLogger`. `MeasureConsoleFormatter` writes the lines and indents the steps of a player by the scope that `MeasureLog.BeginPlayerScope` opens.
-  - `MeasureReport` is the report and its JSON. `PlayerMeasurement` is what a measurer returns, with the globals, the offsets and the reasons for what it did not find. `VersionGroup` is 1 group of versions with equal offsets.
+  - `CommandLine` logs through Microsoft.Extensions.Logging to the console and takes an `ILogger`, so the tests pass a `WriterLogger`. `MeasureConsoleFormatter` writes the lines and indents the steps of a player and the routes of a group by the scopes that `MeasureLog.BeginPlayerScope` and `MeasureLog.BeginGroupScope` open.
+  - `MeasureReport` is the report and its JSON. `PlayerMeasurement` is what a measurer returns, with the globals, the offsets, the reasons for what it did not find and the path of the executable, which stays out of the report. `VersionGroup` is 1 group of versions with equal offsets and the routes they share.
   - `VersionGroups` groups the measured rows by equal offset maps. It takes the rows, so the tests need no measurer.
+  - `Routes/` is neutral code that finds the signature routes that the versions of a group share. It reads the executable files after the players have ended and decodes with Iced.
+    - `CodeImage` reads the executable sections, the image base and the machine of a file with `PEReader`. Its constructor takes them directly, so the tests build code from bytes with `CodeBuilder`.
+    - `InstructionSites` decodes the code sections linearly and returns a `SiteWindow` for each instruction with an address operand of a wanted address, with the operand bytes to mask.
+    - `RouteCandidates` grows a window 1 instruction at a time and renders each `RouteCandidate` in the `MaskTier` it gets.
+    - `SignatureScan` searches the code of 1 version for a candidate on the longest literal run and returns the 1 RVA that every match reaches.
+    - `SharedRoutes` runs the search per global. `Route` and `GlobalRoutes` are the JSON of the result. `RouteVersion` is the input for 1 version.
   - `Unreal3/` has the UDK measurer. It is the only part that references `AslHelp.Memory.Remote`. Its reads go through the readers in `src/AslHelp.Engines.Unreal`. The memory searches are in this folder, not in the library.
     - `UdkMeasurer` starts the player, opens its memory and calls the parts below.
     - `UdkPlayer` runs a UDK server on a hidden desktop until the fixture game is ready.
@@ -76,6 +82,7 @@ The tool and test projects target `net11.0-windows`, because the players only ru
 
 - Text files are UTF-8 without a BOM. Git stores them with LF line endings.
 - Files under `test/fixtures` check out with CRLF on every machine, because the player cache key hashes their bytes.
+- The route search reads files and never a running game, so a measurer only returns the path of the executable.
 - Log lines of the `measure` command sit in `[LoggerMessage]` methods of `MeasureLog` and `Unreal3/UdkLog`, because Microsoft.Extensions.Logging takes their templates at compile time.
 - Other text that users read, such as messages, step lines and command help, sits in the `SR.resx` of its project. The UDK text sits in `Unreal3/UdkSR.resx`. `Microsoft.CodeAnalysis.ResxSourceGenerator` generates the `SR` and `UdkSR` classes, with a property for each message and a `Format` method for each message with placeholders, such as `SR.FormatFolderNotFound(path)`.
 - `readme.md`, `changelog.md` and this file change in the same commit as the code they describe. `changelog.md` lists the changes to the libraries in `src/`, because the tools in `eng/tools/` do not ship.

@@ -208,7 +208,7 @@ public sealed class UdkFixtureCheckTests(
         using StringWriter output = new();
         using StringWriter error = new();
 
-        _ = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, new WriterLogger(output, error));
+        _ = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", new WriterLogger(output, error));
 
         string[] lines = output.ToString().Split(Environment.NewLine);
 
@@ -229,7 +229,7 @@ public sealed class UdkFixtureCheckTests(
         _image.Memory.WriteInt32(_image.FixtureInstance + FixtureValueOffset(), 0);
 
         Assert.That(
-            () => UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, new WriterLogger(output, error)),
+            () => UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", new WriterLogger(output, error)),
             Throws.InvalidOperationException);
         Assert.That(output.ToString(), Does.Not.Contain(UdkFixtureCheck.FieldName));
     }
@@ -243,7 +243,7 @@ public sealed class UdkFixtureCheckTests(
         _image.Memory.WriteInt32(_image.FixtureInstance + FixtureValueOffset(), 0);
 
         Assert.That(
-            () => UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, NullLogger.Instance),
+            () => UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, "file.bin", NullLogger.Instance),
             Throws.InvalidOperationException.With.Message.EqualTo(UdkSR.FormatFixtureValueWrong(UdkFixtureCheck.ExpectedValue, 0)));
     }
 
@@ -293,7 +293,7 @@ public sealed class UdkFixtureCheckTests(
 
     private PlayerMeasurement Measure()
     {
-        return UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, NullLogger.Instance);
+        return UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", NullLogger.Instance);
     }
 
     private string MeasureAndLog()
@@ -301,7 +301,7 @@ public sealed class UdkFixtureCheckTests(
         using StringWriter output = new();
         using StringWriter error = new();
 
-        _ = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, new WriterLogger(output, error));
+        _ = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", new WriterLogger(output, error));
 
         return output.ToString();
     }

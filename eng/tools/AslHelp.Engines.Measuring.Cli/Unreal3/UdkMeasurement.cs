@@ -19,6 +19,7 @@ internal static class UdkMeasurement
     /// <param name="moduleBase">The base of the executable in the process.</param>
     /// <param name="sections">The sections of the executable without code.</param>
     /// <param name="targets">The targets by global, with exactly 1 name array and 1 object array.</param>
+    /// <param name="executablePath">The file of the executable of the player.</param>
     /// <param name="logger">The logger for the steps of the measurement.</param>
     /// <returns>
     ///     The globals and the offsets found and the reason for each global or member that was not found.
@@ -32,6 +33,7 @@ internal static class UdkMeasurement
         Address moduleBase,
         IReadOnlyList<UdkSection> sections,
         IReadOnlyDictionary<string, UdkTarget> targets,
+        string executablePath,
         ILogger logger)
     {
         var firstNames = targets.Values.OfType<UdkNameArrayTarget>().Single().FirstNames;
@@ -101,7 +103,7 @@ internal static class UdkMeasurement
             }
         }
 
-        return new PlayerMeasurement(globals, offsets, unmeasured);
+        return new PlayerMeasurement(globals, offsets, unmeasured, executablePath);
     }
 
     private static string FormatRvas(IEnumerable<uint> rvas)

@@ -114,7 +114,11 @@ The command runs each player on the current machine in version order until its f
 2026-11-06 14:03:44 info: measure[2]   => done (32.1 s): 4 globals, 15 offsets, 0 not found
 2026-11-06 14:21:07 info: measure[9] versions with the same offsets:
 2026-11-06 14:21:07 info: measure[10]   => [2010-08-BETA, 2010-09, 2010-10-BETA]
-2026-11-06 14:21:07 info: measure[10]   => [2015-02]
+2026-11-06 14:21:19 info: measure[11]     => GWorld: forward 8B 3D ???????? 45, offset 2, versions 3/3
+2026-11-06 14:21:19 warn: measure[13]     => GEngine: no route, uncovered [2010-09]
+2026-11-06 14:21:19 info: measure[15]     => routes (12.3 s)
+2026-11-06 14:21:19 info: measure[10]   => [2015-02]
+2026-11-06 14:21:20 info: measure[15]     => routes (0.8 s)
 ```
 
 A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. It deletes the log of each player afterward. A canceled run writes no report. A bad targets file fails before the 1st player starts.
@@ -168,6 +172,36 @@ A failed row and a row with empty `offsets` do not join a group. Every other row
   }
 ]
 ```
+
+A group also has `routes`, with an entry for each global of its versions. A route is a signature search through the code of the executable and then a read of the global from the operand at `offset`. The command reads the executable file of each version once after the players have ended, so the search needs no running game.
+
+A route covers a version when every match in the code sections of that version decodes to an address operand at `offset` and all of them reach 1 RVA from the list of the global in that version. `reached` has that RVA per version, because the list can have statics that change between runs. The command picks the route that covers the most versions, then with the fewest instructions and bytes. It repeats that for the versions left, so a global can have several routes. It tries at most 64 candidates per instruction count, because each one costs a search through the file of every version. `uncovered` has the reason for each version that no route covers and is missing when every version is covered. A file that fails to read gets its version into `uncovered` and the run goes on.
+
+```json
+"routes": {
+  "GWorld": {
+    "routes": [
+      {
+        "forward": "8B 3D ???????? 45",
+        "offset": 2,
+        "versions": [
+          "2010-09",
+          "2015-02"
+        ],
+        "reached": {
+          "2010-09": "0x29D6984",
+          "2015-02": "0x2A658D0"
+        }
+      }
+    ],
+    "uncovered": {
+      "2013-07": "No signature of the group reaches 1 RVA of the global."
+    }
+  }
+}
+```
+
+`forward` has the same spelling as the `forward` step of a `LocatorRoute` in AslHelp.Memory, with `?` for the bytes of the address operands and the branch targets. When linear decoding misses the load of a version, its route can also have `??` for the ModRM byte of the load.
 
 ### Unreal Engine 3 targets
 

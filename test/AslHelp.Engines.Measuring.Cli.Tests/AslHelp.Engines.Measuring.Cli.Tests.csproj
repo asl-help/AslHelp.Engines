@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <TargetFramework>net11.0-windows</TargetFramework>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="$(ToolsPath)/AslHelp.Engines.Measuring.Cli/AslHelp.Engines.Measuring.Cli.csproj" />
   </ItemGroup>

@@ -1,5 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <PropertyGroup>
+    <TargetFrameworks>net4.8.1;net11.0-windows</TargetFrameworks>
+  </PropertyGroup>
+
   <ItemGroup>
     <ProjectReference Include="$(SrcPath)/AslHelp.Engines.Unreal/AslHelp.Engines.Unreal.csproj" />
   </ItemGroup>

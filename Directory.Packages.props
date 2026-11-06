@@ -33,14 +33,17 @@
 
   <!-- Global packages. -->
   <ItemGroup>
-    <GlobalPackageReference Include="Meziantou.Polyfill" Version="1.0.168" Condition="'$(TargetFramework)' == 'netstandard2.0'" />
+    <GlobalPackageReference Include="Meziantou.Polyfill" Version="1.0.168" />
     <GlobalPackageReference Include="Microsoft.CodeAnalysis.ResxSourceGenerator" Version="5.0.0-1.25277.114" />
   </ItemGroup>
 
   <PropertyGroup>
     <MeziantouPolyfill_IncludedPolyfills>
       M:System.ArgumentNullException.ThrowIfNull(System.Object,System.String);
+      T:System.Diagnostics.CodeAnalysis.DoesNotReturnAttribute;
       T:System.Diagnostics.CodeAnalysis.NotNullAttribute;
+      T:System.Diagnostics.CodeAnalysis.NotNullWhenAttribute;
+      T:System.Index;
       T:System.Runtime.CompilerServices.CallerArgumentExpressionAttribute;
       T:System.Runtime.CompilerServices.IsExternalInit;
     </MeziantouPolyfill_IncludedPolyfills>

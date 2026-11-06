@@ -178,7 +178,7 @@ internal sealed class FakeMemory : IMemoryReader
     /// </returns>
     public int ReadsAt(Address address)
     {
-        return _readsAt.GetValueOrDefault(address);
+        return _readsAt.TryGetValue(address, out int reads) ? reads : 0;
     }
 
     private Span<byte> BytesAt(Address address, int length)

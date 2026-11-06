@@ -1,8 +1,14 @@
 # AslHelp.Engines
 
-AslHelp.Engines builds the fixture players that the engine libraries' live tests read from. A fixture player is a small game made with a real engine version, with known values in its memory.
+AslHelp.Engines has the libraries that read game engines from memory and the tools that test them. `fixtures` builds a small game with a real engine version, called a fixture player, with known values in its memory. `measure` runs those players and writes a report.
 
-## Usage
+## Libraries
+
+`AslHelp.Engines.Unreal` reads names, objects and structs from Unreal Engine 3 games given their layouts. We don't publish it to NuGet, because its API can still change.
+
+## Fixture players
+
+### Usage
 
 ```
 just fixtures --help
@@ -25,7 +31,7 @@ A failed step prints its error and exits with code 1. A download or an upload fa
 
 A toolchain download keeps the bytes it has, so the next run resumes it. A failed download from the store starts over on the next run. Run 1 build at a time per `--output` folder, because 2 runs into the same folder write the same files.
 
-## Cache
+### Cache
 
 The `build` command keeps each player in a WebDAV folder, so a player is built only once and other machines download it. These environment variables turn the cache on:
 
@@ -53,21 +59,7 @@ The archive goes up before the manifest, so a manifest in the store always has i
 
 A damaged or cut short `players/<toolchain>/<version>/<hash>.tar.zst` fails the build with that path. The build deletes its download. Delete the file from the store and build again, so the next run builds and uploads the player.
 
-## Measuring
-
-```
-just measure <engine> <players> --output <file>
-```
-
-| Argument | Value |
-|---|---|
-| `<engine>` | The engine of the players, such as `unreal3`. |
-| `<players>` | The folder with the `<engine>-<version>-<hash>` players that `just fixtures build` made. |
-| `--output` | The file for the JSON report. |
-
-The command runs each player on this machine in version order until its fixture game is ready and writes 1 row per player into the report. A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. It deletes the log of each player afterward. A canceled run writes no report.
-
-## Unreal Engine 3
+### Unreal Engine 3
 
 Unreal Engine 3 players are built with UDK, the free Unreal Engine 3 release.
 
@@ -95,7 +87,21 @@ The compiler and the server run in a Windows container with the install mounted,
 
 Every pinned version from 2010-06-BETA on builds. The build refuses 2009-11-BETA right after the extraction, because that engine stops at startup until the PhysX installer has run on the machine.
 
-### Adding a UDK version
+#### Adding a UDK version
 
 1. Copy the sha1 of `UDKInstall-<version>.exe` from https://archive.org/metadata/udkinstaller into `installers.json` in version order.
 2. Run the build command for it.
+
+## Measuring
+
+```
+just measure <engine> <players> --output <file>
+```
+
+| Argument | Value |
+|---|---|
+| `<engine>` | The engine of the players, such as `unreal3`. |
+| `<players>` | The folder with the `<engine>-<version>-<hash>` players that `just fixtures build` made. |
+| `--output` | The file for the JSON report. |
+
+The command runs each player on this machine in version order until its fixture game is ready and writes 1 row per player into the report. A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. It deletes the log of each player afterward. A canceled run writes no report.

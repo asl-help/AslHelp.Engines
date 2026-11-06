@@ -4,6 +4,7 @@
   <PropertyGroup>
     <RootPath>$(MSBuildThisFileDirectory)</RootPath>
 
+    <SrcPath>$(RootPath)/src</SrcPath>
     <ToolsPath>$(RootPath)/eng/tools</ToolsPath>
     <TestPath>$(RootPath)/test</TestPath>
 

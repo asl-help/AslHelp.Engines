@@ -8,6 +8,10 @@
     <File Path="global.json" />
   </Folder>
 
+  <Folder Name="/src/">
+    <Project Path="src/AslHelp.Engines.Unreal/AslHelp.Engines.Unreal.csproj" />
+  </Folder>
+
   <Folder Name="/eng/">
     <File Path="eng/CheckEncoding.cs" />
   </Folder>
@@ -22,6 +26,7 @@
     <Project Path="test/AslHelp.Engines.Fixtures.Tests/AslHelp.Engines.Fixtures.Tests.csproj" />
     <Project Path="test/AslHelp.Engines.Fixtures.Cli.Tests/AslHelp.Engines.Fixtures.Cli.Tests.csproj" />
     <Project Path="test/AslHelp.Engines.Measuring.Cli.Tests/AslHelp.Engines.Measuring.Cli.Tests.csproj" />
+    <Project Path="test/AslHelp.Engines.Unreal.Tests/AslHelp.Engines.Unreal.Tests.csproj" />
   </Folder>
 
 </Solution>

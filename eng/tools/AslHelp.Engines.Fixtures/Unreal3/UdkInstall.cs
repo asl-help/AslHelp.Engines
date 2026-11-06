@@ -71,7 +71,7 @@ public static class UdkInstall
     ///     The map file name without its extension, as the server takes it.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
-    /// <exception cref="FileNotFoundException">The install has no <c>.udk</c> file under <c>UDKGame/Content/Maps</c>.</exception>
+    /// <exception cref="FileNotFoundException">The install doesn't have a <c>.udk</c> file under <c>UDKGame/Content/Maps</c>.</exception>
     public static string FindMap(string installDirectory)
     {
         ArgumentNullException.ThrowIfNull(installDirectory);

@@ -23,7 +23,7 @@ internal sealed class Udk(
     IPlayerHost host) : IToolchain
 {
     /// <summary>
-    ///     Numbers the revision of the build steps that no other key input shows. Bump it when a step changes that way, so
+    ///     Numbers the revision of the build steps that the other key inputs don't show. Bump it when a step changes that way, so
     ///     every player is built again. Bump the value in <c>AddKeyInputs_PinnedVersion_AddsEveryBuildInput</c> too.
     /// </summary>
     private const int BuildVersion = 2;
@@ -44,7 +44,9 @@ internal sealed class Udk(
     ///     built before the install exists. The installer sha1 pins the import tables they are read from and the redist
     ///     they come from. <c>BuildVersion</c> pins the code that reads them.
     /// </remarks>
-    /// <exception cref="InvalidOperationException"><see cref="UdkInstallers.All"/> has no installer of <paramref name="version"/>.</exception>
+    /// <exception cref="InvalidOperationException">
+    ///     <see cref="UdkInstallers.All"/> doesn't have an installer of <paramref name="version"/>.
+    /// </exception>
     public string AddKeyInputs(CacheKeyBuilder builder, string version)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -73,7 +75,7 @@ internal sealed class Udk(
     ///     extracted. An install without a redist passes. The runtime step reports a missing redist if it needs one.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    ///     <see cref="UdkInstallers.All"/> has no installer of <paramref name="version"/> or the install needs the PhysX installer.
+    ///     <see cref="UdkInstallers.All"/> doesn't have an installer of <paramref name="version"/> or the install needs the PhysX installer.
     /// </exception>
     public async Task<string> InstallAsync(
         string version,
@@ -128,14 +130,14 @@ internal sealed class Udk(
     /// <exception cref="ArgumentNullException">
     ///     <paramref name="installDirectory"/> or <paramref name="projectDirectory"/> is <see langword="null"/>.
     /// </exception>
-    /// <exception cref="DirectoryNotFoundException"><paramref name="projectDirectory"/> has no <c>Classes</c> folder.</exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="projectDirectory"/> doesn't have a <c>Classes</c> folder.</exception>
     /// <exception cref="FileNotFoundException">
-    ///     The install has no config file, no <c>UDK.com</c>, no <c>UDK.exe</c> or no redist for a missing DLL.
+    ///     The install doesn't have a config file, <c>UDK.com</c>, <c>UDK.exe</c> or a redist for a missing DLL.
     /// </exception>
     /// <exception cref="IOException">A copy or the write fails.</exception>
     /// <exception cref="InvalidDataException">
-    ///     The config file has no <c>ModEditPackages</c> line to change, a file that <c>UDK.exe</c> or a DLL it loads
-    ///     imports is not a PE file or the redist does not give every DLL.
+    ///     The config file doesn't have a <c>ModEditPackages</c> line to change, a file that <c>UDK.exe</c> or a DLL it
+    ///     loads imports is not a PE file or the redist does not give every DLL.
     /// </exception>
     /// <exception cref="InvalidOperationException">
     ///     A DLL imports a Visual C++ runtime that Windows does not ship and the tool does not extract, no x86 cabinet of the
@@ -162,7 +164,7 @@ internal sealed class Udk(
     /// <remarks>
     ///     <see cref="UdkServer.CheckAsync"/> runs the server and waits up to <see cref="CheckTimeout"/> for the ready line.
     /// </remarks>
-    /// <exception cref="FileNotFoundException">The install has no <c>UDK.exe</c> or no map.</exception>
+    /// <exception cref="FileNotFoundException">The install doesn't have <c>UDK.exe</c> or a map.</exception>
     /// <exception cref="InvalidOperationException">
     ///     The host cannot run anything or the server exits before the check finds the ready line.
     /// </exception>

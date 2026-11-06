@@ -34,8 +34,8 @@ namespace AslHelp.Engines.Fixtures;
 ///     another thread in that time skips the error dialog. A SetErrorMode call from another thread in that time is
 ///     undone.
 ///     <para/>
-///     Player has no finalizer, so always dispose a player. A player that is never disposed keeps the machine lock
-///     until the process that called <see cref="Start"/> exits. Every later <see cref="Start"/> in that process then
+///     Player doesn't have a finalizer, so always dispose a player. A player that is never disposed keeps the machine
+///     lock until the process that called <see cref="Start"/> exits. Every later <see cref="Start"/> in that process then
 ///     times out. The process tree of that player ends sooner, once the garbage collector finalizes the handle of
 ///     its job.
 /// </remarks>
@@ -99,7 +99,7 @@ public sealed class Player : IDisposable
     public bool HasExited => Volatile.Read(ref _disposed) != 0 || PInvoke.WaitForSingleObject(_processHandle, 0) == WAIT_EVENT.WAIT_OBJECT_0;
 
     /// <summary>
-    ///     Starts a player once no other player runs on the machine.
+    ///     Starts a player once any other player on the machine has ended.
     /// </summary>
     /// <param name="info">The executable, arguments and folder of the player to start.</param>
     /// <returns>
@@ -341,7 +341,7 @@ public sealed class Player : IDisposable
 
                 // Turn the hard-error dialogs off in this process for the CreateProcessW call only, because the child
                 // copies the process error mode when it is created and the thread error mode never reaches it. Start runs
-                // under the machine lock, so no other Start puts an older mode back in between.
+                // under the machine lock, so any other Start can't put an older mode back in between.
                 var previousErrorMode = (THREAD_ERROR_MODE)PInvoke.GetErrorMode();
                 _ = PInvoke.SetErrorMode(previousErrorMode | ChildErrorMode);
 

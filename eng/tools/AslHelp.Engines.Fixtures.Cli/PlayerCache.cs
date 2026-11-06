@@ -62,7 +62,7 @@ internal sealed class PlayerCache(
     /// <exception cref="DirectoryNotFoundException"><paramref name="projectDirectory"/> does not exist.</exception>
     /// <exception cref="IOException">A file of the project folder cannot be read.</exception>
     /// <exception cref="InvalidOperationException">
-    ///     <paramref name="toolchain"/> has no release of <paramref name="version"/>. It is thrown before the project files are read.
+    ///     <paramref name="toolchain"/> doesn't have a release of <paramref name="version"/>. It is thrown before the project files are read.
     ///     It is also thrown when the version the toolchain returns is not the input <c>version</c> it adds.
     /// </exception>
     public static PlayerKey KeyOf(IToolchain toolchain, string version, string projectDirectory)

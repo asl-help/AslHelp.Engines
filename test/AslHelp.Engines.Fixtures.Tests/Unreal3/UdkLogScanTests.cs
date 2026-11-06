@@ -78,7 +78,7 @@ public sealed class UdkLogScanTests
         Assert.That(scan.HasReadyLine(), Is.True);
     }
 
-    // A log that does not exist yet has no ready line.
+    // A log that does not exist yet doesn't have a ready line.
     [Test]
     public void HasReadyLine_MissingLog_ReturnsFalse()
     {

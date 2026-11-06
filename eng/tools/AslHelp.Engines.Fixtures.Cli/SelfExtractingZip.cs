@@ -28,7 +28,7 @@ internal static class SelfExtractingZip
     /// <exception cref="ArgumentNullException"><paramref name="path"/> is <see langword="null"/>.</exception>
     /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
     /// <exception cref="InvalidDataException">
-    ///     The file has no end of central directory record or its offsets point outside the file.
+    ///     The file doesn't have an end of central directory record or its offsets point outside the file.
     /// </exception>
     public static ZipArchive Open(string path)
     {
@@ -116,7 +116,7 @@ internal static class SelfExtractingZip
     ///     The stub length, 0 for a plain zip.
     /// </returns>
     /// <exception cref="InvalidDataException">
-    ///     The file has no end of central directory record or its offsets point outside the file.
+    ///     The file doesn't have an end of central directory record or its offsets point outside the file.
     /// </exception>
     private static long FindPayloadStart(FileStream file, string path)
     {

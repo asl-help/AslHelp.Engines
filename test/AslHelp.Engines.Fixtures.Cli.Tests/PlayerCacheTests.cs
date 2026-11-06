@@ -391,7 +391,7 @@ public sealed class PlayerCacheTests
     }
 
     // A store copy that is cut short fails with players/<toolchain>/<version>/<hash>.tar.zst and the word store in the message,
-    // keeps the reason of the failed unpack as the cause, deletes the download and sends no other request to the store.
+    // keeps the reason of the failed unpack as the cause, deletes the download and doesn't send any other request to the store.
     [Test]
     public async Task TryRestoreAsync_StoreArchiveCutShort_ThrowsWithStorePathAndDeletesDownload()
     {

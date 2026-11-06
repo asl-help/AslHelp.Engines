@@ -58,7 +58,7 @@
     <value>Downloading {0}</value>
   </data>
   <data name="CacheMiss" xml:space="preserve">
-    <value>The cache has no {0}</value>
+    <value>The cache doesn't have {0}</value>
   </data>
   <data name="CacheMoving" xml:space="preserve">
     <value>Moving {0} to {1}</value>
@@ -85,7 +85,7 @@
     <value>The folder at {0} does not exist. Set {0} to the URL of an existing WebDAV folder.</value>
   </data>
   <data name="DavNoSpaceFix" xml:space="preserve">
-    <value>The server has no space left for the file. Free space on the server or raise the quota of the user.</value>
+    <value>The server doesn't have space left for the file. Free space on the server or raise the quota of the user.</value>
   </data>
   <data name="DavRedirectFix" xml:space="preserve">
     <value>Set {0} to the URL the server redirects to.</value>
@@ -205,7 +205,7 @@
     <value>The version of the toolchain, as its release lists it.</value>
   </data>
   <data name="VersionNotFolderName" xml:space="preserve">
-    <value>The version '{0}' that {1} pins is not a valid folder name, so the player folder cannot use it. Pin a version that is not '.' or '..' and has no path separator or other char a file name cannot have.</value>
+    <value>The version '{0}' that {1} pins is not a valid folder name, so the player folder cannot use it. Pin a version that is not '.' or '..' and doesn't have a path separator or other char a file name cannot have.</value>
   </data>
   <data name="VersionNotHashed" xml:space="preserve">
     <value>{0} pins the version '{1}' but does not hash it. Add the pinned version as the input 'version', so the paths and the manifest agree.</value>
@@ -214,7 +214,7 @@
     <value>The zip in '{0}' has a zip64 end record with extra data, which is not read. Extract it with another tool.</value>
   </data>
   <data name="ZipNotFound" xml:space="preserve">
-    <value>The file '{0}' has no zip in it. Pass a self-extracting file or a zip.</value>
+    <value>The file '{0}' doesn't have a zip in it. Pass a self-extracting file or a zip.</value>
   </data>
   <data name="ZipOffsetsOutside" xml:space="preserve">
     <value>The zip in '{0}' has offsets that point outside the file. Download the file again.</value>

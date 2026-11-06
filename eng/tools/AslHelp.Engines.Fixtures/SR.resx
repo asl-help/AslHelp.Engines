@@ -58,10 +58,10 @@
     <value>The lock timeout is out of range. Pass a value from 0 up to {0}.</value>
   </data>
   <data name="LoneSurrogateFileName" xml:space="preserve">
-    <value>A file name under '{0}' has a lone UTF-16 surrogate, which has no unique UTF-8 bytes. Rename the file.</value>
+    <value>A file name under '{0}' has a lone UTF-16 surrogate, which doesn't have unique UTF-8 bytes. Rename the file.</value>
   </data>
   <data name="LoneSurrogateValue" xml:space="preserve">
-    <value>The value has a lone UTF-16 surrogate, which has no unique UTF-8 bytes. Pass valid Unicode text.</value>
+    <value>The value has a lone UTF-16 surrogate, which doesn't have unique UTF-8 bytes. Pass valid Unicode text.</value>
   </data>
   <data name="MapNotFound" xml:space="preserve">
     <value>There is no {0} map under '{1}'. Delete the install folder and run the build again, so the installer is extracted again.</value>

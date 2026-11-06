@@ -98,7 +98,8 @@ public sealed class UdkRuntimesTests
                 .And.Message.Contains("run the build again"));
     }
 
-    // UDK.exe imports d3dx9_43.dll, which is in Binaries/Win32 already. The install has no redist, so the call reads nothing and writes nothing.
+    // UDK.exe imports d3dx9_43.dll, which is in Binaries/Win32 already.
+    // The install doesn't have a redist, so the call reads nothing and writes nothing.
     [Test]
     public async Task AddAsync_EveryImportPresent_ReadsNoRedist()
     {

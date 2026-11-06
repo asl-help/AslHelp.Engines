@@ -33,7 +33,7 @@ internal static class UdkInstallers
     ///     The row of the version, with the pinned spelling and sha1.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="version"/> is <see langword="null"/>.</exception>
-    /// <exception cref="InvalidOperationException"><see cref="All"/> has no installer of <paramref name="version"/>.</exception>
+    /// <exception cref="InvalidOperationException"><see cref="All"/> doesn't have an installer of <paramref name="version"/>.</exception>
     public static UdkInstaller Find(string version)
     {
         ArgumentNullException.ThrowIfNull(version);
@@ -113,7 +113,7 @@ internal static class UdkInstallers
     /// <returns>
     ///     The rows in file order.
     /// </returns>
-    /// <exception cref="FileNotFoundException">The assembly has no <c>installers.json</c> resource.</exception>
+    /// <exception cref="FileNotFoundException">The assembly doesn't have an <c>installers.json</c> resource.</exception>
     private static IReadOnlyList<UdkInstaller> ReadEmbedded()
     {
         using var json = typeof(UdkInstallers).Assembly.GetManifestResourceStream(InstallersResource)

@@ -93,11 +93,11 @@ internal static class VisualCppRuntimes
     }
 
     /// <summary>
-    ///     Throws if <paramref name="redist"/> has no Visual C++ 2010 installer.
+    ///     Throws if <paramref name="redist"/> doesn't have a Visual C++ 2010 installer.
     /// </summary>
     /// <param name="redist">The open redist.</param>
     /// <param name="binariesDirectory">The <c>Binaries/Win32</c> folder of the install, for the message.</param>
-    /// <exception cref="InvalidDataException">The redist has no <c>vcredist_x86_vs2010sp1.exe</c>.</exception>
+    /// <exception cref="InvalidDataException">The redist doesn't have <c>vcredist_x86_vs2010sp1.exe</c>.</exception>
     public static void ThrowIfNoInstaller(UdkRedist redist, string binariesDirectory)
     {
         if (!redist.HasVc2010)
@@ -121,7 +121,7 @@ internal static class VisualCppRuntimes
     ///     A task that completes once <c>expand.exe</c> exits with code 0 and the unpacked files are renamed.
     /// </returns>
     /// <exception cref="IOException">The installer cannot be extracted or a rename fails.</exception>
-    /// <exception cref="InvalidDataException">The redist has no <c>vcredist_x86_vs2010sp1.exe</c>.</exception>
+    /// <exception cref="InvalidDataException">The redist doesn't have <c>vcredist_x86_vs2010sp1.exe</c>.</exception>
     /// <exception cref="InvalidOperationException">The installer or <c>expand.exe</c> exits with a code other than 0.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public static async Task ExtractAsync(UdkRedist redist, string tempDirectory, CancellationToken cancellationToken)

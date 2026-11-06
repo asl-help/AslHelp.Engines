@@ -416,7 +416,7 @@ public sealed class DownloaderTests
         Assert.That(progress.Values.ConvertAll(value => value.Length), Has.All.EqualTo(5));
     }
 
-    // A resume whose Content-Range has no total reports the prefix plus the Content-Length, which is the length of the whole file.
+    // A resume whose Content-Range doesn't have a total reports the prefix plus the Content-Length, which is the length of the whole file.
     [Test]
     public async Task DownloadAsync_ResumeWithUnknownTotal_ReportsThePrefixPlusTheRest()
     {

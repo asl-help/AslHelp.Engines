@@ -29,7 +29,7 @@ internal static class UdkRuntimes
     ///     The runtime DLL names in ordinal order without case, each spelled as its 1st importer spells it.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="binariesDirectory"/> is <see langword="null"/>.</exception>
-    /// <exception cref="FileNotFoundException">The folder has no <c>UDK.exe</c>.</exception>
+    /// <exception cref="FileNotFoundException">The folder doesn't have <c>UDK.exe</c>.</exception>
     /// <exception cref="InvalidDataException">A file that <c>UDK.exe</c> or a DLL it loads imports is not a PE file.</exception>
     public static IReadOnlyList<string> FindImports(string binariesDirectory)
     {
@@ -90,7 +90,7 @@ internal static class UdkRuntimes
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
     /// <exception cref="FileNotFoundException">
-    ///     The install has no <c>UDK.exe</c> or a DLL is missing and the install has no <c>UE3Redist.exe</c>.
+    ///     The install doesn't have <c>UDK.exe</c> or a DLL is missing and the install doesn't have <c>UE3Redist.exe</c>.
     /// </exception>
     /// <exception cref="IOException">An extraction, a copy or a move fails.</exception>
     /// <exception cref="InvalidDataException">

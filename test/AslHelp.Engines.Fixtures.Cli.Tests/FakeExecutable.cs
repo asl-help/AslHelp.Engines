@@ -10,7 +10,7 @@ namespace AslHelp.Engines.Fixtures.Cli.Tests;
 /// </summary>
 /// <remarks>
 ///     The file is shaped like a linker output, with 1 <c>.idata</c> section at RVA 0x1000 and file offset 0x200, so
-///     <see cref="System.Reflection.PortableExecutable.PEHeaders"/> parses it. It has no code and never runs.
+///     <see cref="System.Reflection.PortableExecutable.PEHeaders"/> parses it. It doesn't have code and never runs.
 /// </remarks>
 internal static class FakeExecutable
 {

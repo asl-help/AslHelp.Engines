@@ -27,8 +27,8 @@ internal static class UdkServer
     ///     <c>.udk</c> file under <c>UDKGame/Content/Maps</c> in ordinal order of its relative path. The check waits for
     ///     the line <c>ScriptLog: Fixture ready</c> in <c>UDKGame/Logs/Launch.log</c>, which <c>FixtureGame</c> logs once
     ///     it has spawned the fixture actor. The log is deleted before the start, so a
-    ///     line from an earlier run does not count. It is deleted after a pass too, so the player has no log of the build
-    ///     machine. A missing <c>UDK.exe</c> or map throws before anything starts.
+    ///     line from an earlier run does not count. It is deleted after a pass too, so the player doesn't have a log of
+    ///     the build machine. A missing <c>UDK.exe</c> or map throws before anything starts.
     ///     Any exit of the server is a failure, because the server runs until it is stopped.
     /// </remarks>
     /// <param name="host">The host that the server runs in.</param>
@@ -39,7 +39,7 @@ internal static class UdkServer
     ///     A task that completes once the server has logged the ready line.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
-    /// <exception cref="FileNotFoundException">The install has no <c>UDK.exe</c> or no map.</exception>
+    /// <exception cref="FileNotFoundException">The install doesn't have <c>UDK.exe</c> or a map.</exception>
     /// <exception cref="InvalidOperationException">
     ///     The host cannot run anything or the server exits before the check finds the ready line.
     /// </exception>

@@ -42,7 +42,7 @@ internal static class UdkProject
     ///     Represents the compiler arguments.
     /// </summary>
     /// <remarks>
-    ///     <c>-nullrhi</c> turns rendering off, because a container has no display mode. Without it D3D9
+    ///     <c>-nullrhi</c> turns rendering off, because a container doesn't have a display mode. Without it D3D9
     ///     <c>GetAdapterDisplayMode</c> fails and make exits with code 3.
     /// </remarks>
     private const string CompilerArguments = "make -unattended -nullrhi";
@@ -90,7 +90,7 @@ internal static class UdkProject
     ///     <paramref name="installDirectory"/> or <paramref name="classesDirectory"/> is <see langword="null"/>.
     /// </exception>
     /// <exception cref="DirectoryNotFoundException"><paramref name="classesDirectory"/> does not exist.</exception>
-    /// <exception cref="FileNotFoundException">The install has no <c>UDKGame/Config/DefaultEngineUDK.ini</c>.</exception>
+    /// <exception cref="FileNotFoundException">The install doesn't have <c>UDKGame/Config/DefaultEngineUDK.ini</c>.</exception>
     /// <exception cref="IOException">A copy, the write or the move fails.</exception>
     /// <exception cref="InvalidDataException">
     ///     The config file has neither <c>;ModEditPackages=MyMod</c> nor <c>ModEditPackages=Fixture</c> as a line.
@@ -145,11 +145,11 @@ internal static class UdkProject
     }
 
     /// <summary>
-    ///     Throws if the install in <paramref name="installDirectory"/> has no <c>UDK.com</c>.
+    ///     Throws if the install in <paramref name="installDirectory"/> doesn't have <c>UDK.com</c>.
     /// </summary>
     /// <param name="installDirectory">The extracted install.</param>
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
-    /// <exception cref="FileNotFoundException">The install has no <c>UDK.com</c>.</exception>
+    /// <exception cref="FileNotFoundException">The install doesn't have <c>UDK.com</c>.</exception>
     public static void ThrowIfNoCompiler(string installDirectory)
     {
         ArgumentNullException.ThrowIfNull(installDirectory);
@@ -179,7 +179,7 @@ internal static class UdkProject
     ///     A task that completes once <c>UDKGame/Script/Fixture.u</c> is written.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
-    /// <exception cref="FileNotFoundException">The install has no <c>UDK.com</c>.</exception>
+    /// <exception cref="FileNotFoundException">The install doesn't have <c>UDK.com</c>.</exception>
     /// <exception cref="InvalidOperationException">
     ///     The host cannot run anything or <c>UDK.com</c> exits with a code other than 0 or exits with 0 but does not write
     ///     <c>UDKGame/Script/Fixture.u</c>.

@@ -98,7 +98,7 @@ internal sealed class UdkRedist : IDisposable
     /// </remarks>
     /// <param name="installDirectory">The extracted install.</param>
     /// <param name="version">The version, for the message.</param>
-    /// <exception cref="InvalidDataException">The redist has no zip in it or a damaged one.</exception>
+    /// <exception cref="InvalidDataException">The redist doesn't have a zip in it or has a damaged one.</exception>
     /// <exception cref="InvalidOperationException">The redist has the PhysX installer.</exception>
     public static void ThrowIfNeedsPhysXInstaller(string installDirectory, string version)
     {
@@ -125,7 +125,7 @@ internal sealed class UdkRedist : IDisposable
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="redistPath"/> is <see langword="null"/>.</exception>
     /// <exception cref="FileNotFoundException"><paramref name="redistPath"/> does not exist.</exception>
-    /// <exception cref="InvalidDataException">The file has no zip in it or a damaged one.</exception>
+    /// <exception cref="InvalidDataException">The file doesn't have a zip in it or has a damaged one.</exception>
     public static UdkRedist Open(string redistPath)
     {
         ArgumentNullException.ThrowIfNull(redistPath);
@@ -175,7 +175,7 @@ internal sealed class UdkRedist : IDisposable
     ///     <paramref name="entryName"/> or <paramref name="directory"/> is <see langword="null"/>.
     /// </exception>
     /// <exception cref="IOException">The file exists or cannot be written.</exception>
-    /// <exception cref="InvalidDataException">The redist has no entry <paramref name="entryName"/> or it is damaged.</exception>
+    /// <exception cref="InvalidDataException">The redist doesn't have an entry <paramref name="entryName"/> or it is damaged.</exception>
     public void Extract(string entryName, string directory)
     {
         ArgumentNullException.ThrowIfNull(entryName);

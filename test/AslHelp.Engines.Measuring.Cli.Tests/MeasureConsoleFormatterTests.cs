@@ -10,7 +10,7 @@ public sealed class MeasureConsoleFormatterTests
 {
     private const string PlainLine = @"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} info: category\[7\] text\r?\n$";
 
-    // A line outside any scope has no arrow.
+    // A line outside any scope doesn't have an arrow.
     [Test]
     public void Write_NoScope_WritesThePlainLine()
     {

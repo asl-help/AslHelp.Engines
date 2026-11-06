@@ -40,7 +40,7 @@ public sealed class UdkTargetsTests
         Assert.That(targets["Names"], Is.TypeOf<UdkNameArrayTarget>());
     }
 
-    // A type that no code handles fails with the path, because a member has no place in the file.
+    // A type that no code handles fails with the path, because a member doesn't have a place in the file.
     [Test]
     public void Read_UnknownType_FailsWithThePath()
     {

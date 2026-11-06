@@ -461,7 +461,7 @@ internal sealed class UdkMembers
         return OffsetsBy(_pointerSize).FirstOrDefault(
             at =>
             {
-                // Skip Next, because it connects the properties too in a struct that has no other fields.
+                // Skip Next, because it connects the properties too in a struct that doesn't have any other fields.
                 if (at == _offsets[Next])
                 {
                     return false;

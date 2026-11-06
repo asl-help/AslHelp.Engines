@@ -1,4 +1,5 @@
 using AslHelp.Memory;
+using System.Globalization;
 
 namespace AslHelp.Engines.Unreal.Errors;
 
@@ -23,7 +24,7 @@ internal abstract record ObjectError : ResultError
     /// </returns>
     public static ObjectError ClassUnreadable(Address obj, Address address, int offset, ResultError cause)
     {
-        return new MemberUnreadableError("the class of the object", "ObjectLayout.Class", obj, address, offset, cause);
+        return new ClassUnreadableError(obj, address, offset, cause);
     }
 
     /// <summary>
@@ -53,7 +54,7 @@ internal abstract record ObjectError : ResultError
     /// </returns>
     public static ObjectError NameUnreadable(Address obj, Address address, int offset, ResultError cause)
     {
-        return new MemberUnreadableError("the name of the object", "ObjectLayout.Name", obj, address, offset, cause);
+        return new NameUnreadableError(obj, address, offset, cause);
     }
 
     /// <summary>
@@ -93,22 +94,18 @@ internal abstract record ObjectError : ResultError
     /// </returns>
     public static ObjectError OuterUnreadable(Address obj, Address address, int offset, ResultError cause)
     {
-        return new MemberUnreadableError("the outer object of the object", "ObjectLayout.Outer", obj, address, offset, cause);
+        return new OuterUnreadableError(obj, address, offset, cause);
     }
 }
 
 /// <summary>
-///     Represents a member of an object that did not read.
+///     Represents a class pointer that did not read.
 /// </summary>
-/// <param name="Member">The member in the message.</param>
-/// <param name="LayoutField">The layout field of the member.</param>
 /// <param name="Owner">The address the member belongs to.</param>
 /// <param name="Address">The address of the failed read.</param>
 /// <param name="Offset">The offset of the member.</param>
 /// <param name="Cause">The error of the read.</param>
-file sealed record MemberUnreadableError(
-    string Member,
-    string LayoutField,
+file sealed record ClassUnreadableError(
     Address Owner,
     Address Address,
     int Offset,
@@ -116,8 +113,43 @@ file sealed record MemberUnreadableError(
 {
     /// <inheritdoc/>
     public override string Message
-        => $"Can't read {Member} at {Owner}: reading {Address} failed. {Cause.Message} "
-        + $"Check {LayoutField} (0x{Offset:X}) against this engine version.";
+        => SR.FormatObjectClassUnreadable(Owner, Address, Cause.Message, Offset.ToString("X", CultureInfo.InvariantCulture));
+}
+
+/// <summary>
+///     Represents a name id or a name number that did not read.
+/// </summary>
+/// <param name="Owner">The address the member belongs to.</param>
+/// <param name="Address">The address of the failed read.</param>
+/// <param name="Offset">The offset of the member.</param>
+/// <param name="Cause">The error of the read.</param>
+file sealed record NameUnreadableError(
+    Address Owner,
+    Address Address,
+    int Offset,
+    ResultError Cause) : ObjectError
+{
+    /// <inheritdoc/>
+    public override string Message
+        => SR.FormatObjectNameUnreadable(Owner, Address, Cause.Message, Offset.ToString("X", CultureInfo.InvariantCulture));
+}
+
+/// <summary>
+///     Represents an outer pointer that did not read.
+/// </summary>
+/// <param name="Owner">The address the member belongs to.</param>
+/// <param name="Address">The address of the failed read.</param>
+/// <param name="Offset">The offset of the member.</param>
+/// <param name="Cause">The error of the read.</param>
+file sealed record OuterUnreadableError(
+    Address Owner,
+    Address Address,
+    int Offset,
+    ResultError Cause) : ObjectError
+{
+    /// <inheritdoc/>
+    public override string Message
+        => SR.FormatObjectOuterUnreadable(Owner, Address, Cause.Message, Offset.ToString("X", CultureInfo.InvariantCulture));
 }
 
 /// <summary>
@@ -135,8 +167,7 @@ file sealed record NameNotFoundError(
 {
     /// <inheritdoc/>
     public override string Message
-        => $"Can't read the name of the object at {Object} with the name id {Id}. {Cause.Message} "
-        + $"Check ObjectLayout.Name (0x{Offset:X}) against this engine version.";
+        => SR.FormatObjectNameNotFound(Object, Id, Cause.Message, Offset.ToString("X", CultureInfo.InvariantCulture));
 }
 
 /// <summary>
@@ -152,8 +183,7 @@ file sealed record NegativeNumberError(
 {
     /// <inheritdoc/>
     public override string Message
-        => $"The object at {Object} has the name number {Number}, which is below 0. "
-        + $"Check ObjectLayout.Name (0x{Offset:X}) against this engine version.";
+        => SR.FormatObjectNameNumberNegative(Object, Number, Offset.ToString("X", CultureInfo.InvariantCulture));
 }
 
 /// <summary>
@@ -162,5 +192,5 @@ file sealed record NegativeNumberError(
 file sealed record NullObjectError : ObjectError
 {
     /// <inheritdoc/>
-    public override string Message => "The object pointer is 0.";
+    public override string Message => SR.ObjectNull;
 }

@@ -1,4 +1,5 @@
 using AslHelp.Memory;
+using System.Globalization;
 
 namespace AslHelp.Engines.Unreal.Errors;
 
@@ -37,7 +38,7 @@ internal abstract record StructError : ResultError
     /// </returns>
     public static StructError ChildrenUnreadable(Address type, Address address, int offset, ResultError cause)
     {
-        return new MemberUnreadableError("the fields of the struct", "StructLayout.Children", type, address, offset, cause);
+        return new ChildrenUnreadableError(type, address, offset, cause);
     }
 
     /// <summary>
@@ -66,7 +67,7 @@ internal abstract record StructError : ResultError
     /// </returns>
     public static StructError NextUnreadable(Address field, Address address, int offset, ResultError cause)
     {
-        return new MemberUnreadableError("the next field after the field", "FieldLayout.Next", field, address, offset, cause);
+        return new NextUnreadableError(field, address, offset, cause);
     }
 
     /// <summary>
@@ -81,7 +82,7 @@ internal abstract record StructError : ResultError
     /// </returns>
     public static StructError SuperUnreadable(Address type, Address address, int offset, ResultError cause)
     {
-        return new MemberUnreadableError("the super struct of the struct", "StructLayout.SuperStruct", type, address, offset, cause);
+        return new SuperUnreadableError(type, address, offset, cause);
     }
 }
 
@@ -97,7 +98,7 @@ file sealed record ChainUnreadableError(
     ResultError Cause) : StructError
 {
     /// <inheritdoc/>
-    public override string Message => $"Can't follow the super chain of the struct at {Type} at level {Level}. {Cause.Message}";
+    public override string Message => SR.FormatStructChainUnreadable(Type, Level, Cause.Message);
 }
 
 /// <summary>
@@ -112,21 +113,17 @@ file sealed record FieldUnreadableError(
     ResultError Cause) : StructError
 {
     /// <inheritdoc/>
-    public override string Message => $"Can't read field {Position} of the struct at {Type}. {Cause.Message}";
+    public override string Message => SR.FormatStructFieldUnreadable(Position, Type, Cause.Message);
 }
 
 /// <summary>
-///     Represents a member of a struct or a field that did not read.
+///     Represents a children pointer that did not read.
 /// </summary>
-/// <param name="Member">The member in the message.</param>
-/// <param name="LayoutField">The layout field of the member.</param>
 /// <param name="Owner">The address the member belongs to.</param>
 /// <param name="Address">The address of the failed read.</param>
 /// <param name="Offset">The offset of the member.</param>
 /// <param name="Cause">The error of the read.</param>
-file sealed record MemberUnreadableError(
-    string Member,
-    string LayoutField,
+file sealed record ChildrenUnreadableError(
     Address Owner,
     Address Address,
     int Offset,
@@ -134,6 +131,41 @@ file sealed record MemberUnreadableError(
 {
     /// <inheritdoc/>
     public override string Message
-        => $"Can't read {Member} at {Owner}: reading {Address} failed. {Cause.Message} "
-        + $"Check {LayoutField} (0x{Offset:X}) against this engine version.";
+        => SR.FormatStructChildrenUnreadable(Owner, Address, Cause.Message, Offset.ToString("X", CultureInfo.InvariantCulture));
+}
+
+/// <summary>
+///     Represents a next pointer that did not read.
+/// </summary>
+/// <param name="Owner">The address the member belongs to.</param>
+/// <param name="Address">The address of the failed read.</param>
+/// <param name="Offset">The offset of the member.</param>
+/// <param name="Cause">The error of the read.</param>
+file sealed record NextUnreadableError(
+    Address Owner,
+    Address Address,
+    int Offset,
+    ResultError Cause) : StructError
+{
+    /// <inheritdoc/>
+    public override string Message
+        => SR.FormatStructFieldNextUnreadable(Owner, Address, Cause.Message, Offset.ToString("X", CultureInfo.InvariantCulture));
+}
+
+/// <summary>
+///     Represents a super pointer that did not read.
+/// </summary>
+/// <param name="Owner">The address the member belongs to.</param>
+/// <param name="Address">The address of the failed read.</param>
+/// <param name="Offset">The offset of the member.</param>
+/// <param name="Cause">The error of the read.</param>
+file sealed record SuperUnreadableError(
+    Address Owner,
+    Address Address,
+    int Offset,
+    ResultError Cause) : StructError
+{
+    /// <inheritdoc/>
+    public override string Message
+        => SR.FormatStructSuperUnreadable(Owner, Address, Cause.Message, Offset.ToString("X", CultureInfo.InvariantCulture));
 }

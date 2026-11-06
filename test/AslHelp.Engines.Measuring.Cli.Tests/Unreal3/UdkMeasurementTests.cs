@@ -360,7 +360,7 @@ public sealed class UdkMeasurementTests(
         }
     }
 
-    // A global with no slot goes to unmeasured, because an empty list reads like a value that was looked up and has no address.
+    // A global with no slot goes to unmeasured, because an empty list reads like a value that was looked up and doesn't have an address.
     [Test]
     public void Measure_SlotsCleared_ReportsSlotsUnmeasured()
     {
@@ -796,7 +796,7 @@ public sealed class UdkMeasurementTests(
         Assert.That(Measure().Unmeasured[UdkMembers.PropertyLinkNext], Is.EqualTo(UdkSR.UnmeasuredPropertyLinkNext));
     }
 
-    // Next connects every property once the class has no function and the link is still the other pointer.
+    // Next connects every property once the class doesn't have a function and the link is still the other pointer.
     [Test]
     public void Measure_ClassWithOnlyProperties_DoesNotUseNextAsLink()
     {

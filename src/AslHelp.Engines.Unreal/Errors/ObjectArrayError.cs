@@ -38,7 +38,7 @@ internal abstract record ObjectArrayError : ResultError
     /// </returns>
     public static ObjectArrayError CountUnreadable(Address array, Address address, ResultError cause)
     {
-        return new HeaderUnreadableError("count", array, address, cause);
+        return new CountUnreadableError(array, address, cause);
     }
 
     /// <summary>
@@ -51,7 +51,7 @@ internal abstract record ObjectArrayError : ResultError
     /// </returns>
     public static ObjectArrayError DataUnreadable(Address array, ResultError cause)
     {
-        return new HeaderUnreadableError("data pointer", array, array, cause);
+        return new DataUnreadableError(array, array, cause);
     }
 }
 
@@ -71,24 +71,37 @@ file sealed record BlockUnreadableError(
     ResultError Cause) : ObjectArrayError
 {
     /// <inheritdoc/>
-    public override string Message
-        => $"Can't read the {Length} pointers from position {Position} of the object array at {Array}: "
-        + $"reading {Address} failed. {Cause.Message}";
+    public override string Message => SR.FormatObjectArrayBlockUnreadable(Length, Position, Array, Address, Cause.Message);
 }
 
 /// <summary>
-///     Represents a count or a data pointer that did not read.
+///     Represents a count of an object array that did not read.
 /// </summary>
-/// <param name="Part">The part in the message.</param>
 /// <param name="Array">The address of the array.</param>
 /// <param name="Address">The address of the failed read.</param>
 /// <param name="Cause">The error of the read.</param>
-file sealed record HeaderUnreadableError(
-    string Part,
+file sealed record CountUnreadableError(
     Address Array,
     Address Address,
     ResultError Cause) : ObjectArrayError
 {
     /// <inheritdoc/>
-    public override string Message => $"Can't read the {Part} of the object array at {Array}: reading {Address} failed. {Cause.Message}";
+    public override string Message
+        => SR.FormatObjectArrayCountUnreadable(Array, Address, Cause.Message);
+}
+
+/// <summary>
+///     Represents a data pointer of an object array that did not read.
+/// </summary>
+/// <param name="Array">The address of the array.</param>
+/// <param name="Address">The address of the failed read.</param>
+/// <param name="Cause">The error of the read.</param>
+file sealed record DataUnreadableError(
+    Address Array,
+    Address Address,
+    ResultError Cause) : ObjectArrayError
+{
+    /// <inheritdoc/>
+    public override string Message
+        => SR.FormatObjectArrayDataUnreadable(Array, Address, Cause.Message);
 }

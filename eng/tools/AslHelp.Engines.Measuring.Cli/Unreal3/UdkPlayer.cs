@@ -43,8 +43,8 @@ internal sealed class UdkPlayer : IDisposable
     /// <returns>
     ///     The running server.
     /// </returns>
-    /// <exception cref="DirectoryNotFoundException">The player has no <c>Binaries/Win32</c> folder.</exception>
-    /// <exception cref="FileNotFoundException">The player has no map or no <c>UDK.exe</c>.</exception>
+    /// <exception cref="DirectoryNotFoundException">The player doesn't have a <c>Binaries/Win32</c> folder.</exception>
+    /// <exception cref="FileNotFoundException">The player doesn't have a map or a <c>UDK.exe</c>.</exception>
     /// <exception cref="InvalidOperationException">The server exits before it is ready.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     /// <exception cref="TimeoutException">

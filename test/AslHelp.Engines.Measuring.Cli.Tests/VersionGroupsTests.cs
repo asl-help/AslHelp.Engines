@@ -51,7 +51,7 @@ public sealed class VersionGroupsTests
         AssertTwoGroups(groups, _a, _b);
     }
 
-    // A member missing from 1 row keeps it apart even when every value both rows have is equal, because a member in unmeasured has no offset.
+    // A member missing from 1 row keeps it apart even when every shared value is equal, because a member in unmeasured doesn't have an offset.
     [Test]
     public void Find_DifferentMemberKeys_SeparatesTheVersions()
     {
@@ -118,7 +118,7 @@ public sealed class VersionGroupsTests
         AssertTwoGroups(groups, _aAndC, _bAndD);
     }
 
-    // A run where every player failed has no groups.
+    // A run where every player failed doesn't have any groups.
     [Test]
     public void Find_AllRowsFailed_ReturnsEmptyList()
     {

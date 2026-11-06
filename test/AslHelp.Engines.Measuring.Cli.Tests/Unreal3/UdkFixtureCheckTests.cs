@@ -86,7 +86,7 @@ public sealed class UdkFixtureCheckTests(
         Assert.That(_image.Memory.ReadsAt(filler + layout.Class), Is.Zero);
     }
 
-    // The object array has no fixed order, so an instance in front of its class still counts.
+    // The object array doesn't have a fixed order, so an instance in front of its class still counts.
     [Test]
     public void Measure_InstanceInFrontOfItsClass_ReadsIt()
     {
@@ -97,7 +97,7 @@ public sealed class UdkFixtureCheckTests(
         Assert.That(MeasureAndLog(), Does.Contain($"at {Filler}"));
     }
 
-    // A class without its name in the table has no candidates, which fails on the class and not on the instance.
+    // A class without its name in the table doesn't have any candidates, which fails on the class and not on the instance.
     [Test]
     public void Measure_NoObjectWithTheClassName_FailsClassNotFound()
     {
@@ -186,7 +186,7 @@ public sealed class UdkFixtureCheckTests(
         Assert.That(MeasureError(), Is.EqualTo($"{UdkSR.FormatFixtureValueUnreadable(address)} No block contains {address}."));
     }
 
-    // An object that does not read has no name, so it does not count as the instance.
+    // An object that does not read doesn't have a name, so it does not count as the instance.
     [Test]
     public void Measure_InstanceUnreadable_FailsInstanceNotFound()
     {

@@ -1,4 +1,5 @@
 using AslHelp.Memory;
+using System.Globalization;
 
 namespace AslHelp.Engines.Unreal.Errors;
 
@@ -104,7 +105,7 @@ internal abstract record NameTableError : ResultError
     /// </returns>
     public static NameTableError IndexUnreadable(int id, Address entry, Address address, int offset, ResultError cause)
     {
-        return new EntryMemberUnreadableError("index", "NameEntryLayout.Index", id, entry, address, offset, cause);
+        return new EntryIndexUnreadableError(id, entry, address, offset, cause);
     }
 
     /// <summary>
@@ -120,23 +121,19 @@ internal abstract record NameTableError : ResultError
     /// </returns>
     public static NameTableError TextUnreadable(int id, Address entry, Address address, int offset, ResultError cause)
     {
-        return new EntryMemberUnreadableError("text", "NameEntryLayout.Name", id, entry, address, offset, cause);
+        return new EntryTextUnreadableError(id, entry, address, offset, cause);
     }
 }
 
 /// <summary>
-///     Represents a member of an entry that did not read.
+///     Represents an index of a name entry that did not read.
 /// </summary>
-/// <param name="Member">The member in the message.</param>
-/// <param name="LayoutField">The layout field of the member.</param>
 /// <param name="Id">The id of the name.</param>
 /// <param name="Entry">The address of the entry.</param>
-/// <param name="Address">The address of the member.</param>
+/// <param name="Address">The address of the failed read.</param>
 /// <param name="Offset">The offset of the member in the entry.</param>
 /// <param name="Cause">The error of the read.</param>
-file sealed record EntryMemberUnreadableError(
-    string Member,
-    string LayoutField,
+file sealed record EntryIndexUnreadableError(
     int Id,
     Address Entry,
     Address Address,
@@ -145,8 +142,27 @@ file sealed record EntryMemberUnreadableError(
 {
     /// <inheritdoc/>
     public override string Message
-        => $"Can't read the {Member} of name {Id} from its entry at {Entry}: reading {Address} failed. {Cause.Message} "
-        + $"Check {LayoutField} (0x{Offset:X}) against this engine version.";
+        => SR.FormatNameEntryIndexUnreadable(Id, Entry, Address, Cause.Message, Offset.ToString("X", CultureInfo.InvariantCulture));
+}
+
+/// <summary>
+///     Represents the text of a name entry that did not read.
+/// </summary>
+/// <param name="Id">The id of the name.</param>
+/// <param name="Entry">The address of the entry.</param>
+/// <param name="Address">The address of the failed read.</param>
+/// <param name="Offset">The offset of the member in the entry.</param>
+/// <param name="Cause">The error of the read.</param>
+file sealed record EntryTextUnreadableError(
+    int Id,
+    Address Entry,
+    Address Address,
+    int Offset,
+    ResultError Cause) : NameTableError
+{
+    /// <inheritdoc/>
+    public override string Message
+        => SR.FormatNameEntryTextUnreadable(Id, Entry, Address, Cause.Message, Offset.ToString("X", CultureInfo.InvariantCulture));
 }
 
 /// <summary>
@@ -157,7 +173,7 @@ file sealed record EntryNullError(
     int Id) : NameTableError
 {
     /// <inheritdoc/>
-    public override string Message => $"The entry pointer of name {Id} is 0.";
+    public override string Message => SR.FormatNameEntryNull(Id);
 }
 
 /// <summary>
@@ -172,7 +188,7 @@ file sealed record EntryPointerUnreadableError(
     ResultError Cause) : NameTableError
 {
     /// <inheritdoc/>
-    public override string Message => $"Can't read the entry pointer of name {Id}: reading {Address} failed. {Cause.Message}";
+    public override string Message => SR.FormatNameEntryPointerUnreadable(Id, Address, Cause.Message);
 }
 
 /// <summary>
@@ -187,7 +203,7 @@ file sealed record HeaderUnreadableError(
     ResultError Cause) : NameTableError
 {
     /// <inheritdoc/>
-    public override string Message => $"Can't read the header of the name array at {Array}: reading {Address} failed. {Cause.Message}";
+    public override string Message => SR.FormatNameArrayHeaderUnreadable(Array, Address, Cause.Message);
 }
 
 /// <summary>
@@ -198,7 +214,7 @@ file sealed record IdNegativeError(
     int Id) : NameTableError
 {
     /// <inheritdoc/>
-    public override string Message => $"Name {Id} is below 0.";
+    public override string Message => SR.FormatNameIdNegative(Id);
 }
 
 /// <summary>
@@ -211,7 +227,7 @@ file sealed record IdOutOfRangeError(
     int Count) : NameTableError
 {
     /// <inheritdoc/>
-    public override string Message => $"Name {Id} is outside the array of {Count} names.";
+    public override string Message => SR.FormatNameIdOutOfRange(Id, Count);
 }
 
 /// <summary>
@@ -229,6 +245,5 @@ file sealed record IndexMismatchError(
 {
     /// <inheritdoc/>
     public override string Message
-        => $"The entry of name {Id} at {Entry} has index {Index}, which is name {Index >> 1}. "
-        + $"Check NameEntryLayout.Index (0x{Offset:X}) against this engine version.";
+        => SR.FormatNameEntryIndexMismatch(Id, Entry, Index, Index >> 1, Offset.ToString("X", CultureInfo.InvariantCulture));
 }

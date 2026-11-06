@@ -106,20 +106,20 @@ public sealed class DownloaderTimeoutEdgeCaseTests
 
         return _downloader;
     }
+}
 
-    /// <summary>
-    ///     Moves the clock forward by a fixed time on each report, like a console write that blocks during a text selection.
-    /// </summary>
-    /// <param name="clock">The clock that each report moves forward.</param>
-    /// <param name="block">The time each report takes on <paramref name="clock"/>.</param>
-    private sealed class BlockingProgress(
-        ManualTimeProvider clock,
-        TimeSpan block) : IProgress<TransferProgress>
+/// <summary>
+///     Moves the clock forward by a fixed time on each report, like a console write that blocks during a text selection.
+/// </summary>
+/// <param name="clock">The clock that each report moves forward.</param>
+/// <param name="block">The time each report takes on <paramref name="clock"/>.</param>
+file sealed class BlockingProgress(
+    ManualTimeProvider clock,
+    TimeSpan block) : IProgress<TransferProgress>
+{
+    /// <inheritdoc/>
+    public void Report(TransferProgress value)
     {
-        /// <inheritdoc/>
-        public void Report(TransferProgress value)
-        {
-            clock.Advance(block);
-        }
+        clock.Advance(block);
     }
 }

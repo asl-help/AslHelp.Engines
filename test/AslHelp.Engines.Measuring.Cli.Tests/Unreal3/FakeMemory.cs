@@ -108,15 +108,15 @@ internal sealed class FakeMemory : IMemoryReader
 
         throw new ArgumentOutOfRangeException(nameof(address), address, "No block contains this address.");
     }
+}
 
-    /// <summary>
-    ///     Represents a read outside the blocks.
-    /// </summary>
-    /// <param name="Address">The address of the read.</param>
-    private sealed record UnreadableError(
-        Address Address) : ResultError
-    {
-        /// <inheritdoc/>
-        public override string Message => $"No block contains {Address}.";
-    }
+/// <summary>
+///     Represents a read outside the blocks.
+/// </summary>
+/// <param name="Address">The address of the read.</param>
+file sealed record UnreadableError(
+    Address Address) : ResultError
+{
+    /// <inheritdoc/>
+    public override string Message => $"No block contains {Address}.";
 }

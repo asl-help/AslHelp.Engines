@@ -176,72 +176,72 @@ internal static class SelfExtractingZip
 
         return directoryEndPosition - directorySize - directoryOffset;
     }
+}
 
-    /// <summary>
-    ///     Shows the part of a file after the stub as a stream of its own, so the zip offsets line up.
-    /// </summary>
-    /// <param name="file">The file. The stream disposes it.</param>
-    /// <param name="start">The stub length.</param>
-    private sealed class PayloadStream(
-        FileStream file,
-        long start) : Stream
+/// <summary>
+///     Shows the part of a file after the stub as a stream of its own, so the zip offsets line up.
+/// </summary>
+/// <param name="file">The file. The stream disposes it.</param>
+/// <param name="start">The stub length.</param>
+file sealed class PayloadStream(
+    FileStream file,
+    long start) : Stream
+{
+    public override bool CanRead => true;
+
+    public override bool CanSeek => true;
+
+    public override bool CanWrite => false;
+
+    public override long Length => file.Length - start;
+
+    public override long Position
     {
-        public override bool CanRead => true;
+        get => file.Position - start;
+        set => file.Position = value + start;
+    }
 
-        public override bool CanSeek => true;
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        return file.Read(buffer, offset, count);
+    }
 
-        public override bool CanWrite => false;
+    public override int Read(Span<byte> buffer)
+    {
+        return file.Read(buffer);
+    }
 
-        public override long Length => file.Length - start;
-
-        public override long Position
+    public override long Seek(long offset, SeekOrigin origin)
+    {
+        return origin switch
         {
-            get => file.Position - start;
-            set => file.Position = value + start;
+            SeekOrigin.Begin => file.Seek(offset + start, SeekOrigin.Begin) - start,
+            SeekOrigin.Current or SeekOrigin.End => file.Seek(offset, origin) - start,
+            _ => throw new ArgumentOutOfRangeException(nameof(origin), origin, SR.SeekOriginInvalid),
+        };
+    }
+
+    public override void Flush()
+    {
+    }
+
+    public override void SetLength(long value)
+    {
+        throw new NotSupportedException();
+    }
+
+    public override void Write(byte[] buffer, int offset, int count)
+    {
+        throw new NotSupportedException();
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            file.Dispose();
         }
 
-        public override int Read(byte[] buffer, int offset, int count)
-        {
-            return file.Read(buffer, offset, count);
-        }
-
-        public override int Read(Span<byte> buffer)
-        {
-            return file.Read(buffer);
-        }
-
-        public override long Seek(long offset, SeekOrigin origin)
-        {
-            return origin switch
-            {
-                SeekOrigin.Begin => file.Seek(offset + start, SeekOrigin.Begin) - start,
-                SeekOrigin.Current or SeekOrigin.End => file.Seek(offset, origin) - start,
-                _ => throw new ArgumentOutOfRangeException(nameof(origin), origin, SR.SeekOriginInvalid),
-            };
-        }
-
-        public override void Flush()
-        {
-        }
-
-        public override void SetLength(long value)
-        {
-            throw new NotSupportedException();
-        }
-
-        public override void Write(byte[] buffer, int offset, int count)
-        {
-            throw new NotSupportedException();
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                file.Dispose();
-            }
-
-            base.Dispose(disposing);
-        }
+        base.Dispose(disposing);
     }
 }

@@ -659,46 +659,46 @@ public sealed class CommandLineTests
     {
         return CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [measurer], new WriterLogger(_output, _error));
     }
+}
 
-    // Records the event ID of each line with the number of scopes open at that line.
-    private sealed class ScopeLogger : ILogger
+// Records the event ID of each line with the number of scopes open at that line.
+file sealed class ScopeLogger : ILogger
+{
+    private readonly LoggerExternalScopeProvider _scopes = new();
+
+    public List<(int EventId, int Scopes)> Lines { get; } = [];
+
+    public IDisposable? BeginScope<TState>(TState state)
+        where TState : notnull
     {
-        private readonly LoggerExternalScopeProvider _scopes = new();
-
-        public List<(int EventId, int Scopes)> Lines { get; } = [];
-
-        public IDisposable? BeginScope<TState>(TState state)
-            where TState : notnull
-        {
-            return _scopes.Push(state);
-        }
-
-        public bool IsEnabled(LogLevel logLevel)
-        {
-            return true;
-        }
-
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-        {
-            StrongBox<int> scopes = new();
-            _scopes.ForEachScope(static (_, count) => count.Value++, scopes);
-
-            Lines.Add((eventId.Id, scopes.Value));
-        }
+        return _scopes.Push(state);
     }
 
-    private sealed class ScriptedMeasurer(
-        Func<string, PlayerMeasurement> measure) : IEngineMeasurer
+    public bool IsEnabled(LogLevel logLevel)
     {
-        public string Name => "engine";
+        return true;
+    }
 
-        public void LoadTargets(string? path)
-        {
-        }
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+    {
+        StrongBox<int> scopes = new();
+        _scopes.ForEachScope(static (_, count) => count.Value++, scopes);
 
-        public Task<PlayerMeasurement> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
-        {
-            return Task.FromResult(measure(playerDirectory));
-        }
+        Lines.Add((eventId.Id, scopes.Value));
+    }
+}
+
+file sealed class ScriptedMeasurer(
+    Func<string, PlayerMeasurement> measure) : IEngineMeasurer
+{
+    public string Name => "engine";
+
+    public void LoadTargets(string? path)
+    {
+    }
+
+    public Task<PlayerMeasurement> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
+    {
+        return Task.FromResult(measure(playerDirectory));
     }
 }

@@ -1,3 +1,4 @@
+using AslHelp.Engines.Fixtures.Unreal3;
 using System;
 using System.IO;
 using System.Threading;
@@ -41,7 +42,7 @@ internal static class UdkProject
     ///     Represents the compiler arguments.
     /// </summary>
     /// <remarks>
-    ///     <c>-nullrhi</c> turns rendering off, because a container has no display mode. Without it D3D9
+    ///     <c>-nullrhi</c> turns rendering off, because a container doesn't have a display mode. Without it D3D9
     ///     <c>GetAdapterDisplayMode</c> fails and make exits with code 3.
     /// </remarks>
     private const string CompilerArguments = "make -unattended -nullrhi";
@@ -89,7 +90,7 @@ internal static class UdkProject
     ///     <paramref name="installDirectory"/> or <paramref name="classesDirectory"/> is <see langword="null"/>.
     /// </exception>
     /// <exception cref="DirectoryNotFoundException"><paramref name="classesDirectory"/> does not exist.</exception>
-    /// <exception cref="FileNotFoundException">The install has no <c>UDKGame/Config/DefaultEngineUDK.ini</c>.</exception>
+    /// <exception cref="FileNotFoundException">The install doesn't have <c>UDKGame/Config/DefaultEngineUDK.ini</c>.</exception>
     /// <exception cref="IOException">A copy, the write or the move fails.</exception>
     /// <exception cref="InvalidDataException">
     ///     The config file has neither <c>;ModEditPackages=MyMod</c> nor <c>ModEditPackages=Fixture</c> as a line.
@@ -102,14 +103,14 @@ internal static class UdkProject
         // Check both inputs before any write, so a bad install stays untouched.
         if (!Directory.Exists(classesDirectory))
         {
-            throw new DirectoryNotFoundException(SR.Format(UdkSR.ClassesFolderNotFound, classesDirectory));
+            throw new DirectoryNotFoundException(UdkSR.FormatClassesFolderNotFound(classesDirectory));
         }
 
         string iniPath = Path.Combine(installDirectory, DefaultEngineConfigPath);
 
         if (!File.Exists(iniPath))
         {
-            throw new FileNotFoundException(SR.Format(UdkSR.ConfigNotFound, iniPath), iniPath);
+            throw new FileNotFoundException(UdkSR.FormatConfigNotFound(iniPath), iniPath);
         }
 
         string[] lines = File.ReadAllLines(iniPath);
@@ -118,7 +119,7 @@ internal static class UdkProject
 
         if (!enabled && templateLine < 0)
         {
-            throw new InvalidDataException(SR.Format(UdkSR.ConfigLineMissing, iniPath, TemplatePackageLine, EnabledPackageLine));
+            throw new InvalidDataException(UdkSR.FormatConfigLineMissing(iniPath, TemplatePackageLine, EnabledPackageLine));
         }
 
         ReplaceDirectory(classesDirectory, Path.Combine(installDirectory, ClassesPath));
@@ -136,7 +137,7 @@ internal static class UdkProject
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                throw new IOException(SR.Format(UdkSR.PartialNotMoved, partialPath, iniPath), exception);
+                throw new IOException(UdkSR.FormatPartialNotMoved(partialPath, iniPath), exception);
             }
         }
 
@@ -144,11 +145,11 @@ internal static class UdkProject
     }
 
     /// <summary>
-    ///     Throws if the install in <paramref name="installDirectory"/> has no <c>UDK.com</c>.
+    ///     Throws if the install in <paramref name="installDirectory"/> doesn't have <c>UDK.com</c>.
     /// </summary>
     /// <param name="installDirectory">The extracted install.</param>
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
-    /// <exception cref="FileNotFoundException">The install has no <c>UDK.com</c>.</exception>
+    /// <exception cref="FileNotFoundException">The install doesn't have <c>UDK.com</c>.</exception>
     public static void ThrowIfNoCompiler(string installDirectory)
     {
         ArgumentNullException.ThrowIfNull(installDirectory);
@@ -157,7 +158,7 @@ internal static class UdkProject
 
         if (!File.Exists(compilerPath))
         {
-            throw new FileNotFoundException(SR.Format(UdkSR.CompilerNotFound, compilerPath), compilerPath);
+            throw new FileNotFoundException(UdkSR.FormatCompilerNotFound(compilerPath), compilerPath);
         }
     }
 
@@ -178,7 +179,7 @@ internal static class UdkProject
     ///     A task that completes once <c>UDKGame/Script/Fixture.u</c> is written.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
-    /// <exception cref="FileNotFoundException">The install has no <c>UDK.com</c>.</exception>
+    /// <exception cref="FileNotFoundException">The install doesn't have <c>UDK.com</c>.</exception>
     /// <exception cref="InvalidOperationException">
     ///     The host cannot run anything or <c>UDK.com</c> exits with a code other than 0 or exits with 0 but does not write
     ///     <c>UDKGame/Script/Fixture.u</c>.
@@ -221,7 +222,7 @@ internal static class UdkProject
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new TimeoutException(SR.Format(UdkSR.MakeNotDone, timeout.TotalSeconds, NextStep(logPath, compilerPath)));
+                throw new TimeoutException(UdkSR.FormatMakeNotDone(timeout.TotalSeconds, NextStep(logPath, compilerPath)));
             }
 
             exitCode = player.ExitCode;
@@ -229,13 +230,13 @@ internal static class UdkProject
 
         if (exitCode != 0)
         {
-            throw new InvalidOperationException(SR.Format(UdkSR.MakeFailed, exitCode, NextStep(logPath, compilerPath)));
+            throw new InvalidOperationException(UdkSR.FormatMakeFailed(exitCode, NextStep(logPath, compilerPath)));
         }
 
         // Check the package too, because UDK.com can exit with 0 after a failed compile.
         if (!File.Exists(packagePath))
         {
-            throw new InvalidOperationException(SR.Format(UdkSR.MakeNoPackage, packagePath, logPath, EnabledPackageLine));
+            throw new InvalidOperationException(UdkSR.FormatMakeNoPackage(packagePath, logPath, EnabledPackageLine));
         }
     }
 
@@ -251,8 +252,8 @@ internal static class UdkProject
     private static string NextStep(string logPath, string compilerPath)
     {
         return File.Exists(logPath)
-            ? SR.Format(UdkSR.MakeLogFix, logPath)
-            : SR.Format(UdkSR.MakeStartFix, compilerPath);
+            ? UdkSR.FormatMakeLogFix(logPath)
+            : UdkSR.FormatMakeStartFix(compilerPath);
     }
 
     /// <summary>

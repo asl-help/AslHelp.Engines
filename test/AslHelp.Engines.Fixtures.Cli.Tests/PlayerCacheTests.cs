@@ -391,7 +391,7 @@ public sealed class PlayerCacheTests
     }
 
     // A store copy that is cut short fails with players/<toolchain>/<version>/<hash>.tar.zst and the word store in the message,
-    // keeps the reason of the failed unpack as the cause, deletes the download and sends no other request to the store.
+    // keeps the reason of the failed unpack as the cause, deletes the download and doesn't send any other request to the store.
     [Test]
     public async Task TryRestoreAsync_StoreArchiveCutShort_ThrowsWithStorePathAndDeletesDownload()
     {
@@ -533,24 +533,24 @@ public sealed class PlayerCacheTests
             Assert.That(inputs, Is.EqualTo(key.Inputs));
         }
     }
+}
 
-    /// <summary>
-    ///     Cancels <paramref name="source"/> once a line that starts with <paramref name="prefix"/> is written, so a test
-    ///     stops the step that follows that line.
-    /// </summary>
-    /// <param name="prefix">The start of the line that cancels.</param>
-    /// <param name="source">The source to cancel.</param>
-    private sealed class CancelingWriter(
-        string prefix,
-        CancellationTokenSource source) : StringWriter
+/// <summary>
+///     Cancels <paramref name="source"/> once a line that starts with <paramref name="prefix"/> is written, so a test
+///     stops the step that follows that line.
+/// </summary>
+/// <param name="prefix">The start of the line that cancels.</param>
+/// <param name="source">The source to cancel.</param>
+file sealed class CancelingWriter(
+    string prefix,
+    CancellationTokenSource source) : StringWriter
+{
+    /// <inheritdoc/>
+    public override async Task WriteLineAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
     {
-        /// <inheritdoc/>
-        public override async Task WriteLineAsync(ReadOnlyMemory<char> buffer, CancellationToken cancellationToken = default)
+        if (buffer.Span.StartsWith(prefix, StringComparison.Ordinal))
         {
-            if (buffer.Span.StartsWith(prefix, StringComparison.Ordinal))
-            {
-                await source.CancelAsync().ConfigureAwait(false);
-            }
+            await source.CancelAsync().ConfigureAwait(false);
         }
     }
 }

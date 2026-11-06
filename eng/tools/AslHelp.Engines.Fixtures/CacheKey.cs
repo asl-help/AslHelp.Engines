@@ -13,7 +13,10 @@ namespace AslHelp.Engines.Fixtures;
 public sealed record CacheKey
 {
     private const int HashLength = 64;
-    private const int ShortHashLength = 16;
+    /// <summary>
+    ///     Represents the number of hex chars in <see cref="ShortHash"/>.
+    /// </summary>
+    public const int ShortHashLength = 16;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="CacheKey"/> class.
@@ -84,7 +87,7 @@ public sealed record CacheKey
 
         if (!IsName(value))
         {
-            throw new ArgumentException(SR.Format(SR.InvalidKeyName, value), paramName);
+            throw new ArgumentException(SR.FormatInvalidKeyName(value), paramName);
         }
     }
 

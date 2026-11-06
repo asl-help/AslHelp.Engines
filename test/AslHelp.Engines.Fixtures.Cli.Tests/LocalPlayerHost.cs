@@ -14,23 +14,23 @@ internal sealed class LocalPlayerHost : IPlayerHost
 
         return Task.FromResult<IPlayerRun>(new LocalPlayerRun(Player.Start(info)));
     }
+}
 
-    private sealed class LocalPlayerRun(Player player) : IPlayerRun
+file sealed class LocalPlayerRun(Player player) : IPlayerRun
+{
+    public bool HasExited => player.HasExited;
+
+    public int ExitCode => player.Process.ExitCode;
+
+    public Task WaitForExitAsync(CancellationToken cancellationToken)
     {
-        public bool HasExited => player.HasExited;
+        return player.Process.WaitForExitAsync(cancellationToken);
+    }
 
-        public int ExitCode => player.Process.ExitCode;
+    public ValueTask DisposeAsync()
+    {
+        player.Dispose();
 
-        public Task WaitForExitAsync(CancellationToken cancellationToken)
-        {
-            return player.Process.WaitForExitAsync(cancellationToken);
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            player.Dispose();
-
-            return ValueTask.CompletedTask;
-        }
+        return ValueTask.CompletedTask;
     }
 }

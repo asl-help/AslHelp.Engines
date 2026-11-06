@@ -98,7 +98,7 @@ internal sealed class UdkRedist : IDisposable
     /// </remarks>
     /// <param name="installDirectory">The extracted install.</param>
     /// <param name="version">The version, for the message.</param>
-    /// <exception cref="InvalidDataException">The redist has no zip in it or a damaged one.</exception>
+    /// <exception cref="InvalidDataException">The redist doesn't have a zip in it or has a damaged one.</exception>
     /// <exception cref="InvalidOperationException">The redist has the PhysX installer.</exception>
     public static void ThrowIfNeedsPhysXInstaller(string installDirectory, string version)
     {
@@ -112,7 +112,7 @@ internal sealed class UdkRedist : IDisposable
         // Refuse the install, because the engine stops at startup until that installer has run on the machine.
         if (redist._archive.GetEntry(PhysXInstallerEntry) is not null)
         {
-            throw new InvalidOperationException(SR.Format(UdkSR.UdkNeedsPhysXInstaller, version));
+            throw new InvalidOperationException(UdkSR.FormatUdkNeedsPhysXInstaller(version));
         }
     }
 
@@ -125,7 +125,7 @@ internal sealed class UdkRedist : IDisposable
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="redistPath"/> is <see langword="null"/>.</exception>
     /// <exception cref="FileNotFoundException"><paramref name="redistPath"/> does not exist.</exception>
-    /// <exception cref="InvalidDataException">The file has no zip in it or a damaged one.</exception>
+    /// <exception cref="InvalidDataException">The file doesn't have a zip in it or has a damaged one.</exception>
     public static UdkRedist Open(string redistPath)
     {
         ArgumentNullException.ThrowIfNull(redistPath);
@@ -175,14 +175,14 @@ internal sealed class UdkRedist : IDisposable
     ///     <paramref name="entryName"/> or <paramref name="directory"/> is <see langword="null"/>.
     /// </exception>
     /// <exception cref="IOException">The file exists or cannot be written.</exception>
-    /// <exception cref="InvalidDataException">The redist has no entry <paramref name="entryName"/> or it is damaged.</exception>
+    /// <exception cref="InvalidDataException">The redist doesn't have an entry <paramref name="entryName"/> or it is damaged.</exception>
     public void Extract(string entryName, string directory)
     {
         ArgumentNullException.ThrowIfNull(entryName);
         ArgumentNullException.ThrowIfNull(directory);
 
         var entry = _archive.GetEntry(entryName)
-            ?? throw new InvalidDataException(SR.Format(UdkSR.RedistEntryMissing, FilePath, entryName));
+            ?? throw new InvalidDataException(UdkSR.FormatRedistEntryMissing(FilePath, entryName));
 
         entry.ExtractToFile(Path.Combine(directory, Path.GetFileName(entryName)));
     }
@@ -224,7 +224,7 @@ internal sealed class UdkRedist : IDisposable
             catch (InvalidDataException exception)
             {
                 // Put the redist, the entry and the fix in the message, because Cabinet.ReadNames gets only a stream.
-                throw new InvalidDataException(SR.Format(UdkSR.RedistEntryDamaged, name, FilePath, exception.Message), exception);
+                throw new InvalidDataException(UdkSR.FormatRedistEntryDamaged(name, FilePath, exception.Message), exception);
             }
 
             foreach (string file in files)

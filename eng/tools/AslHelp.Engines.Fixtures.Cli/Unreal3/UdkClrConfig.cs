@@ -1,3 +1,4 @@
+using AslHelp.Engines.Fixtures.Unreal3;
 using System;
 using System.IO;
 using System.Xml.Linq;
@@ -28,7 +29,7 @@ internal static class UdkClrConfig
     /// <param name="installDirectory">The extracted install.</param>
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
     /// <exception cref="IOException">A write or a move fails.</exception>
-    /// <exception cref="InvalidDataException">The redist has no zip in it or a damaged one.</exception>
+    /// <exception cref="InvalidDataException">The redist doesn't have a zip in it or has a damaged one.</exception>
     /// <exception cref="System.Xml.XmlException">A config file is not XML.</exception>
     public static void Add(string installDirectory)
     {
@@ -84,7 +85,7 @@ internal static class UdkClrConfig
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            throw new IOException(SR.Format(UdkSR.PartialNotMoved, partialPath, path), exception);
+            throw new IOException(UdkSR.FormatPartialNotMoved(partialPath, path), exception);
         }
     }
 }

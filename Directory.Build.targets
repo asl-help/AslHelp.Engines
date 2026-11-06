@@ -1,13 +1,8 @@
 <Project>
 
-  <!--
-    Generate the resource classes in design-time builds too, because only a full build runs the resource step
-    and dotnet format reads the project through a design-time build.
-  -->
-  <Target
-    Name="GenerateResourcesInDesignTime"
-    BeforeTargets="CoreCompile"
-    DependsOnTargets="PrepareResources"
-    Condition="'$(DesignTimeBuild)' == 'true'" />
+  <!-- Generate a typed Format method for each message with placeholders. -->
+  <ItemGroup>
+    <EmbeddedResource Update="**/*.resx" EmitFormatMethods="true" />
+  </ItemGroup>
 
 </Project>

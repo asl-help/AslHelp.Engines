@@ -45,7 +45,7 @@ internal sealed record PinnedHash
     {
         ArgumentNullException.ThrowIfNull(hex);
 
-        return IsSha1Hex(hex) ? new PinnedHash(hex) : throw new FormatException(SR.Format(SR.PinnedHashInvalid, hex));
+        return IsSha1Hex(hex) ? new PinnedHash(hex) : throw new FormatException(SR.FormatPinnedHashInvalid(hex));
     }
 
     /// <summary>

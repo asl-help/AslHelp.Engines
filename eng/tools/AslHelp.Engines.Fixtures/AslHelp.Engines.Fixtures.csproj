@@ -9,14 +9,4 @@
     <PackageReference Include="Microsoft.Windows.CsWin32" PrivateAssets="all" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Generate the SR class from the messages, so the code reads them by name. -->
-    <EmbeddedResource
-      Update="SR.resx"
-      StronglyTypedLanguage="CSharp"
-      StronglyTypedClassName="SR"
-      StronglyTypedNamespace="$(RootNamespace)"
-      StronglyTypedFileName="$(IntermediateOutputPath)SR.g.cs" />
-  </ItemGroup>
-
 </Project>

@@ -78,7 +78,7 @@ public sealed record PlayerStartInfo
         {
             if (value < TimeSpan.Zero || value > _maxLockTimeout)
             {
-                throw new ArgumentOutOfRangeException(nameof(LockTimeout), value, SR.Format(SR.LockTimeoutOutOfRange, _maxLockTimeout));
+                throw new ArgumentOutOfRangeException(nameof(LockTimeout), value, SR.FormatLockTimeoutOutOfRange(_maxLockTimeout));
             }
 
             field = value;

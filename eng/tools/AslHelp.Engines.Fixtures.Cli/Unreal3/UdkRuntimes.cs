@@ -1,3 +1,4 @@
+using AslHelp.Engines.Fixtures.Unreal3;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -28,7 +29,7 @@ internal static class UdkRuntimes
     ///     The runtime DLL names in ordinal order without case, each spelled as its 1st importer spells it.
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="binariesDirectory"/> is <see langword="null"/>.</exception>
-    /// <exception cref="FileNotFoundException">The folder has no <c>UDK.exe</c>.</exception>
+    /// <exception cref="FileNotFoundException">The folder doesn't have <c>UDK.exe</c>.</exception>
     /// <exception cref="InvalidDataException">A file that <c>UDK.exe</c> or a DLL it loads imports is not a PE file.</exception>
     public static IReadOnlyList<string> FindImports(string binariesDirectory)
     {
@@ -38,7 +39,7 @@ internal static class UdkRuntimes
 
         if (!File.Exists(serverPath))
         {
-            throw new FileNotFoundException(SR.Format(UdkSR.ServerNotFound, serverPath), serverPath);
+            throw new FileNotFoundException(UdkSR.FormatServerNotFound(serverPath), serverPath);
         }
 
         SortedSet<string> runtimes = [with(StringComparer.OrdinalIgnoreCase)];
@@ -89,7 +90,7 @@ internal static class UdkRuntimes
     /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="installDirectory"/> is <see langword="null"/>.</exception>
     /// <exception cref="FileNotFoundException">
-    ///     The install has no <c>UDK.exe</c> or a DLL is missing and the install has no <c>UE3Redist.exe</c>.
+    ///     The install doesn't have <c>UDK.exe</c> or a DLL is missing and the install doesn't have <c>UE3Redist.exe</c>.
     /// </exception>
     /// <exception cref="IOException">An extraction, a copy or a move fails.</exception>
     /// <exception cref="InvalidDataException">
@@ -155,8 +156,7 @@ internal static class UdkRuntimes
 
         string redistPath = UdkRedist.FindPath(installDirectory)
             ?? throw new FileNotFoundException(
-                SR.Format(
-                    UdkSR.RedistNotFound,
+                UdkSR.FormatRedistNotFound(
                     Path.Combine(installDirectory, UdkRedist.RedistPath),
                     Path.Combine(installDirectory, UdkRedist.WindowsRedistPath),
                     binaries,
@@ -196,7 +196,7 @@ internal static class UdkRuntimes
             {
                 if (!File.Exists(Path.Combine(tempDirectory, runtime)))
                 {
-                    throw new InvalidDataException(SR.Format(UdkSR.RedistRuntimeMissing, redistPath, runtime, binaries));
+                    throw new InvalidDataException(UdkSR.FormatRedistRuntimeMissing(redistPath, runtime));
                 }
             }
 
@@ -214,7 +214,7 @@ internal static class UdkRuntimes
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
                 {
-                    throw new IOException(SR.Format(UdkSR.PartialNotMoved, partialPath, runtimePath), exception);
+                    throw new IOException(UdkSR.FormatPartialNotMoved(partialPath, runtimePath), exception);
                 }
             }
         }

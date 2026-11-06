@@ -110,37 +110,37 @@ internal sealed class TransferBars
                 new RemainingTimeColumn())
             .StartAsync(context => transfer(new Bar(context, description)));
     }
+}
 
-    /// <summary>
-    ///     Moves 1 bar to each report of a transfer and adds the bar on the 1st report that has a length.
-    /// </summary>
-    /// <param name="context">The progress display that the bar belongs to.</param>
-    /// <param name="description">The name of the bar.</param>
-    private sealed class Bar(
-        ProgressContext context,
-        string description) : IProgress<TransferProgress>
+/// <summary>
+///     Moves 1 bar to each report of a transfer and adds the bar on the 1st report that has a length.
+/// </summary>
+/// <param name="context">The progress display that the bar belongs to.</param>
+/// <param name="description">The name of the bar.</param>
+file sealed class Bar(
+    ProgressContext context,
+    string description) : IProgress<TransferProgress>
+{
+    private ProgressTask? _task;
+
+    /// <inheritdoc/>
+    public void Report(TransferProgress value)
     {
-        private ProgressTask? _task;
-
-        /// <inheritdoc/>
-        public void Report(TransferProgress value)
+        // Skip a report with no length, because a bar without an end would count as done at its 1st chunk.
+        if (value.Length is not { } length)
         {
-            // Skip a report with no length, because a bar without an end would count as done at its 1st chunk.
-            if (value.Length is not { } length)
-            {
-                return;
-            }
-
-            // Escape the name, because the display reads it as markup and a '[' in a path would throw on its refresh thread.
-            _task ??= context.AddTask(Markup.Escape(description), maxValue: length);
-
-            // Set the length only when it changes, because every change adds a sample to the speed.
-            if (_task.MaxValue != length)
-            {
-                _task.MaxValue = length;
-            }
-
-            _task.Value = value.Bytes;
+            return;
         }
+
+        // Escape the name, because the display reads it as markup and a '[' in a path would throw on its refresh thread.
+        _task ??= context.AddTask(Markup.Escape(description), maxValue: length);
+
+        // Set the length only when it changes, because every change adds a sample to the speed.
+        if (_task.MaxValue != length)
+        {
+            _task.MaxValue = length;
+        }
+
+        _task.Value = value.Bytes;
     }
 }

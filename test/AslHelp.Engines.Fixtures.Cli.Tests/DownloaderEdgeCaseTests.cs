@@ -253,7 +253,7 @@ public sealed class DownloaderEdgeCaseTests
         }
     }
 
-    // A 206 whose Content-Range has no start is refused with the header in the message.
+    // A 206 whose Content-Range doesn't have a start is refused with the header in the message.
     [Test]
     public async Task DownloadAsync_Status206WithUnsatisfiedContentRange_MessageQuotesHeader()
     {

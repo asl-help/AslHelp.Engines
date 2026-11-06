@@ -19,7 +19,7 @@
     <value>The compiler '{0}' does not exist. Delete the install folder and run the build again, so the installer is extracted again.</value>
   </data>
   <data name="ConfigLineMissing" xml:space="preserve">
-    <value>The config file '{0}' has no line '{1}' to replace. Add '{2}' under [UnrealEd.EditorEngine] by hand.</value>
+    <value>The config file '{0}' doesn't have a line '{1}' to replace. Add '{2}' under [UnrealEd.EditorEngine] by hand.</value>
   </data>
   <data name="ConfigNotFound" xml:space="preserve">
     <value>The config file '{0}' does not exist. Only installs with the UDKGame layout, UDK 2010 and later, are supported.</value>
@@ -34,7 +34,7 @@
     <value>{0} is not a valid installer file. {1} Fix the file and build the tool again.</value>
   </data>
   <data name="InstallersNotEmbedded" xml:space="preserve">
-    <value>The tool has no embedded {0}. Build the tool again.</value>
+    <value>The tool doesn't have {0} embedded. Build the tool again.</value>
   </data>
   <data name="InstallersNull" xml:space="preserve">
     <value>{0} is null. Write a JSON array of rows, 1 per version.</value>
@@ -54,9 +54,6 @@
   <data name="MakeStartFix" xml:space="preserve">
     <value>The compiler did not start. Run '{0}' by hand to see why.</value>
   </data>
-  <data name="MapNotFound" xml:space="preserve">
-    <value>There is no {0} map under '{1}'. Delete the install folder and run the build again, so the installer is extracted again.</value>
-  </data>
   <data name="PartialNotMoved" xml:space="preserve">
     <value>The file is complete at '{0}' but cannot be moved to '{1}'. Close what has either file open and run the build again.</value>
   </data>
@@ -67,7 +64,7 @@
     <value>The entry '{0}' of the redist '{1}' is damaged. {2} Delete the install folder and run the build again, so the installer is extracted again.</value>
   </data>
   <data name="RedistEntryMissing" xml:space="preserve">
-    <value>The redist '{0}' has no entry '{1}'. Delete the install folder and run the build again, so the installer is extracted again.</value>
+    <value>The redist '{0}' doesn't have an entry '{1}'. Delete the install folder and run the build again, so the installer is extracted again.</value>
   </data>
   <data name="RedistNotFound" xml:space="preserve">
     <value>The install has neither '{0}' nor '{1}' and '{2}' lacks {3}. Delete the install folder and run the build again, so the installer is extracted again.</value>
@@ -100,7 +97,7 @@
     <value>There is no pinned UDK installer for version '{0}'. Pass 1 of: {1}. To add a version, copy its sha1 from https://archive.org/metadata/{2} into {3} in version order. The readme section 'Adding a UDK version' has the steps.</value>
   </data>
   <data name="Vc2010InstallerMissing" xml:space="preserve">
-    <value>The redist '{0}' has no entry '{1}', which '{2}' needs for the Visual C++ 2010 DLLs. Delete the install folder and run the build again, so the installer is extracted again.</value>
+    <value>The redist '{0}' doesn't have an entry '{1}', which '{2}' needs for the Visual C++ 2010 DLLs. Delete the install folder and run the build again, so the installer is extracted again.</value>
   </data>
   <data name="VcImporter" xml:space="preserve">
     <value>'{0}' or a DLL it loads</value>

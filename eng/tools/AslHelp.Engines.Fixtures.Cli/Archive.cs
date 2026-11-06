@@ -48,12 +48,12 @@ internal static class Archive
 
         if (!Directory.Exists(sourceDirectory))
         {
-            throw new DirectoryNotFoundException(SR.Format(SR.PackFolderNotFound, sourceDirectory));
+            throw new DirectoryNotFoundException(SR.FormatPackFolderNotFound(sourceDirectory));
         }
 
         if (Directory.Exists(archivePath))
         {
-            throw new IOException(SR.Format(SR.ArchivePathIsFolder, archivePath));
+            throw new IOException(SR.FormatArchivePathIsFolder(archivePath));
         }
 
         var entries = CollectEntries(sourceDirectory);
@@ -77,7 +77,7 @@ internal static class Archive
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            throw new IOException(SR.Format(SR.ArchiveNotReplaced, tempPath, archivePath), exception);
+            throw new IOException(SR.FormatArchiveNotReplaced(tempPath, archivePath), exception);
         }
     }
 
@@ -113,14 +113,14 @@ internal static class Archive
 
         if (File.Exists(destination))
         {
-            throw new IOException(SR.Format(SR.UnpackDestinationIsFile, destination));
+            throw new IOException(SR.FormatUnpackDestinationIsFile(destination));
         }
 
         bool destinationExists = Directory.Exists(destination);
 
         if (destinationExists && Directory.EnumerateFileSystemEntries(destination).Any())
         {
-            throw new IOException(SR.Format(SR.UnpackFolderNotEmpty, destination));
+            throw new IOException(SR.FormatUnpackFolderNotEmpty(destination));
         }
 
         string tempDirectory = destination + TempPaths.PartialSuffix;
@@ -156,7 +156,7 @@ internal static class Archive
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            throw new IOException(SR.Format(SR.UnpackNotMoved, tempDirectory, destination), exception);
+            throw new IOException(SR.FormatUnpackNotMoved(tempDirectory, destination), exception);
         }
     }
 
@@ -189,7 +189,7 @@ internal static class Archive
                 // Refuse folder links before the enumeration recurses into them, because a link to a parent loops forever.
                 if (info.Attributes.HasFlag(FileAttributes.ReparsePoint))
                 {
-                    throw new IOException(SR.Format(SR.PackFolderIsLink, info.FullName));
+                    throw new IOException(SR.FormatPackFolderIsLink(info.FullName));
                 }
 
                 name += "/";
@@ -337,7 +337,7 @@ internal static class Archive
     /// </returns>
     private static InvalidDataException NewDamagedException(string archivePath, Exception inner)
     {
-        return new InvalidDataException(SR.Format(SR.ArchiveDamaged, archivePath), inner);
+        return new InvalidDataException(SR.FormatArchiveDamaged(archivePath), inner);
     }
 
     /// <summary>
@@ -391,7 +391,7 @@ internal static class Archive
             default:
             {
                 // Refuse links and every other kind, because a link can point outside the destination.
-                throw new InvalidDataException(SR.Format(SR.ArchiveEntryKind, entry.Name, entry.EntryType));
+                throw new InvalidDataException(SR.FormatArchiveEntryKind(entry.Name, entry.EntryType));
             }
         }
     }
@@ -411,7 +411,7 @@ internal static class Archive
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException && IsTaken(root, path))
         {
-            throw new InvalidDataException(SR.Format(SR.ArchiveEntryTaken, name), exception);
+            throw new InvalidDataException(SR.FormatArchiveEntryTaken(name), exception);
         }
     }
 
@@ -433,7 +433,7 @@ internal static class Archive
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException && IsTaken(root, path))
         {
-            throw new InvalidDataException(SR.Format(SR.ArchiveEntryTaken, name), exception);
+            throw new InvalidDataException(SR.FormatArchiveEntryTaken(name), exception);
         }
     }
 
@@ -482,7 +482,7 @@ internal static class Archive
 
         if (!path.StartsWith(root, StringComparison.Ordinal))
         {
-            throw new InvalidDataException(SR.Format(SR.ArchiveEntryOutside, name));
+            throw new InvalidDataException(SR.FormatArchiveEntryOutside(name));
         }
 
         return path;

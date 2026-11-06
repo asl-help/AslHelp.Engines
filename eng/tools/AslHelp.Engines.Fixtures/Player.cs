@@ -34,8 +34,8 @@ namespace AslHelp.Engines.Fixtures;
 ///     another thread in that time skips the error dialog. A SetErrorMode call from another thread in that time is
 ///     undone.
 ///     <para/>
-///     Player has no finalizer, so always dispose a player. A player that is never disposed keeps the machine lock
-///     until the process that called <see cref="Start"/> exits. Every later <see cref="Start"/> in that process then
+///     Player doesn't have a finalizer, so always dispose a player. A player that is never disposed keeps the machine
+///     lock until the process that called <see cref="Start"/> exits. Every later <see cref="Start"/> in that process then
 ///     times out. The process tree of that player ends sooner, once the garbage collector finalizes the handle of
 ///     its job.
 /// </remarks>
@@ -99,7 +99,7 @@ public sealed class Player : IDisposable
     public bool HasExited => Volatile.Read(ref _disposed) != 0 || PInvoke.WaitForSingleObject(_processHandle, 0) == WAIT_EVENT.WAIT_OBJECT_0;
 
     /// <summary>
-    ///     Starts a player once no other player runs on the machine.
+    ///     Starts a player once any other player on the machine has ended.
     /// </summary>
     /// <param name="info">The executable, arguments and folder of the player to start.</param>
     /// <returns>
@@ -132,12 +132,12 @@ public sealed class Player : IDisposable
         {
             string path = executablePath ?? info.ExecutablePath;
 
-            throw new FileNotFoundException(SR.Format(SR.PlayerNotFound, path), path);
+            throw new FileNotFoundException(SR.FormatPlayerNotFound(path), path);
         }
 
         if (workingDirectory is null || !Directory.Exists(workingDirectory))
         {
-            throw new DirectoryNotFoundException(SR.Format(SR.WorkingFolderNotFound, workingDirectory ?? info.WorkingDirectory));
+            throw new DirectoryNotFoundException(SR.FormatWorkingFolderNotFound(workingDirectory ?? info.WorkingDirectory));
         }
 
         var playerLock = PlayerLock.Acquire(info.LockTimeout);
@@ -270,7 +270,7 @@ public sealed class Player : IDisposable
             if (PInvoke.ResumeThread(threadHandle) == uint.MaxValue)
             {
                 int error = Marshal.GetLastPInvokeError();
-                throw Win32Error(error, SR.Format(SR.ResumeFailed, executablePath), SR.ResumeFix);
+                throw Win32Error(error, SR.FormatResumeFailed(executablePath), SR.ResumeFix);
             }
 
             var started = (processHandle, process);
@@ -308,7 +308,7 @@ public sealed class Player : IDisposable
         if (!PInvoke.InitializeProcThreadAttributeList(attributeList, AttributeCount, 0, &size))
         {
             int error = Marshal.GetLastPInvokeError();
-            throw Win32Error(error, SR.Format(SR.JobListFailed, executablePath), SR.JobListFix);
+            throw Win32Error(error, SR.FormatJobListFailed(executablePath), SR.JobListFix);
         }
 
         // Keep the job handle in a local that outlives the list, because the list points at it until the list is deleted.
@@ -327,7 +327,7 @@ public sealed class Player : IDisposable
                 null))
             {
                 int error = Marshal.GetLastPInvokeError();
-                throw Win32Error(error, SR.Format(SR.JobListFailed, executablePath), SR.JobListFix);
+                throw Win32Error(error, SR.FormatJobListFailed(executablePath), SR.JobListFix);
             }
 
             fixed (char* desktopPointer = desktop)
@@ -341,7 +341,7 @@ public sealed class Player : IDisposable
 
                 // Turn the hard-error dialogs off in this process for the CreateProcessW call only, because the child
                 // copies the process error mode when it is created and the thread error mode never reaches it. Start runs
-                // under the machine lock, so no other Start puts an older mode back in between.
+                // under the machine lock, so any other Start can't put an older mode back in between.
                 var previousErrorMode = (THREAD_ERROR_MODE)PInvoke.GetErrorMode();
                 _ = PInvoke.SetErrorMode(previousErrorMode | ChildErrorMode);
 
@@ -363,7 +363,7 @@ public sealed class Player : IDisposable
                     {
                         // Read the error before the SetErrorMode in finally, because that call may change it.
                         int error = Marshal.GetLastPInvokeError();
-                        throw Win32Error(error, SR.Format(SR.StartFailed, executablePath), SR.StartFix);
+                        throw Win32Error(error, SR.FormatStartFailed(executablePath), SR.StartFix);
                     }
 
                     return information;

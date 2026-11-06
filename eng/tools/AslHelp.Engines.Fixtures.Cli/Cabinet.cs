@@ -60,7 +60,7 @@ internal static class Cabinet
 
             if (filesOffset < HeaderSize)
             {
-                throw new InvalidDataException(SR.Format(SR.CabinetFilesInHeader, filesOffset));
+                throw new InvalidDataException(SR.FormatCabinetFilesInHeader(filesOffset));
             }
 
             // Skip the reserved fields and the folder entries by reading them, because the stream may not seek.
@@ -140,6 +140,6 @@ internal static class Cabinet
             }
         }
 
-        throw new InvalidDataException(SR.Format(SR.CabinetNameTooLong, MaxNameLength));
+        throw new InvalidDataException(SR.FormatCabinetNameTooLong(MaxNameLength));
     }
 }

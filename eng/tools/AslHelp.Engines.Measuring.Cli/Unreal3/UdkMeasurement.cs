@@ -1,0 +1,159 @@
+using AslHelp.Engines.Unreal;
+using AslHelp.Memory;
+using Microsoft.Extensions.Logging;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+namespace AslHelp.Engines.Measuring.Cli.Unreal3;
+
+/// <summary>
+///     Finds the globals and the member offsets of a UDK player in its memory.
+/// </summary>
+internal static class UdkMeasurement
+{
+    /// <summary>
+    ///     Measures the player whose memory is <paramref name="memory"/>.
+    /// </summary>
+    /// <param name="memory">The memory of the process.</param>
+    /// <param name="moduleBase">The base of the executable in the process.</param>
+    /// <param name="sections">The sections of the executable without code.</param>
+    /// <param name="targets">The targets by global, with exactly 1 name array and 1 object array.</param>
+    /// <param name="executablePath">The file of the executable of the player.</param>
+    /// <param name="logger">The logger for the steps of the measurement.</param>
+    /// <returns>
+    ///     The globals and the offsets found and the reason for each global or member that was not found
+    ///     or a failure when an array, the name, class or outer offset or a class of the super chain was not found,
+    ///     2 arrays with different data fit or the fixture value does not read as 1337 through the offsets found.
+    /// </returns>
+    public static Result<PlayerMeasurement> Measure(
+        IMemoryReader memory,
+        Address moduleBase,
+        IReadOnlyList<UdkSection> sections,
+        IReadOnlyDictionary<string, UdkTarget> targets,
+        string executablePath,
+        ILogger logger)
+    {
+        var firstNames = targets.Values.OfType<UdkNameArrayTarget>().Single().FirstNames;
+
+        if (!UdkArrays.FindNames(memory, moduleBase, sections, firstNames).TryUnwrap(out var names, out var error))
+        {
+            return error;
+        }
+
+        string nameRvas = FormatRvas(names.Rvas);
+        logger.NameArrayFound(nameRvas);
+
+        if (!UdkArrays.FindObjects(memory, moduleBase, sections, names.Rvas).TryUnwrap(out var objects, out error))
+        {
+            return error;
+        }
+
+        string objectRvas = FormatRvas(objects.Rvas);
+        logger.ObjectArrayFound(objects.Pointers.Count, objectRvas);
+
+        Dictionary<string, int> offsets = [];
+        Dictionary<string, string> unmeasured = [];
+
+        if (!UdkMembers.Measure(memory, names, objects, offsets, unmeasured).TryUnwrap(out var measured, out error))
+        {
+            return error;
+        }
+
+        logger.OffsetsFound(offsets.Count);
+
+        if (UdkFixtureCheck.Run(memory, measured, offsets, logger).TryUnwrapErr(out error))
+        {
+            return error;
+        }
+
+        Dictionary<string, IReadOnlyList<uint>> globals = [];
+        HashSet<Address> known = [.. objects.Pointers];
+
+        foreach ((string global, var target) in targets)
+        {
+            switch (target)
+            {
+                case UdkNameArrayTarget:
+                {
+                    globals[global] = names.Rvas;
+
+                    break;
+                }
+                case UdkObjectArrayTarget:
+                {
+                    globals[global] = objects.Rvas;
+
+                    break;
+                }
+                case UdkObjectSlotTarget when !offsets.ContainsKey(UdkMembers.SuperField):
+                {
+                    unmeasured[global] = UdkSR.FormatUnmeasuredNeeds(UdkMembers.SuperField);
+
+                    break;
+                }
+                case UdkObjectSlotTarget slot:
+                {
+                    var rvas = FindSlots(memory, sections, measured.Reader, known, offsets, slot);
+
+                    if (rvas.Count == 0)
+                    {
+                        unmeasured[global] = UdkSR.FormatUnmeasuredSlot(slot.Class);
+                    }
+                    else
+                    {
+                        globals[global] = rvas;
+
+                        string slotRvas = FormatRvas(rvas);
+                        logger.SlotFound(global, slotRvas);
+                    }
+
+                    break;
+                }
+            }
+        }
+
+        return new PlayerMeasurement(globals, offsets, unmeasured, executablePath);
+    }
+
+    private static string FormatRvas(IEnumerable<uint> rvas)
+    {
+        return string.Join(", ", rvas.Select(static rva => $"0x{rva:X}"));
+    }
+
+    /// <summary>
+    ///     Lists every static that points at an object in the object array that fits <paramref name="slot"/>.
+    /// </summary>
+    /// <param name="memory">The memory of the process.</param>
+    /// <param name="sections">The sections of the executable without code.</param>
+    /// <param name="reader">The reader with the offsets found.</param>
+    /// <param name="known">The objects in the object array.</param>
+    /// <param name="offsets">The offsets found.</param>
+    /// <param name="slot">The global to find.</param>
+    /// <returns>
+    ///     The RVAs in the order of <paramref name="sections"/>.
+    /// </returns>
+    private static List<uint> FindSlots(
+        IMemoryReader memory,
+        IReadOnlyList<UdkSection> sections,
+        ObjectReader reader,
+        HashSet<Address> known,
+        Dictionary<string, int> offsets,
+        UdkObjectSlotTarget slot)
+    {
+        StructReader structs = new(memory, reader, new StructLayout(offsets[UdkMembers.SuperField], -1, -1), new FieldLayout(-1));
+        List<uint> rvas = [];
+
+        foreach ((uint rva, var value) in UdkSections.Pointers(sections, memory.Layout))
+        {
+            if (known.Contains(value)
+                && structs.DerivesFrom(reader.ClassOf(value).UnwrapOr(Address.Zero), slot.Class).UnwrapOr(false)
+                && (slot.Object is null || string.Equals(reader.NameOf(value).UnwrapOrDefault(), slot.Object, StringComparison.Ordinal)))
+            {
+                rvas.Add(rva);
+            }
+        }
+
+        return rvas;
+    }
+}

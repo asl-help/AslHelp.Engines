@@ -30,8 +30,8 @@ internal static class PeImports
     /// <exception cref="ArgumentNullException"><paramref name="path"/> is <see langword="null"/>.</exception>
     /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
     /// <exception cref="InvalidDataException">
-    ///     The file is not a PE file, the table or a name lies outside every section, the table has no null descriptor
-    ///     within its directory size or a name is longer than 260 bytes.
+    ///     The file is not a PE file, the table or a name lies outside every section, the table doesn't have a null
+    ///     descriptor within its directory size or a name is longer than 260 bytes.
     /// </exception>
     public static IReadOnlyList<string> Read(string path)
     {
@@ -159,6 +159,6 @@ internal static class PeImports
     /// </returns>
     private static InvalidDataException Damaged(string path, Exception? inner)
     {
-        return new InvalidDataException(SR.Format(UdkSR.PeImportsUnreadable, path), inner);
+        return new InvalidDataException(UdkSR.FormatPeImportsUnreadable(path), inner);
     }
 }

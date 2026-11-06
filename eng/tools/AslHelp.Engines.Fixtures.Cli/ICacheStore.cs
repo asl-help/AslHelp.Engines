@@ -23,7 +23,8 @@ internal interface ICacheStore : IDisposable
     /// </param>
     /// <param name="cancellationToken">The token that stops the download.</param>
     /// <returns>
-    ///     <see langword="true"/> when the file was downloaded, <see langword="false"/> when the store has no file at <paramref name="path"/>.
+    ///     <see langword="true"/> when the file was downloaded, <see langword="false"/> when the store doesn't have a file at
+    ///     <paramref name="path"/>.
     /// </returns>
     /// <exception cref="IOException">The file cannot be read from the store or written to disk.</exception>
     Task<bool> TryDownloadAsync(string path, string destinationFile, IProgress<TransferProgress>? progress, CancellationToken cancellationToken);

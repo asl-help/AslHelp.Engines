@@ -20,11 +20,11 @@ internal static class FakeCabinet
     private static readonly string _makecabPath = Path.Combine(Environment.SystemDirectory, "makecab.exe");
 
     /// <summary>
-    ///     Gets the bytes of a cabinet that lists <paramref name="names"/> and has no file data.
+    ///     Gets the bytes of a cabinet that lists <paramref name="names"/> and doesn't have file data.
     /// </summary>
     /// <remarks>
     ///     The header, 1 folder and 1 file entry per name are written, so a name reader finds every name. <c>expand.exe</c>
-    ///     refuses the result, because it has no data blocks.
+    ///     refuses the result, because it doesn't have data blocks.
     /// </remarks>
     /// <param name="names">The file names in cabinet order.</param>
     /// <returns>

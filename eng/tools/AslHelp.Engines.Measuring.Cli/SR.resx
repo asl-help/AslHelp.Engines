@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="EngineDescription" xml:space="preserve">
+    <value>The engine of the players.</value>
+  </data>
+  <data name="ExecutableMachineUnsupported" xml:space="preserve">
+    <value>'{0}' is not an x86 or x64 executable.</value>
+  </data>
+  <data name="ExecutableNotPe" xml:space="preserve">
+    <value>'{0}' is not a PE file.</value>
+  </data>
+  <data name="OutputDescription" xml:space="preserve">
+    <value>The file for the report.</value>
+  </data>
+  <data name="PlayersDescription" xml:space="preserve">
+    <value>The folder with the players that the fixtures command line built.</value>
+  </data>
+  <data name="RootDescription" xml:space="preserve">
+    <value>Runs the fixture players of an engine and writes a report.</value>
+  </data>
+  <data name="TargetsDescription" xml:space="preserve">
+    <value>The file with the globals to find. Replaces the list built into the command.</value>
+  </data>
+  <data name="UncoveredNoCandidate" xml:space="preserve">
+    <value>No signature of the group reaches 1 RVA of the global.</value>
+  </data>
+  <data name="UncoveredNotFound" xml:space="preserve">
+    <value>The measurer did not find the global.</value>
+  </data>
+</root>

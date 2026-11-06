@@ -61,7 +61,7 @@ internal sealed class PlayerLock : IDisposable
 
         playerLock.Dispose();
 
-        throw new TimeoutException(SR.Format(SR.LockTimedOut, timeout));
+        throw new TimeoutException(SR.FormatLockTimedOut(timeout));
     }
 
     /// <summary>

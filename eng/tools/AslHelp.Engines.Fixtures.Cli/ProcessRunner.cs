@@ -72,7 +72,7 @@ internal static class ProcessRunner
         // Check both redirects before the start, because ReadAllLinesAsync checks them only on its 1st read, once the tool runs.
         if (!info.RedirectStandardOutput || !info.RedirectStandardError)
         {
-            throw new ArgumentException(SR.Format(SR.ProcessOutputNotRedirected, info.FileName), nameof(info));
+            throw new ArgumentException(SR.FormatProcessOutputNotRedirected(info.FileName), nameof(info));
         }
 
         // Check the token before the start, so a canceled call starts no tool.
@@ -136,8 +136,8 @@ internal static class ProcessRunner
         string commandLine = FormatCommandLine(info);
 
         return tail.Count == 0
-            ? SR.Format(SR.ProcessFailed, commandLine, exitCode)
-            : SR.Format(SR.ProcessFailedWithOutput, commandLine, exitCode, Environment.NewLine + string.Join(Environment.NewLine, tail));
+            ? SR.FormatProcessFailed(commandLine, exitCode)
+            : SR.FormatProcessFailedWithOutput(commandLine, exitCode, Environment.NewLine + string.Join(Environment.NewLine, tail));
     }
 
     /// <summary>

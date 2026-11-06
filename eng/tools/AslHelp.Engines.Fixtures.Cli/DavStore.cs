@@ -91,13 +91,13 @@ internal sealed class DavStore : ICacheStore
 
         if (!baseUri.IsAbsoluteUri)
         {
-            throw new ArgumentException(SR.Format(SR.BaseUrlRelative, baseUri), nameof(baseUri));
+            throw new ArgumentException(SR.FormatBaseUrlRelative(baseUri), nameof(baseUri));
         }
 
         // Refuse a query or fragment, because the '/' added below would go after it and not after the path.
         if (baseUri.Query.Length > 0 || baseUri.Fragment.Length > 0)
         {
-            throw new ArgumentException(SR.Format(SR.BaseUrlHasQuery, baseUri), nameof(baseUri));
+            throw new ArgumentException(SR.FormatBaseUrlHasQuery(baseUri), nameof(baseUri));
         }
 
         string text = baseUri.AbsoluteUri;
@@ -184,7 +184,7 @@ internal sealed class DavStore : ICacheStore
         // Leave the values out of the message, because they are secret.
         if (missing.Count > 0)
         {
-            throw new InvalidOperationException(SR.Format(SR.DavVariablesMissing, string.Join(", ", missing)));
+            throw new InvalidOperationException(SR.FormatDavVariablesMissing(string.Join(", ", missing)));
         }
 
         if (!Uri.TryCreate(url, UriKind.Absolute, out var baseUri)
@@ -192,13 +192,13 @@ internal sealed class DavStore : ICacheStore
             || baseUri.Query.Length > 0
             || baseUri.Fragment.Length > 0)
         {
-            throw new InvalidOperationException(SR.Format(SR.DavUrlInvalid, UrlVariable));
+            throw new InvalidOperationException(SR.FormatDavUrlInvalid(UrlVariable));
         }
 
         // Refuse plain http to another machine, because the Basic header puts the app password into every request.
         if (baseUri.Scheme == Uri.UriSchemeHttp && !baseUri.IsLoopback)
         {
-            throw new InvalidOperationException(SR.Format(SR.DavUrlNotHttps, UrlVariable));
+            throw new InvalidOperationException(SR.FormatDavUrlNotHttps(UrlVariable));
         }
 
         return new DavStore(baseUri, user!, token!, handler);
@@ -226,7 +226,7 @@ internal sealed class DavStore : ICacheStore
             && string.IsNullOrEmpty(Environment.GetEnvironmentVariable(UserVariable))
             && string.IsNullOrEmpty(Environment.GetEnvironmentVariable(TokenVariable)))
         {
-            output.WriteLine(SR.Format(SR.LocalBuild, UrlVariable, UserVariable, TokenVariable));
+            output.WriteLine(SR.FormatLocalBuild(UrlVariable, UserVariable, TokenVariable));
             return null;
         }
 
@@ -404,7 +404,7 @@ internal sealed class DavStore : ICacheStore
             // Refuse empty and dot segments, because they could point outside the base URL.
             if (segment is "" or "." or "..")
             {
-                throw new ArgumentException(SR.Format(SR.StorePathInvalid, path), nameof(path));
+                throw new ArgumentException(SR.FormatStorePathInvalid(path), nameof(path));
             }
         }
 
@@ -472,7 +472,7 @@ internal sealed class DavStore : ICacheStore
             response.Dispose();
 
             throw new HttpRequestException(
-                SR.Format(SR.DavCredentialsRejected, request.Method, path, UrlVariable, UserVariable, TokenVariable),
+                SR.FormatDavCredentialsRejected(request.Method, path, UrlVariable, UserVariable, TokenVariable),
                 null,
                 status);
         }
@@ -555,16 +555,16 @@ internal sealed class DavStore : ICacheStore
         string fix = (int)status switch
         {
             >= 300 and < 400 when response.Headers.Location is { } location
-                => SR.Format(SR.DavRedirectToFix, UrlVariable, new Uri(request.RequestUri!, location)),
-            >= 300 and < 400 => SR.Format(SR.DavRedirectFix, UrlVariable),
-            409 when request.Method == _mkcol => SR.Format(SR.DavFolderMissingFix, UrlVariable),
+                => SR.FormatDavRedirectToFix(UrlVariable, new Uri(request.RequestUri!, location)),
+            >= 300 and < 400 => SR.FormatDavRedirectFix(UrlVariable),
+            409 when request.Method == _mkcol => SR.FormatDavFolderMissingFix(UrlVariable),
             413 => SR.DavTooLargeFix,
             507 => SR.DavNoSpaceFix,
-            >= 400 and < 500 => SR.Format(SR.DavRequestRefusedFix, UrlVariable),
+            >= 400 and < 500 => SR.FormatDavRequestRefusedFix(UrlVariable),
             _ => SR.DavServerFix,
         };
 
-        return new HttpRequestException(SR.Format(SR.DavStatusFailed, request.Method, path, (int)status, status, fix), null, status);
+        return new HttpRequestException(SR.FormatDavStatusFailed(request.Method, path, (int)status, status, fix), null, status);
     }
 
     /// <summary>

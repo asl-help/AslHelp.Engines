@@ -6,7 +6,7 @@
     "*.csproj": "${capture}.Package.props",
     "I*.cs": "${capture}Extensions.cs, ${capture}Extensions.*.cs",
     "*.cs": "${capture}Extensions.cs, ${capture}Extensions.*.cs",
-    "readme.md": "agents.md, justfile, license.md",
+    "readme.md": "agents.md, changelog.md, justfile, license.md",
   },
   "files.exclude": {
     "artifacts/": true,

@@ -215,7 +215,7 @@ public sealed class DavStoreTests
 
     // A PUT the server refuses for its size or for lack of space gets a fix for that and not the hint that the server is down.
     [TestCase(HttpStatusCode.RequestEntityTooLarge, "upload limit")]
-    [TestCase(HttpStatusCode.InsufficientStorage, "no space")]
+    [TestCase(HttpStatusCode.InsufficientStorage, "space left")]
     public async Task UploadAsync_PutRefusedForSize_ThrowsWithTheMatchingFix(HttpStatusCode status, string fix)
     {
         string source = WriteSource([1]);

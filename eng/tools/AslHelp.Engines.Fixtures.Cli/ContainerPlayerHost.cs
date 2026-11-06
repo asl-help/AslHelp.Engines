@@ -55,7 +55,8 @@ internal sealed class ContainerPlayerHost : IPlayerHost, IDisposable
 
             try
             {
-                _ = await _client.Containers.StartContainerAsync(container.ID, new ContainerStartParameters(), cancellationToken).ConfigureAwait(false);
+                _ = await _client.Containers.StartContainerAsync(container.ID, new ContainerStartParameters(), cancellationToken)
+                    .ConfigureAwait(false);
             }
             catch
             {
@@ -74,7 +75,7 @@ internal sealed class ContainerPlayerHost : IPlayerHost, IDisposable
         }
         catch (Exception exception) when (exception is DockerApiException or HttpRequestException or IOException or TimeoutException)
         {
-            throw new InvalidOperationException(SR.Format(SR.DockerFailed, Image, exception.Message), exception);
+            throw new InvalidOperationException(SR.FormatDockerFailed(Image, exception.Message), exception);
         }
     }
 
@@ -158,37 +159,37 @@ internal sealed class ContainerPlayerHost : IPlayerHost, IDisposable
 
         _imageReady = true;
     }
+}
+
+/// <summary>
+///     Represents a started container, whose exit code is the exit code of the executable.
+/// </summary>
+/// <param name="client">The client of the engine.</param>
+/// <param name="containerId">The ID of the container.</param>
+/// <param name="exit">The wait that completes once the container has exited.</param>
+file sealed class ContainerRun(DockerClient client, string containerId, Task<ContainerWaitResponse> exit) : IPlayerRun
+{
+    /// <inheritdoc/>
+    public bool HasExited => exit.IsCompleted;
+
+    /// <inheritdoc/>
+    public int ExitCode => unchecked((int)exit.GetAwaiter().GetResult().StatusCode);
+
+    /// <inheritdoc/>
+    public Task WaitForExitAsync(CancellationToken cancellationToken)
+    {
+        return exit.WaitAsync(cancellationToken);
+    }
 
     /// <summary>
-    ///     Represents a started container, whose exit code is the exit code of the executable.
+    ///     Removes the container, also a running one, so the mounted install is free once the call completes.
     /// </summary>
-    /// <param name="client">The client of the engine.</param>
-    /// <param name="containerId">The ID of the container.</param>
-    /// <param name="exit">The wait that completes once the container has exited.</param>
-    private sealed class ContainerRun(DockerClient client, string containerId, Task<ContainerWaitResponse> exit) : IPlayerRun
+    /// <returns>
+    ///     A task that completes once the container is gone.
+    /// </returns>
+    public async ValueTask DisposeAsync()
     {
-        /// <inheritdoc/>
-        public bool HasExited => exit.IsCompleted;
-
-        /// <inheritdoc/>
-        public int ExitCode => unchecked((int)exit.GetAwaiter().GetResult().StatusCode);
-
-        /// <inheritdoc/>
-        public Task WaitForExitAsync(CancellationToken cancellationToken)
-        {
-            return exit.WaitAsync(cancellationToken);
-        }
-
-        /// <summary>
-        ///     Removes the container, also a running one, so the mounted install is free once the call completes.
-        /// </summary>
-        /// <returns>
-        ///     A task that completes once the container is gone.
-        /// </returns>
-        public async ValueTask DisposeAsync()
-        {
-            ContainerRemoveParameters parameters = new() { Force = true };
-            await client.Containers.RemoveContainerAsync(containerId, parameters, CancellationToken.None).ConfigureAwait(false);
-        }
+        ContainerRemoveParameters parameters = new() { Force = true };
+        await client.Containers.RemoveContainerAsync(containerId, parameters, CancellationToken.None).ConfigureAwait(false);
     }
 }

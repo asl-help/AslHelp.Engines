@@ -31,12 +31,12 @@ internal static class CommandLine
     {
         // Dispose the factory before the exit, because the console logger writes its lines from a queue.
         using var factory = LoggerFactory.Create(static builder => builder
-            .AddConsole(static options => options.LogToStandardErrorThreshold = LogLevel.Error)
-            .AddSimpleConsole(static options =>
+            .AddConsole(static options =>
             {
-                options.SingleLine = true;
-                options.TimestampFormat = "yyyy-MM-dd HH:mm:ss ";
-            }));
+                options.FormatterName = MeasureConsoleFormatter.FormatterName;
+                options.LogToStandardErrorThreshold = LogLevel.Error;
+            })
+            .AddConsoleFormatter<MeasureConsoleFormatter, ConsoleFormatterOptions>());
 
         return await RunAsync(args, output, error, [new UdkMeasurer()], factory.CreateLogger("measure")).ConfigureAwait(false);
     }
@@ -112,6 +112,8 @@ internal static class CommandLine
                 return 1;
             }
 
+            logger.PlayersFound(players.Count, playersDirectory);
+
             // Create the report folder first, because the rows live only in memory until the end of a run that takes minutes.
             _ = Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(reportPath))!);
 
@@ -119,8 +121,9 @@ internal static class CommandLine
 
             foreach (var player in players)
             {
-                logger.Measuring(player.Version);
+                logger.Starting(player.Version, rows.Count + 1, players.Count);
 
+                using var scope = logger.BeginPlayerScope(player.Version);
                 long started = Stopwatch.GetTimestamp();
 
                 try
@@ -136,7 +139,6 @@ internal static class CommandLine
                     var elapsed = Stopwatch.GetElapsedTime(started);
 
                     logger.Measured(
-                        player.Version,
                         elapsed.TotalSeconds,
                         measurement.Globals.Count,
                         measurement.Offsets.Count,

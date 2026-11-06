@@ -105,13 +105,16 @@ just measure <engine> <players> --output <file> [--targets <file>]
 | `--output` | The file for the JSON report. |
 | `--targets` | The file with the globals to find. It replaces the list built into the command, so a change needs no rebuild. |
 
-The command runs each player on the current machine in version order until its fixture game is ready, reads the player's memory and writes 1 row per player into the report. It logs each step to the console with the time and the level. Errors go to stderr:
+The command runs each player on the current machine in version order until its fixture game is ready, reads the player's memory and writes 1 row per player into the report. It logs each step to the console with the time and the level, with the steps of a player indented under its start line. Errors go to stderr.
 
 ```
-2026-11-06 14:03:12 info: measure[1] Measuring 2010-09.
-2026-11-06 14:03:31 info: measure[101] Server ready after 19.0 s.
+2026-11-06 14:03:12 info: measure[8] Found 26 players in 'E:\players'.
+2026-11-06 14:03:12 info: measure[1] 2010-09 4/26 Starting player.
+2026-11-06 14:03:31 info: measure[101]   => Server ready after 19.0 s.
+2026-11-06 14:03:44 info: measure[2]   => Measured in 32.1 s: 4 globals, 15 offsets, 0 not found.
 ```
- A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. It deletes the log of each player afterward. A canceled run writes no report. A bad targets file fails before the 1st player starts.
+
+A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. It deletes the log of each player afterward. A canceled run writes no report. A bad targets file fails before the 1st player starts.
 
 A row has the version and 3 maps:
 

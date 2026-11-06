@@ -198,6 +198,18 @@ public sealed class CommandLineTests
         }
     }
 
+    // The log has the player count once and the version and position of each player on its start line.
+    [Test]
+    public async Task RunAsync_TwoPlayers_LogsTheProgress()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+
+        _ = await RunAsync(new FakeMeasurer());
+
+        Assert.That(_output.ToString(), Does.Contain("Found 2 players").And.Contain("1.0 1/2 Starting").And.Contain("2.0-BETA 2/2 Starting"));
+    }
+
     // A measured row has its 3 maps, with the offsets grouped by type and the numbers in hex.
     [Test]
     public async Task RunAsync_MeasuredPlayer_WritesGlobalsOffsetsAndUnmeasured()

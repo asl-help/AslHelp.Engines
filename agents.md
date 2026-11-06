@@ -54,7 +54,7 @@ The tool and test projects target `net11.0-windows`, because the players only ru
 - `eng/tools/AslHelp.Engines.Measuring.Cli` is the `measure` command line. It runs the players that `fixtures` built and writes a report. It has the parts the run uses:
   - `PlayerFolder` finds the player folders of an engine and reads their versions.
   - `IEngineMeasurer` is the part an engine plugs in. `CommandLine` picks it by name, calls `LoadTargets` before the 1st player and the tests use a fake one.
-  - `CommandLine` logs through Microsoft.Extensions.Logging to the console and takes an `ILogger`, so the tests pass a `WriterLogger`.
+  - `CommandLine` logs through Microsoft.Extensions.Logging to the console and takes an `ILogger`, so the tests pass a `WriterLogger`. `MeasureConsoleFormatter` writes the lines and indents the steps of a player by the scope that `MeasureLog.BeginPlayerScope` opens.
   - `MeasureReport` is the report and its JSON. `PlayerMeasurement` is what a measurer returns, with the globals, the offsets and the reasons for what it did not find.
   - `Unreal3/` has the UDK measurer. It is the only part that references `AslHelp.Memory.Remote`. Its reads go through the readers in `src/AslHelp.Engines.Unreal`. The memory searches are in this folder, not in the library.
     - `UdkMeasurer` starts the player, opens its memory and calls the parts below.

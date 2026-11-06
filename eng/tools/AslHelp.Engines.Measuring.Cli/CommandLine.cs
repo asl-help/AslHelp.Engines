@@ -155,10 +155,17 @@ internal static class CommandLine
 
             var groups = VersionGroups.Find(rows);
 
-            for (int group = 0; group < groups.Count; group++)
+            if (groups.Count > 0)
             {
-                string versions = string.Join(", ", groups[group].Versions);
-                logger.OffsetGroup(group + 1, groups.Count, versions);
+                logger.GroupsHeader();
+
+                using var scope = logger.BeginGroupsScope();
+
+                foreach (var group in groups)
+                {
+                    string versions = string.Join(", ", group.Versions);
+                    logger.Group(versions);
+                }
             }
 
             MeasureReport report = new(measurer.Name, rows, groups);

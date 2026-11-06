@@ -8,7 +8,7 @@ namespace AslHelp.Engines.Measuring.Cli.Unreal3;
 /// </summary>
 internal static partial class UdkLog
 {
-    [LoggerMessage(EventId = 101, Level = LogLevel.Information, Message = "server ready: {Seconds:F1} s")]
+    [LoggerMessage(EventId = 101, Level = LogLevel.Information, Message = "server ready ({Seconds:F1} s)")]
     public static partial void ServerReady(this ILogger logger, double seconds);
 
     [LoggerMessage(EventId = 102, Level = LogLevel.Information, Message = "sections: {Sections}, {Bytes} bytes")]

@@ -28,7 +28,8 @@ public sealed class CommandLineTests
         (1, 0),
         (2, 1),
         (9, 0),
-        (9, 0),
+        (10, 1),
+        (10, 1),
         (7, 0),
     ];
 
@@ -462,8 +463,8 @@ public sealed class CommandLineTests
 
         string log = _output.ToString();
         int lastPlayer = log.IndexOf("3.0 3/3", StringComparison.Ordinal);
-        int shared = log.IndexOf("offset group 1/2: 1.0, 3.0", StringComparison.Ordinal);
-        int sole = log.IndexOf("offset group 2/2: 2.0-BETA", StringComparison.Ordinal);
+        int shared = log.IndexOf("[1.0, 3.0]", StringComparison.Ordinal);
+        int sole = log.IndexOf("[2.0-BETA]", StringComparison.Ordinal);
         int written = log.IndexOf("report: '", StringComparison.Ordinal);
 
         using (Assert.EnterMultipleScope())
@@ -496,7 +497,7 @@ public sealed class CommandLineTests
         {
             Assert.That(code, Is.EqualTo(1));
             Assert.That(report.RootElement.GetProperty("groups").GetArrayLength(), Is.Zero);
-            Assert.That(_output.ToString(), Does.Not.Contain("offset group"));
+            Assert.That(_output.ToString(), Does.Not.Contain("same offsets"));
         }
     }
 
@@ -518,7 +519,7 @@ public sealed class CommandLineTests
         {
             Assert.That(code, Is.Zero, _error.ToString());
             Assert.That(report.RootElement.GetProperty("groups").GetArrayLength(), Is.Zero);
-            Assert.That(_output.ToString(), Does.Not.Contain("offset group"));
+            Assert.That(_output.ToString(), Does.Not.Contain("same offsets"));
         }
     }
 
@@ -541,7 +542,7 @@ public sealed class CommandLineTests
             Assert.That(report.RootElement.GetProperty("players").GetArrayLength(), Is.EqualTo(3));
             Assert.That(groups.GetArrayLength(), Is.EqualTo(1));
             Assert.That(groups[0].GetProperty("versions").EnumerateArray().Select(static entry => entry.GetString()), Is.EqualTo(_sharedVersions));
-            Assert.That(_output.ToString(), Does.Contain(": 1.0, 3.0"));
+            Assert.That(_output.ToString(), Does.Contain("[1.0, 3.0]"));
         }
     }
 
@@ -612,7 +613,7 @@ public sealed class CommandLineTests
         {
             Assert.That(code, Is.Zero, _error.ToString());
             Assert.That(versions.EnumerateArray().Select(static entry => entry.GetString()), Is.EqualTo(_oddVersions));
-            Assert.That(_output.ToString(), Does.Contain(": {0}, バー 1"));
+            Assert.That(_output.ToString(), Does.Contain("[{0}, バー 1]"));
         }
     }
 
@@ -633,7 +634,7 @@ public sealed class CommandLineTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(code, Is.Not.Zero);
-            Assert.That(_output.ToString(), Does.Not.Contain("offset group"));
+            Assert.That(_output.ToString(), Does.Not.Contain("same offsets"));
             Assert.That(File.Exists(_report), Is.False);
         }
     }
@@ -650,7 +651,7 @@ public sealed class CommandLineTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(code, Is.EqualTo(1));
-            Assert.That(_output.ToString(), Does.Contain(": 1.0").And.Not.Contain("report: '"));
+            Assert.That(_output.ToString(), Does.Contain("[1.0]").And.Not.Contain("report: '"));
         }
     }
 

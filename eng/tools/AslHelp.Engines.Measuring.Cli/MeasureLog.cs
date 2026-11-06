@@ -8,7 +8,20 @@ namespace AslHelp.Engines.Measuring.Cli;
 /// </summary>
 internal static partial class MeasureLog
 {
+    private static readonly Func<ILogger, IDisposable?> _groupsScope = LoggerMessage.DefineScope("groups");
     private static readonly Func<ILogger, string, IDisposable?> _playerScope = LoggerMessage.DefineScope<string>("{Version}");
+
+    /// <summary>
+    ///     Opens the scope of the lines of the version groups.
+    /// </summary>
+    /// <param name="logger">The logger.</param>
+    /// <returns>
+    ///     The scope to dispose after the last group.
+    /// </returns>
+    public static IDisposable? BeginGroupsScope(this ILogger logger)
+    {
+        return _groupsScope(logger);
+    }
 
     /// <summary>
     ///     Opens the scope of the lines of 1 player.
@@ -29,7 +42,7 @@ internal static partial class MeasureLog
     [LoggerMessage(
         EventId = 2,
         Level = LogLevel.Information,
-        Message = "done: {Seconds:F1} s, {Globals} globals, {Offsets} offsets, {Unmeasured} not found")]
+        Message = "done ({Seconds:F1} s): {Globals} globals, {Offsets} offsets, {Unmeasured} not found")]
     public static partial void Measured(this ILogger logger, double seconds, int globals, int offsets, int unmeasured);
 
     [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "not found: {Value}: {Reason}")]
@@ -44,12 +57,15 @@ internal static partial class MeasureLog
     [LoggerMessage(EventId = 6, Level = LogLevel.Error, Message = "{Reason}")]
     public static partial void RunFailed(this ILogger logger, string reason);
 
-    [LoggerMessage(EventId = 7, Level = LogLevel.Information, Message = "report: '{Path}', {Measured}/{Players} measured")]
+    [LoggerMessage(EventId = 7, Level = LogLevel.Information, Message = "report: '{Path}', measured {Measured}/{Players} players")]
     public static partial void ReportWritten(this ILogger logger, string path, int measured, int players);
 
     [LoggerMessage(EventId = 8, Level = LogLevel.Information, Message = "players: {Players} in '{Folder}'")]
     public static partial void PlayersFound(this ILogger logger, int players, string folder);
 
-    [LoggerMessage(EventId = 9, Level = LogLevel.Information, Message = "offset group {Group}/{Groups}: {Versions}")]
-    public static partial void OffsetGroup(this ILogger logger, int group, int groups, string versions);
+    [LoggerMessage(EventId = 9, Level = LogLevel.Information, Message = "versions with the same offsets:")]
+    public static partial void GroupsHeader(this ILogger logger);
+
+    [LoggerMessage(EventId = 10, Level = LogLevel.Information, Message = "[{Versions}]")]
+    public static partial void Group(this ILogger logger, string versions);
 }

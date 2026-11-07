@@ -17,7 +17,7 @@ just measure <engine> <players> --output <file> [--targets <file>]
 
 `just fixtures` runs the `fixtures` command line from the current folder and passes each argument through whole, such as `just fixtures build <toolchain> <version> --output <folder>`. `just fixtures-all` builds every pinned UDK version into the folder.
 
-The tool and test projects target `net11.0-windows`, because the players only run on Windows. The libraries in `src/` target `netstandard2.0`. Build and test on Windows.
+The tool projects and their tests target `net11.0-windows`, because the players only run on Windows. The libraries in `src/` target `netstandard2.0` and their tests also run on `net4.8.1`. Build and test on Windows.
 
 ## Rules
 

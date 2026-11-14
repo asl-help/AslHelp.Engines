@@ -115,7 +115,11 @@ public sealed class DavStoreTimeoutEdgeCaseTests
         var store = NewStore(new CallbackHandler(async (request, token) =>
         {
             using StallingStream sink = new(_clock, TimeSpan.Zero, 0);
-            await request.Content!.CopyToAsync(sink, token);
+            // Copy the PUT body only, because the MOVE after it has none.
+            if (request.Content is not null)
+            {
+                await request.Content.CopyToAsync(sink, token);
+            }
 
             throw new UnreachableException();
         }));
@@ -134,7 +138,11 @@ public sealed class DavStoreTimeoutEdgeCaseTests
         using SlowStream sink = new(_clock, TransferTimer.StallLimit * 0.75, []);
         var store = NewStore(new CallbackHandler(async (request, token) =>
         {
-            await request.Content!.CopyToAsync(sink, token);
+            // Copy the PUT body only, because the MOVE after it has none.
+            if (request.Content is not null)
+            {
+                await request.Content.CopyToAsync(sink, token);
+            }
 
             return new HttpResponseMessage(HttpStatusCode.Created);
         }));

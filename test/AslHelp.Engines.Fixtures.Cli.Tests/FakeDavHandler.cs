@@ -48,11 +48,18 @@ internal sealed class FakeDavHandler(
             request.Headers.Authorization,
             request.Content?.Headers.ContentLength,
             request.Headers.ExpectContinue,
-            body);
+            body,
+            Header(request, "Destination"),
+            Header(request, "Overwrite"));
 
         Requests.Add(recorded);
 
         return respond(recorded);
+    }
+
+    private static string? Header(HttpRequestMessage request, string name)
+    {
+        return request.Headers.TryGetValues(name, out var values) ? string.Join(",", values) : null;
     }
 
     /// <summary>
@@ -66,13 +73,17 @@ internal sealed class FakeDavHandler(
     ///     Whether the request sends <c>Expect: 100-continue</c> or <see langword="null"/> when the header is not set.
     /// </param>
     /// <param name="Body">The request body, empty when there is none.</param>
+    /// <param name="Destination">The <c>Destination</c> header of a MOVE or <see langword="null"/> when it is missing.</param>
+    /// <param name="Overwrite">The <c>Overwrite</c> header of a MOVE or <see langword="null"/> when it is missing.</param>
     internal sealed record RecordedRequest(
         string Method,
         Uri Uri,
         AuthenticationHeaderValue? Authorization,
         long? ContentLength,
         bool? ExpectContinue,
-        byte[] Body);
+        byte[] Body,
+        string? Destination,
+        string? Overwrite);
 }
 
 /// <summary>

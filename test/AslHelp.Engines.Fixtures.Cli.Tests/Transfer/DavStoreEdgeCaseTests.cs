@@ -257,7 +257,7 @@ public sealed class DavStoreEdgeCaseTests
         }
     }
 
-    // A deep path gets 1 MKCOL per parent from the top down before the PUT.
+    // A deep path gets 1 MKCOL per parent from the top down before the PUT and the MOVE.
     [Test]
     public async Task UploadAsync_FourLevelPath_SendsMkcolForEveryParentInOrder()
     {
@@ -272,7 +272,8 @@ public sealed class DavStoreEdgeCaseTests
             "MKCOL " + Base + "a/b",
             "MKCOL " + Base + "a/b/c",
             "MKCOL " + Base + "a/b/c/d",
-            "PUT " + Base + "a/b/c/d/f.tar.zst",
+            "PUT " + Base + "a/b/c/d/f.tar.zst.partial",
+            "MOVE " + Base + "a/b/c/d/f.tar.zst.partial",
         ];
 
         Assert.That(_handler.Requests.ConvertAll(request => request.Method + " " + request.Uri.AbsoluteUri), Is.EqualTo(expected));
@@ -308,7 +309,7 @@ public sealed class DavStoreEdgeCaseTests
         string[] expected =
         [
             Base + "%C3%A4%20b",
-            Base + "%C3%A4%20b/%C3%BC%20c.tar.zst",
+            Base + "%C3%A4%20b/%C3%BC%20c.tar.zst.partial",
         ];
 
         using (Assert.EnterMultipleScope())

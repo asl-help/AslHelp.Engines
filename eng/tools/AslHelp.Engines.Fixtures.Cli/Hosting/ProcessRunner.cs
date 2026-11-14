@@ -19,8 +19,13 @@ internal static class ProcessRunner
     /// </summary>
     public const int TailLineCount = 10;
 
-    // Decode the output with the OEM code page, because a tool without a window gets a console of its own, which starts in that code page.
-    private static readonly Encoding _outputEncoding = GetOemEncoding();
+    /// <summary>
+    ///     Gets the encoding of the OEM code page, which a console tool writes its output in.
+    /// </summary>
+    /// <remarks>
+    ///     A tool without a window gets a console of its own, which starts in that code page.
+    /// </remarks>
+    public static Encoding OemEncoding { get; } = GetOemEncoding();
 
     /// <summary>
     ///     Creates the start info of a tool that runs without a window, ends with this process, takes the given arguments and pipes its output.
@@ -40,8 +45,8 @@ internal static class ProcessRunner
             KillOnParentExit = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            StandardOutputEncoding = _outputEncoding,
-            StandardErrorEncoding = _outputEncoding,
+            StandardOutputEncoding = OemEncoding,
+            StandardErrorEncoding = OemEncoding,
         };
     }
 

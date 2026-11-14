@@ -48,7 +48,7 @@ The tool projects and their tests target `net11.0-windows`, because the players 
 - `eng/tools/AslHelp.Engines.Measuring.Cli`: `measure` command line. An engine plugs in through `IEngineMeasurer`. `Routes/` is the route search, with no engine in it.
 - `eng/fixtures/<engine>`: what 1 engine brings. `releases.json` and `targets.json` are the pin table and the measure targets. The `fixtures` command line imports `fixtures.props` and the `measure` command line imports `measure.props`, so a new engine adds 1 folder and 1 import line per command line.
 - `eng/fixtures/unreal3`: UnrealScript classes of the Unreal Engine 3 player.
-- `eng/fixtures/unreal4`: C++ project of the Unreal Engine 4 and 5 players, 1 tree for every minor from 4.0 to 5.8. `//@if >=4.14`, `//@else` and `//@endif` lines (`;@` in `.ini`) keep or drop the lines after them for the version being rendered. The operators are `>=`, `>`, `<`, `<=` and `==` on major.minor. `image/` has the Dockerfile of the build image and its scripts.
+- `eng/fixtures/unreal4`: C++ project of the Unreal Engine 4 and 5 players, 1 tree for every minor from 4.0 to 5.8. `//@if >=4.14`, `//@else` and `//@endif` lines (`;@` in `.ini`) keep or drop the lines after them for the version being rendered. The operators are `>=`, `>`, `<`, `<=` and `==` on major.minor. `image/` has the Dockerfile of the build image and its scripts. `build/` has the step scripts the build runs in that image.
 - `test/<Project>.Tests`: tests of a project.
 - `eng/CheckEncoding.cs`: encoding and line ending check, same file in every repo.
 - A new project goes into `src/` if it ships, `eng/tools/` if not, and into `AslHelp.Engines.slnx`.

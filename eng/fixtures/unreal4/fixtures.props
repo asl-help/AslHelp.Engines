@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <!-- Copy only these files of the build image folder, so a stray editor file next to them doesn't change the image tag.
-       Copy them outside the project, so the render never sees them. -->
+       Copy them and the step scripts outside the project, so the render never sees them. -->
   <ItemGroup>
     <Content
       Include="
@@ -28,6 +28,10 @@
         $(MSBuildThisFileDirectory)/image/*.ps1;
         $(MSBuildThisFileDirectory)/image/*.xml"
       Link="build/unreal4/image/%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" />
+    <Content
+      Include="$(MSBuildThisFileDirectory)/build/*.bat"
+      Link="build/unreal4/steps/%(Filename)%(Extension)"
       CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

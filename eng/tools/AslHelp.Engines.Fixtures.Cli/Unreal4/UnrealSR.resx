@@ -81,6 +81,12 @@
   <data name="SourceFolderNotFound" xml:space="preserve">
     <value>The source folder '{0}' does not exist.</value>
   </data>
+  <data name="StepFailed" xml:space="preserve">
+    <value>The {0} step exited with code {1} (0x{1:X8}). Read '{2}'.{3}</value>
+  </data>
+  <data name="StepNotDone" xml:space="preserve">
+    <value>The {0} step didn't finish within {1}. Read '{2}' to see where it stopped.</value>
+  </data>
   <data name="UvNotFound" xml:space="preserve">
     <value>'{0}' wasn't found. Install uv with 'winget install astral-sh.uv'.</value>
   </data>

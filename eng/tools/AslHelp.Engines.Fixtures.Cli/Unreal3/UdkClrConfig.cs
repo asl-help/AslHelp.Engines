@@ -6,7 +6,7 @@ using System.Xml.Linq;
 namespace AslHelp.Engines.Fixtures.Cli.Unreal3;
 
 /// <summary>
-///     Moves the executables of an old UDK install from CLR 2 to CLR 4 through their config files.
+///     Moves the executables of a UDK install from CLR 2 to CLR 4 through their config files.
 /// </summary>
 /// <remarks>
 ///     <c>UDK.exe</c> and <c>UDK.com</c> of the installs with the Visual C++ 2008 redist target CLR 2, which Windows Server
@@ -85,7 +85,7 @@ internal static class UdkClrConfig
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            throw new IOException(UdkSR.FormatPartialNotMoved(partialPath, path), exception);
+            throw new IOException(SR.FormatPartialNotMoved(partialPath, path), exception);
         }
     }
 }

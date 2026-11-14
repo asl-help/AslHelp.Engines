@@ -95,7 +95,7 @@ public sealed class UdkRuntimesTests
             () => UdkRuntimes.FindImports(binaries),
             Throws.TypeOf<FileNotFoundException>()
                 .With.Message.Contains(Path.Combine(binaries, "UDK.exe"))
-                .And.Message.Contains("run the build again"));
+                .And.Message.Contains("build again"));
     }
 
     // A damaged UDK.exe throws with its path and the fix for an extracted install, because PeImports only reports the file.

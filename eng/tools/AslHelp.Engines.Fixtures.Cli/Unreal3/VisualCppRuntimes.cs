@@ -104,7 +104,8 @@ internal static class VisualCppRuntimes
     {
         if (!redist.HasVc2010)
         {
-            throw new InvalidDataException(UdkSR.FormatVc2010InstallerMissing(redist.FilePath, UdkRedist.Vc2010Entry, binariesDirectory));
+            throw new InvalidDataException(
+                $"{UdkSR.FormatVc2010InstallerMissing(redist.FilePath, UdkRedist.Vc2010Entry, binariesDirectory)} {UdkSR.ReextractInstall}");
         }
     }
 

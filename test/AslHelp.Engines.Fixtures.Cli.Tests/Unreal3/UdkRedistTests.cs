@@ -136,7 +136,7 @@ public sealed class UdkRedistTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(exception.Message, Does.Contain(path).And.Contains("DXRedistCutdown/file_x86.cab"));
-            Assert.That(exception.Message.Split("run the build again"), Has.Length.EqualTo(2));
+            Assert.That(exception.Message.Split("build again"), Has.Length.EqualTo(2));
         }
     }
 

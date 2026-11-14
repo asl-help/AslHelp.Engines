@@ -138,7 +138,7 @@ internal static class UdkProject
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
             {
-                throw new IOException(UdkSR.FormatPartialNotMoved(partialPath, iniPath), exception);
+                throw new IOException(SR.FormatPartialNotMoved(partialPath, iniPath), exception);
             }
         }
 
@@ -159,7 +159,7 @@ internal static class UdkProject
 
         if (!File.Exists(compilerPath))
         {
-            throw new FileNotFoundException(UdkSR.FormatCompilerNotFound(compilerPath), compilerPath);
+            throw new FileNotFoundException($"{UdkSR.FormatCompilerNotFound(compilerPath)} {UdkSR.ReextractInstall}", compilerPath);
         }
     }
 

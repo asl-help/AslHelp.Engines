@@ -55,7 +55,7 @@ internal static class UdkServer
 
         if (!File.Exists(serverPath))
         {
-            throw new FileNotFoundException(UdkSR.FormatServerNotFound(serverPath), serverPath);
+            throw new FileNotFoundException($"{UdkSR.FormatServerNotFound(serverPath)} {UdkSR.ReextractInstall}", serverPath);
         }
 
         string map = UdkInstall.FindMap(installDirectory);

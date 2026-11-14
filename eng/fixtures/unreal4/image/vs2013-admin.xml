@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AdminDeploymentCustomizations xmlns="http://schemas.microsoft.com/wix/2011/AdminDeployment">
+  <BundleCustomizations TargetDir="default" NoWeb="yes"/>
+  <SelectableItemCustomizations>
+    <SelectableItemCustomization Id="Blend" Hidden="no" Selected="no"/>
+    <SelectableItemCustomization Id="VC_MFC_Libraries" Hidden="no" Selected="no"/>
+    <SelectableItemCustomization Id="SQL" Hidden="no" Selected="no"/>
+    <SelectableItemCustomization Id="WebTools" Hidden="no" Selected="no"/>
+    <SelectableItemCustomization Id="SilverLight_Developer_Kit" Hidden="no" Selected="no"/>
+    <SelectableItemCustomization Id="Win8SDK" Hidden="no" Selected="no"/>
+    <SelectableItemCustomization Id="WindowsPhone80" Hidden="no" Selected="no"/>
+  </SelectableItemCustomizations>
+</AdminDeploymentCustomizations>

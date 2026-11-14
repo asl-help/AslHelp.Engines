@@ -106,6 +106,14 @@ Engines get installed to `<output>/engines/UE_<minor>`, minus the tagged files l
 
 All 37 engines take 563 GiB together and the biggest one is 5.3 at 35 GiB. A build needs the engine's size plus 40 GiB of free scratch space. When the drive runs low, the tool removes the scratch folders of failed builds first and then the oldest finished engines. If that still isn't enough, the build fails.
 
+The players get built in a Windows image from `eng/fixtures/unreal4/image/Dockerfile`. The image is `mcr.microsoft.com/windows/server:ltsc2025` pinned by digest, plus DirectX June 2010, VS2017 15.9, the .NET 4.8 dev pack, VS2022 17.14, VS2013 Update 5 and the VC++ 14.50 x64 runtime. Its tag is a hash of that folder, so you need a new image whenever a file there changes. The tool never builds the image itself. If the image is missing, the build fails and prints the command with the folder's tag, like this:
+
+```
+docker build -t asl-help/unreal4-build:<tag> "<repo>\artifacts\bin\AslHelp.Engines.Fixtures.Cli\debug\build\unreal4\image"
+```
+
+Building the image needs Docker with Windows containers and about 40 GiB free under the Docker data root. Docker caches each layer, so if the image build stops, the next try continues from there.
+
 ## Measuring
 
 ```

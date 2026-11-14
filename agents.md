@@ -33,6 +33,7 @@ The tool projects and their tests target `net11.0-windows`, because the players 
 - Tests never read the machine's `FIXTURES_DAV_*` variables. A `CommandLine` test passes a store or clears the variables first.
 - A test that needs uv and the legendary package only runs when `FIXTURES_UV_TESTS` is 1. CI doesn't set it, so run those tests locally before a PR that changes `eng/fixtures/unreal4/install_engine.py`.
 - Engine installs stay in `<output>/engines`. Never put them in the repo, CI, CI logs or the store, because Epic serves them again.
+- A person builds the build image with `docker build` from `eng/fixtures/<engine>/image`. The tools never build images, so each step stays readable and a person can run it by hand.
 - `~/.config/legendary` has the Epic login. Only legendary reads it, so never open or print `user.json`.
 - A test that needs a real UDK installer or install runs only when `FIXTURES_UDK_INSTALLER` is the path of a downloaded `UDKInstall-<version>.exe` or `FIXTURES_UDK_INSTALL` is the path of an extracted install. The tests change that install. A test that needs a built player runs only when `FIXTURES_UDK_PLAYER` is the path of a player folder.
 - `.vscode/settings.json` turns off the analysis of the UnrealScript extension, because the engine classes like `Actor` are in the UDK install and not in the repo. To get the analysis, add `Development/Src` of a UDK install to the workspace and set `unrealscript.analyzeDocuments` to `OnlyActive` in the workspace file.
@@ -47,7 +48,7 @@ The tool projects and their tests target `net11.0-windows`, because the players 
 - `eng/tools/AslHelp.Engines.Measuring.Cli`: `measure` command line. An engine plugs in through `IEngineMeasurer`. `Routes/` is the route search, with no engine in it.
 - `eng/fixtures/<engine>`: what 1 engine brings. `releases.json` and `targets.json` are the pin table and the measure targets. The `fixtures` command line imports `fixtures.props` and the `measure` command line imports `measure.props`, so a new engine adds 1 folder and 1 import line per command line.
 - `eng/fixtures/unreal3`: UnrealScript classes of the Unreal Engine 3 player.
-- `eng/fixtures/unreal4`: C++ project of the Unreal Engine 4 and 5 players, 1 tree for every minor from 4.0 to 5.8. `//@if >=4.14`, `//@else` and `//@endif` lines (`;@` in `.ini`) keep or drop the lines after them for the version being rendered. The operators are `>=`, `>`, `<`, `<=` and `==` on major.minor.
+- `eng/fixtures/unreal4`: C++ project of the Unreal Engine 4 and 5 players, 1 tree for every minor from 4.0 to 5.8. `//@if >=4.14`, `//@else` and `//@endif` lines (`;@` in `.ini`) keep or drop the lines after them for the version being rendered. The operators are `>=`, `>`, `<`, `<=` and `==` on major.minor. `image/` has the Dockerfile of the build image and its scripts.
 - `test/<Project>.Tests`: tests of a project.
 - `eng/CheckEncoding.cs`: encoding and line ending check, same file in every repo.
 - A new project goes into `src/` if it ships, `eng/tools/` if not, and into `AslHelp.Engines.slnx`.

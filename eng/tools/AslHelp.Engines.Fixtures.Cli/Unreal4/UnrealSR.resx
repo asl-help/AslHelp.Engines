@@ -42,6 +42,9 @@
   <data name="EngineManagedByLegendary" xml:space="preserve">
     <value>Legendary lists {0} as installed and would reuse its folder. Take it off the list with 'just legendary uninstall --keep-files {0}'.</value>
   </data>
+  <data name="ImageMissing" xml:space="preserve">
+    <value>The build image {0} is missing. Build it with: docker build -t {0} "{1}"</value>
+  </data>
   <data name="ManifestNoFixtureData" xml:space="preserve">
     <value>The headers in '{0}' don't declare {1}.</value>
   </data>

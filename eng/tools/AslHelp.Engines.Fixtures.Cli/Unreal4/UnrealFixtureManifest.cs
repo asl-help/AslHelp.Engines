@@ -87,6 +87,25 @@ internal sealed partial record UnrealFixtureManifest(
     }
 
     /// <summary>
+    ///     Reads <see cref="FileName"/> from <paramref name="playerDirectory"/>.
+    /// </summary>
+    /// <param name="playerDirectory">The folder of the player.</param>
+    /// <returns>
+    ///     The manifest.
+    /// </returns>
+    /// <exception cref="FileNotFoundException">The folder doesn't have the file.</exception>
+    /// <exception cref="InvalidDataException">The file is the JSON <c>null</c>.</exception>
+    /// <exception cref="JsonException">The file isn't the JSON of a manifest.</exception>
+    public static UnrealFixtureManifest Read(string playerDirectory)
+    {
+        string path = Path.Combine(playerDirectory, FileName);
+        using var stream = File.OpenRead(path);
+
+        return JsonSerializer.Deserialize(stream, UnrealFixtureManifestContext.Default.UnrealFixtureManifest)
+            ?? throw new InvalidDataException(UnrealSR.FormatManifestEmpty(path));
+    }
+
+    /// <summary>
     ///     Writes <see cref="FileName"/> into <paramref name="playerDirectory"/>.
     /// </summary>
     /// <param name="playerDirectory">The folder of the player.</param>

@@ -18,6 +18,9 @@
   <data name="DesktopCreateFix" xml:space="preserve">
     <value>Start the player from an interactive session or without a hidden desktop.</value>
   </data>
+  <data name="DuplicateFilePath" xml:space="preserve">
+    <value>The file '{0}' is in the set twice. Pass each relative path once.</value>
+  </data>
   <data name="DuplicateInputName" xml:space="preserve">
     <value>The name '{0}' was added already. Use each name once per key.</value>
   </data>
@@ -57,6 +60,9 @@
   <data name="LockTimeoutOutOfRange" xml:space="preserve">
     <value>The lock timeout is out of range. Pass a value from 0 up to {0}.</value>
   </data>
+  <data name="LoneSurrogateFilePath" xml:space="preserve">
+    <value>A file path in the set has a lone UTF-16 surrogate, which doesn't have unique UTF-8 bytes. Pass valid Unicode paths.</value>
+  </data>
   <data name="LoneSurrogateFileName" xml:space="preserve">
     <value>A file name under '{0}' has a lone UTF-16 surrogate, which doesn't have unique UTF-8 bytes. Rename the file.</value>
   </data>
@@ -72,8 +78,14 @@
   <data name="PlayerArchInvalid" xml:space="preserve">
     <value>{0} isn't a player architecture. Use X64 or X86.</value>
   </data>
+  <data name="PlayerArchNameInvalid" xml:space="preserve">
+    <value>'{0}' isn't an architecture. Use x64 or x86.</value>
+  </data>
   <data name="PlayerConfigInvalid" xml:space="preserve">
     <value>{0} isn't a player build configuration. Use Development or Shipping.</value>
+  </data>
+  <data name="PlayerConfigNameInvalid" xml:space="preserve">
+    <value>'{0}' isn't a build configuration. Use development or shipping.</value>
   </data>
   <data name="PlayerNotFound" xml:space="preserve">
     <value>The player '{0}' does not exist. Build or download it first, then pass its path.</value>

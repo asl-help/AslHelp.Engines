@@ -324,6 +324,38 @@ public sealed class UnrealFixtureManifestTests
         }
     }
 
+    // A written manifest reads back with the same values.
+    [Test]
+    public void Read_WrittenManifest_ReturnsTheSameValues()
+    {
+        string folder = _folder.NewFolder();
+        UnrealFixtureManifest manifest = new("4.19.2", Player, Configuration, ["FixtureData"], ["IntValue"]);
+        manifest.Write(folder);
+
+        var read = UnrealFixtureManifest.Read(folder);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(read.EngineVersion, Is.EqualTo("4.19.2"));
+            Assert.That(read.Player, Is.EqualTo(Player));
+            Assert.That(read.Configuration, Is.EqualTo(Configuration));
+            Assert.That(read.Classes, Is.EqualTo(["FixtureData"]));
+            Assert.That(read.Properties, Is.EqualTo(["IntValue"]));
+        }
+    }
+
+    // A file with the JSON null throws with the path of the file.
+    [Test]
+    public void Read_NullJson_ThrowsInvalidDataException()
+    {
+        string folder = _folder.NewFolder();
+        TestFolder.WriteBytes(folder, UnrealFixtureManifest.FileName, "null"u8.ToArray());
+
+        Assert.That(
+            () => UnrealFixtureManifest.Read(folder),
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains(Path.Combine(folder, UnrealFixtureManifest.FileName)));
+    }
+
     private static string Actor(string members)
     {
         return $"UCLASS()\r\nclass AFixtureData : public AActor\r\n{{\r\n    {members}\r\n}};\r\n";

@@ -30,6 +30,11 @@ internal static class UnrealGame
     // STATUS_DLL_NOT_FOUND, the exit code of a process that Windows can't load a DLL for.
     private const int StatusDllNotFound = unchecked((int)0xC0000135);
 
+    /// <summary>
+    ///     Represents how long <see cref="CheckAsync"/> waits for the ready file by default, 3 minutes.
+    /// </summary>
+    public static readonly TimeSpan DefaultCheckTimeout = TimeSpan.FromMinutes(3);
+
     private static readonly TimeSpan _readyPollInterval = TimeSpan.FromMilliseconds(250);
 
     /// <summary>

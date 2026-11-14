@@ -95,6 +95,12 @@ Every pinned version from 2010-06-BETA on builds. The build refuses 2009-11-BETA
 
 ### Unreal Engine 4 and 5
 
+```
+just fixtures build unreal4 <version> --output <folder> [--arch x64|x86] [--config shipping|development]
+```
+
+Pass the version as `4.19`, `4.19.2` or `UE_4.19`. If you leave out `--arch` and `--config`, it builds every player in the row (see the table below).
+
 We get the engines from Epic with [legendary](https://github.com/legendary-gl/legendary), pinned to 1 hotfix per minor version from 4.0 to 5.8. `eng/fixtures/unreal4/releases.json` lists them.
 
 Before your 1st build:
@@ -113,6 +119,50 @@ docker build -t asl-help/unreal4-build:<tag> "<repo>\artifacts\bin\AslHelp.Engin
 ```
 
 Building the image needs Docker with Windows containers and about 40 GiB free under the Docker data root. Docker caches each layer, so if the image build stops, the next try continues from there.
+
+Here's what a build does:
+
+1. Installs the engine (see above).
+2. Deletes `<output>/unreal4-<version>-build` and renders the project for the version into `project` in that folder.
+3. Runs the scripts in `eng/fixtures/unreal4/build` in containers of the image, with the engine, `project`, `out`, `logs` and the scripts mounted. `editor.bat` builds the editor target. Then `package.bat` builds each player, the 1st one with `-cook` and the rest with `-skipcook`. Versions 4.0 to 4.18 and 4.25 to 4.27 run `runtimes.bat` first. Each step writes its log to `logs/<step>.log` and gets 90 minutes.
+4. Moves each archive to `players/<tag>`, copies in the DLLs its exe imports that Windows doesn't ship, writes `fixture.json` and copies in the logs of its steps.
+5. Starts each exe with `-nullrhi -nosound` in a clean `mcr.microsoft.com/windows/server:ltsc2025` container and waits up to 3 minutes for the fixture to write `FixtureReady.txt` next to the exe. Then it deletes that file and `Fixture/Saved`.
+6. Moves each player to `<output>/unreal4-<version>-<tag>-<hash>`.
+
+When every script passes it deletes `project` and `out`. When a script fails it keeps them so you can look at what the step saw. The top of each script has the `docker run` line for running it by hand.
+
+Each version's row in `releases.json` has what's different for that version. "All 4" in the table means win-x64-shipping, win-x64-development, win-x86-shipping and win-x86-development. The 1st player in the list is the one that cooks.
+
+| Versions | `players` | `editorFlags` | `packageFlags` | `pathPrepend` | `runtimes` | Toolset |
+|---|---|---|---|---|---|---|
+| 4.0 to 4.7 | win-x64-development, win-x86-shipping | `-rocket` | `-rocket -nobootstrapexe` | | image | VS2013 12.0 |
+| 4.8 to 4.9 | all 4 | `-rocket` | `-rocket` | | image | VS2013 12.0 |
+| 4.10 | all 4 | `-rocket` | `-rocket` | | image | VS2015 14.0 |
+| 4.11 to 4.13 | all 4 | `-waitmutex` | | | image | VS2015 14.0 |
+| 4.14 | all 4 | `-waitmutex` | | | image | VS2015 14.0 |
+| 4.15 to 4.18 | all 4 | `-waitmutex` | | VS2017 14.16 `HostX64\x64` | image | VS2017 14.16 |
+| 4.19 | all 4 | `-waitmutex` | | VS2017 14.16 `HostX64\x64` | engine | VS2017 14.16 |
+| 4.20 to 4.21 | all 4 | `-waitmutex` | | | engine | VS2022 14.29 |
+| 4.22 to 4.23 | all 4 | `-waitmutex` | | VS2017 14.16 `HostX64\x64` | engine | VS2017 14.16 |
+| 4.24 | all 4 | `-waitmutex` | | | engine | VS2017 14.16 |
+| 4.25 | all 4 | `-waitmutex` | | | image | VS2022 14.44 |
+| 4.26 to 4.27 | all 4 | `-waitmutex` | | | image | VS2022 14.44 |
+| 5.0 to 5.2 | win-x64-shipping, win-x64-development | `-waitmutex` | | | engine | VS2022 14.29 |
+| 5.3 | win-x64-shipping, win-x64-development | `-waitmutex -CompilerVersion=14.38.33130` | `-skipbuildeditor -ubtargs=-CompilerVersion=14.38.33130` | | engine | VS2022 14.38 |
+| 5.4 to 5.6 | win-x64-shipping, win-x64-development | `-waitmutex` | | | engine | VS2022 14.38 |
+| 5.7 to 5.8 | win-x64-shipping, win-x64-development | `-waitmutex` | | | engine | VS2022 14.44 |
+
+- `image`: the VC 2013 CRT, the newest VS2022 CRT and the DirectX June 2010 DLLs from the image.
+- `engine`: `Engine/Binaries/ThirdParty/AppLocalDependencies/<Win64|Win32>`.
+- Toolset: the VS and MSVC version that UBT picks from the image. It's also the linker version of the shipping exe.
+- 5.3 sets its toolset on the command line because UBT 5.3 refuses the 14.29 toolset it would pick otherwise.
+
+A player's key comes from the player id, the manifest sha1, the image tag, the project as it renders for the version, the step scripts, `editorFlags`, `packageFlags`, `pathPrepend`, `runtimes` and `BuildVersion` in `Unreal`. If a change sits behind a version check that leaves it out for some version, the key of that version stays the same.
+
+#### Adding a version
+
+1. Add a row to `eng/fixtures/unreal4/releases.json` with `version`, `app` (like `UE_4.19`), `build`, the `sha1` of the manifest, `installBytes`, `installTags`, `players`, `editorFlags`, `packageFlags`, `pathPrepend` (or `null`) and `runtimes`. Add it to the table above too.
+2. Run the build command for it.
 
 ## Measuring
 

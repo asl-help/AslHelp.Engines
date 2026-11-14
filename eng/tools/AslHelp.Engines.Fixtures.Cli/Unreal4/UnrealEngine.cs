@@ -42,8 +42,6 @@ internal sealed class UnrealEngine(
     private const int ExitNotPinned = 11;
     private const int FileNotFoundError = 2;
     private const string LegendaryPackage = $"legendary-gl=={LegendaryVersion}";
-    // The end of the name of a scratch folder, after the toolchain and the version.
-    private const string ScratchSuffix = "-build";
     private const string ScriptFileName = "install_engine.py";
     private const string ScriptResource = "Unreal4/install_engine.py";
 
@@ -133,11 +131,11 @@ internal sealed class UnrealEngine(
     /// </returns>
     private static string[] StaleScratches(string outputDirectory, UnrealRelease release)
     {
-        string own = Path.Combine(outputDirectory, $"unreal4-{release.Version}{ScratchSuffix}");
+        string own = Path.Combine(outputDirectory, $"{Unreal.ToolchainName}-{release.Version}{UnrealPaths.ScratchSuffix}");
 
         return
         [
-            .. Directory.EnumerateDirectories(outputDirectory, $"unreal4-*{ScratchSuffix}")
+            .. Directory.EnumerateDirectories(outputDirectory, $"{Unreal.ToolchainName}-*{UnrealPaths.ScratchSuffix}")
                 .Where(scratch => !scratch.Equals(own, StringComparison.OrdinalIgnoreCase)),
         ];
     }

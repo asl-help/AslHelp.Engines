@@ -22,14 +22,18 @@ namespace AslHelp.Engines.Fixtures;
 ///         <list type="number">
 ///             <item><c>text(kind)</c>.</item>
 ///             <item>
-///                 For each entry in ordinal order of its name, a 1-byte tag (1 for a value, 2 for a folder),
-///                 <c>text(name)</c> and the payload.
+///                 For each entry in ordinal order of its name, a 1-byte tag (1 for a value, 2 for a folder or a
+///                 file set), <c>text(name)</c> and the payload.
 ///             </item>
 ///             <item>A value payload is <c>text(value)</c>.</item>
 ///             <item>
 ///                 A folder payload is the file count as a 4-byte little-endian integer, then for each file in
 ///                 ordinal order of the UTF-16 code units of its relative path <c>text(relativePath)</c>, the file
 ///                 length as an 8-byte little-endian integer and the file bytes.
+///             </item>
+///             <item>
+///                 A file set payload has the layout of a folder payload, so a set equal to the files of a folder
+///                 gives the same bytes.
 ///             </item>
 ///         </list>
 ///     </para>
@@ -38,7 +42,7 @@ namespace AslHelp.Engines.Fixtures;
 ///     </para>
 ///     <para>
 ///         <see cref="Inputs"/> lists what the last <see cref="Build"/> hashed, so a record of the inputs cannot drift
-///         from the key. A folder input lists the sha256 over its payload, read in the same pass as the key.
+///         from the key. A folder or file set input lists the sha256 over its payload, read in the same pass as the key.
 ///     </para>
 /// </remarks>
 public sealed class CacheKeyBuilder
@@ -51,7 +55,7 @@ public sealed class CacheKeyBuilder
     private static readonly UTF8Encoding _strictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
     private readonly string _kind;
-    private readonly SortedDictionary<string, (bool IsDirectory, string Payload)> _entries = [with(StringComparer.Ordinal)];
+    private readonly SortedDictionary<string, Entry> _entries = [with(StringComparer.Ordinal)];
 
     private ReadOnlyCollection<CacheKeyInput>? _inputs;
 
@@ -74,8 +78,8 @@ public sealed class CacheKeyBuilder
     ///     Gets the inputs the last <see cref="Build"/> hashed, in the ordinal name order it hashed them.
     /// </summary>
     /// <remarks>
-    ///     A value input lists its text. A folder input lists the sha256 over the folder payload as 64 lowercase hex
-    ///     chars, the bytes the key layout has after the input name.
+    ///     A value input lists its text. A folder or file set input lists the sha256 over its payload as 64 lowercase
+    ///     hex chars, the bytes the key layout has after the input name.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     ///     <see cref="Build"/> has not run yet or an input was added after the last <see cref="Build"/>.
@@ -102,17 +106,9 @@ public sealed class CacheKeyBuilder
     {
         ArgumentNullException.ThrowIfNull(value);
         ThrowIfNotNewName(name);
+        ThrowIfLoneSurrogate(value, SR.LoneSurrogateValue, nameof(value));
 
-        try
-        {
-            _ = _strictUtf8.GetByteCount(value);
-        }
-        catch (EncoderFallbackException ex)
-        {
-            throw new ArgumentException(SR.LoneSurrogateValue, nameof(value), ex);
-        }
-
-        _entries.Add(name, (IsDirectory: false, value));
+        _entries.Add(name, new ValueEntry(value));
         _inputs = null;
         return this;
     }
@@ -160,7 +156,54 @@ public sealed class CacheKeyBuilder
             throw new DirectoryNotFoundException(SR.FormatFolderNotFound(path));
         }
 
-        _entries.Add(name, (IsDirectory: true, fullPath));
+        _entries.Add(name, new DirectoryEntry(fullPath));
+        _inputs = null;
+        return this;
+    }
+
+    /// <summary>
+    ///     Adds a set of files that sit in memory, such as a folder as a build renders it.
+    /// </summary>
+    /// <remarks>
+    ///     The files are hashed like the files of <see cref="AddDirectory"/>, in ordinal order of the relative path, so
+    ///     the order of <paramref name="files"/> does not matter and a set equal to the files of a folder gives the same
+    ///     hash. The list is copied now, so a file added to or removed from <paramref name="files"/> later does not
+    ///     change the key.
+    /// </remarks>
+    /// <param name="name">The name of the input, in lowercase ascii letters, digits and '-'.</param>
+    /// <param name="files">The files to hash, each with a relative path with '/' separators.</param>
+    /// <returns>
+    ///     This builder.
+    /// </returns>
+    /// <exception cref="ArgumentException">
+    ///     <paramref name="name"/> is empty, has a character other than lowercase ascii letters, digits and '-' or was
+    ///     added already.
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    ///     A relative path of <paramref name="files"/> has a lone UTF-16 surrogate or is in the set twice.
+    /// </exception>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="name"/> or <paramref name="files"/> is <see langword="null"/>.
+    /// </exception>
+    public CacheKeyBuilder AddFiles(string name, IEnumerable<CacheKeyFile> files)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        ThrowIfNotNewName(name);
+
+        CacheKeyFile[] sorted = [.. files];
+        Array.Sort(sorted, static (left, right) => string.CompareOrdinal(left.RelativePath, right.RelativePath));
+
+        for (int i = 0; i < sorted.Length; i++)
+        {
+            ThrowIfLoneSurrogate(sorted[i].RelativePath, SR.LoneSurrogateFilePath, nameof(files));
+
+            if (i > 0 && sorted[i].RelativePath == sorted[i - 1].RelativePath)
+            {
+                throw new ArgumentException(SR.FormatDuplicateFilePath(sorted[i].RelativePath), nameof(files));
+            }
+        }
+
+        _entries.Add(name, new FilesEntry(sorted));
         _inputs = null;
         return this;
     }
@@ -193,21 +236,32 @@ public sealed class CacheKeyBuilder
         List<CacheKeyInput> inputs = [with(_entries.Count)];
 
         AppendText(keySink, _kind);
-        foreach (var entry in _entries)
+        foreach (var (name, entry) in _entries)
         {
-            keySink.Append([entry.Value.IsDirectory ? DirectoryTag : ValueTag]);
-            AppendText(keySink, entry.Key);
+            keySink.Append([entry is ValueEntry ? ValueTag : DirectoryTag]);
+            AppendText(keySink, name);
 
-            if (entry.Value.IsDirectory)
+            // Feed a folder or file set payload to both hashes, so it is read once.
+            switch (entry)
             {
-                // Feed the payload to both hashes, so the folder is read once.
-                AppendDirectory(new(hash, folderHash), entry.Value.Payload);
-                inputs.Add(new(entry.Key, Convert.ToHexStringLower(folderHash.GetHashAndReset())));
-            }
-            else
-            {
-                AppendText(keySink, entry.Value.Payload);
-                inputs.Add(new(entry.Key, entry.Value.Payload));
+                case ValueEntry value:
+                {
+                    AppendText(keySink, value.Value);
+                    inputs.Add(new(name, value.Value));
+                    break;
+                }
+                case DirectoryEntry directory:
+                {
+                    AppendDirectory(new(hash, folderHash), directory.Path);
+                    inputs.Add(new(name, Convert.ToHexStringLower(folderHash.GetHashAndReset())));
+                    break;
+                }
+                case FilesEntry fileSet:
+                {
+                    AppendFiles(new(hash, folderHash), fileSet.Files);
+                    inputs.Add(new(name, Convert.ToHexStringLower(folderHash.GetHashAndReset())));
+                    break;
+                }
             }
         }
 
@@ -224,6 +278,25 @@ public sealed class CacheKeyBuilder
         if (_entries.ContainsKey(name))
         {
             throw new ArgumentException(SR.FormatDuplicateInputName(name), nameof(name));
+        }
+    }
+
+    /// <summary>
+    ///     Throws when <paramref name="text"/> has a lone UTF-16 surrogate.
+    /// </summary>
+    /// <param name="text">The text to check.</param>
+    /// <param name="message">The message of the exception.</param>
+    /// <param name="paramName">The parameter name of the exception.</param>
+    /// <exception cref="ArgumentException"><paramref name="text"/> has a lone UTF-16 surrogate.</exception>
+    private static void ThrowIfLoneSurrogate(string text, string message, string paramName)
+    {
+        try
+        {
+            _ = _strictUtf8.GetByteCount(text);
+        }
+        catch (EncoderFallbackException ex)
+        {
+            throw new ArgumentException(message, paramName, ex);
         }
     }
 
@@ -249,6 +322,23 @@ public sealed class CacheKeyBuilder
         {
             AppendRelativePath(sink, root, relativePath);
             AppendFile(sink, Path.Combine(root, relativePath), buffer);
+        }
+    }
+
+    /// <summary>
+    ///     Appends the payload of a file set, in the layout of a folder payload.
+    /// </summary>
+    /// <param name="sink">The hashes to append to.</param>
+    /// <param name="files">The files in ordinal order of their relative paths.</param>
+    private static void AppendFiles(HashSink sink, CacheKeyFile[] files)
+    {
+        AppendUInt32(sink, (uint)files.Length);
+
+        foreach (var file in files)
+        {
+            AppendText(sink, file.RelativePath);
+            AppendUInt64(sink, (ulong)file.Content.Length);
+            sink.Append(file.Content.Span);
         }
     }
 
@@ -315,6 +405,29 @@ public sealed class CacheKeyBuilder
 
         sink.Append(bytes);
     }
+
+    /// <summary>
+    ///     Represents 1 added input.
+    /// </summary>
+    private abstract record Entry;
+
+    /// <summary>
+    ///     Represents a text input.
+    /// </summary>
+    /// <param name="Value">The text to hash.</param>
+    private sealed record ValueEntry(string Value) : Entry;
+
+    /// <summary>
+    ///     Represents a folder input, read at <see cref="Build"/>.
+    /// </summary>
+    /// <param name="Path">The full path of the folder.</param>
+    private sealed record DirectoryEntry(string Path) : Entry;
+
+    /// <summary>
+    ///     Represents a file set input.
+    /// </summary>
+    /// <param name="Files">The files in ordinal order of their relative paths.</param>
+    private sealed record FilesEntry(CacheKeyFile[] Files) : Entry;
 
     /// <summary>
     ///     Appends the same bytes to the key hash and, while a folder is read, to the hash of its payload.

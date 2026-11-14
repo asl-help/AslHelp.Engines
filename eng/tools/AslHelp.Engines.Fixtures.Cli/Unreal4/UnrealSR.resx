@@ -12,6 +12,15 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="ArchDescription" xml:space="preserve">
+    <value>Builds only the players of this architecture, such as x64.</value>
+  </data>
+  <data name="ArchiveNotFound" xml:space="preserve">
+    <value>The package step of {0} didn't write a folder into '{1}'. Read '{2}'.</value>
+  </data>
+  <data name="ConfigDescription" xml:space="preserve">
+    <value>Builds only the players of this build configuration, such as shipping.</value>
+  </data>
   <data name="DirectiveBadCondition" xml:space="preserve">
     <value>{0}({1}): bad condition '{2}'. Write an op and a major.minor, such as &gt;=4.14. The ops are &gt;=, &gt;, &lt;, &lt;= and ==.</value>
   </data>
@@ -65,6 +74,9 @@
   </data>
   <data name="ImageMissing" xml:space="preserve">
     <value>The build image {0} is missing. Build it with: docker build -t {0} "{1}"</value>
+  </data>
+  <data name="ManifestEmpty" xml:space="preserve">
+    <value>'{0}' has no manifest.</value>
   </data>
   <data name="ManifestNoFixtureData" xml:space="preserve">
     <value>The headers in '{0}' don't declare {1}.</value>

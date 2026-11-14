@@ -1,6 +1,7 @@
 using AslHelp.Engines.Fixtures.Cli.Hosting;
 using AslHelp.Engines.Fixtures.Cli.Transfer;
 using AslHelp.Engines.Fixtures.Cli.Unreal3;
+using AslHelp.Engines.Fixtures.Cli.Unreal4;
 using System;
 using System.Collections.Generic;
 using System.CommandLine;
@@ -17,6 +18,7 @@ namespace AslHelp.Engines.Fixtures.Cli;
 /// </summary>
 internal static class CommandLine
 {
+    private const string BuildPath = "build";
     private const string LockFileName = ".fixtures.lock";
     private const string ProjectsPath = "projects";
 
@@ -36,12 +38,13 @@ internal static class CommandLine
     {
         using Downloader downloader = new();
         using ContainerHost host = new();
+        Unreal unreal = new(new UnrealEngine(output), host, host, Path.Combine(AppContext.BaseDirectory, BuildPath, Unreal.ToolchainName));
 
         return await RunAsync(
             args,
             output,
             error,
-            [new Udk(downloader, host)],
+            [new Udk(downloader, host), unreal],
             DavStore.FromEnvironmentIfSet,
             Path.Combine(AppContext.BaseDirectory, ProjectsPath)).ConfigureAwait(false);
     }

@@ -8,7 +8,7 @@ namespace AslHelp.Engines.Fixtures.Cli.Unreal4;
 ///     Describes the host folders of 1 build and where the build steps see them.
 /// </summary>
 /// <param name="Engine">The engine folder.</param>
-/// <param name="Scratch">The folder of the build, with the project, the archives and the logs.</param>
+/// <param name="Scratch">The folder of the build, with the project, the archives, the logs and the players.</param>
 /// <param name="Steps">The folder of the step scripts.</param>
 internal sealed record UnrealPaths(
     string Engine,
@@ -36,6 +36,11 @@ internal sealed record UnrealPaths(
     public const string ProjectMount = @"C:\p";
 
     /// <summary>
+    ///     Represents the end of the name of a scratch folder, after the toolchain and the version.
+    /// </summary>
+    public const string ScratchSuffix = "-build";
+
+    /// <summary>
     ///     Represents where a step sees <see cref="Steps"/>.
     /// </summary>
     public const string StepsMount = @"C:\r";
@@ -54,6 +59,11 @@ internal sealed record UnrealPaths(
     ///     Gets the folder of the step logs.
     /// </summary>
     public string Logs => Path.Combine(Scratch, "logs");
+
+    /// <summary>
+    ///     Gets the folder of the finished players, 1 subfolder per player tag.
+    /// </summary>
+    public string Players => Path.Combine(Scratch, "players");
 
     /// <summary>
     ///     Gets the mounts of every step: the engine at <c>C:\e</c>, the project at <c>C:\p</c>, the archives at <c>C:\o</c>, the

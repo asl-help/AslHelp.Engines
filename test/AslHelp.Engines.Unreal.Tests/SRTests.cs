@@ -67,6 +67,6 @@ public sealed class SRTests
             ObjectError.ClassUnreadable(obj, address, 0x2C, ObjectError.NullObject()).Message,
             Is.EqualTo(
                 $"Can't read the class of the object at {obj}: reading {address} failed. The object pointer is 0. "
-                + "Check ObjectLayout.Class (0x2C) against this engine version."));
+                + "Check ObjectLayout.Class (0x2C)."));
     }
 }

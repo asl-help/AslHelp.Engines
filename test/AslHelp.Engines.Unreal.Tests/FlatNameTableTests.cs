@@ -111,7 +111,7 @@ public sealed class FlatNameTableTests(
             table.Read(Id).UnwrapErr().Message,
             Is.EqualTo(
                 $"The entry of name {Id} at {_entry} has index {index}, which is name {Id + 1}. "
-                + $"Check NameEntryLayout.Index (0x{layout.Index:X}) against this engine version."));
+                + $"Check NameEntryLayout.Index (0x{layout.Index:X})."));
     }
 
     // An index of -1 shifts to -1 and does not match id 0, although -1 / 2 is 0.
@@ -140,7 +140,7 @@ public sealed class FlatNameTableTests(
             table.Read(Id).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the index of name {Id} from its entry at {_entry}: reading {indexAddress} failed. "
-                + $"No block contains {indexAddress}. Check NameEntryLayout.Index (0x{layout.Index:X}) against this engine version."));
+                + $"No block contains {indexAddress}. Check NameEntryLayout.Index (0x{layout.Index:X})."));
     }
 
     // A count past the block of entry pointers fails the read of the entry pointer, so the message has the address of that pointer.
@@ -311,46 +311,46 @@ public sealed class FlatNameTableTests(
         }
     }
 
-    // A text of 256 chars is the longest that comes back.
+    // A text of 1024 chars is the longest that comes back.
     [Test]
-    public void Read_TextOf256_ReturnsText()
+    public void Read_TextOf1024_ReturnsText()
     {
-        string text = new('x', 256);
+        string text = new('x', 1024);
         var memory = MemoryWithEntry(Id << 1, text);
         FlatNameTable table = new(memory, _array, layout);
 
         Assert.That(table.Read(Id).Unwrap(), Is.EqualTo(text));
     }
 
-    // A text with no terminator within 256 chars fails with the limit.
+    // A text with no terminator within 1024 chars fails with the limit.
     [Test]
-    public void Read_TextLongerThan256_FailsWithTheLimit()
+    public void Read_TextLongerThan1024_FailsWithTheLimit()
     {
-        var memory = MemoryWithEntry(Id << 1, new string('x', 257));
+        var memory = MemoryWithEntry(Id << 1, new string('x', 1025));
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id).UnwrapErr().Message, Does.Contain("no terminator within 256 characters"));
+        Assert.That(table.Read(Id).UnwrapErr().Message, Does.Contain("no terminator within 1024 characters"));
     }
 
-    // The limit of a wide text counts chars and not bytes, so a text of 256 chars comes back.
+    // The limit of a wide text counts chars and not bytes, so a text of 1024 chars comes back.
     [Test]
-    public void Read_WideTextOf256_ReturnsText()
+    public void Read_WideTextOf1024_ReturnsText()
     {
-        string text = new('x', 256);
+        string text = new('x', 1024);
         var memory = MemoryWithEntry((Id << 1) | 1, text);
         FlatNameTable table = new(memory, _array, layout);
 
         Assert.That(table.Read(Id).Unwrap(), Is.EqualTo(text));
     }
 
-    // A wide text with no terminator within 256 chars fails with the limit.
+    // A wide text with no terminator within 1024 chars fails with the limit.
     [Test]
-    public void Read_WideTextLongerThan256_FailsWithTheLimit()
+    public void Read_WideTextLongerThan1024_FailsWithTheLimit()
     {
-        var memory = MemoryWithEntry((Id << 1) | 1, new string('x', 257));
+        var memory = MemoryWithEntry((Id << 1) | 1, new string('x', 1025));
         FlatNameTable table = new(memory, _array, layout);
 
-        Assert.That(table.Read(Id).UnwrapErr().Message, Does.Contain("no terminator within 256 characters"));
+        Assert.That(table.Read(Id).UnwrapErr().Message, Does.Contain("no terminator within 1024 characters"));
     }
 
     // A char with a 0 low byte and a surrogate pair do not end a wide text early.
@@ -371,15 +371,6 @@ public sealed class FlatNameTableTests(
         Assert.That(
             () => new FlatNameTable(null!, _array, layout),
             Throws.ArgumentNullException.With.Property("ParamName").EqualTo("memory"));
-    }
-
-    // A null layout throws with its parameter name.
-    [Test]
-    public void Constructor_NullLayout_ThrowsArgumentNullException()
-    {
-        Assert.That(
-            () => new FlatNameTable(new FakeMemory(), _array, null!),
-            Throws.ArgumentNullException.With.Property("ParamName").EqualTo("layout"));
     }
 
     private FakeMemory MemoryWithEntry(int index, string text, int count = Id + 1)

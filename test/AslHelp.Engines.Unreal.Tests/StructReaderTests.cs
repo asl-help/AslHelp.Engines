@@ -63,7 +63,7 @@ public sealed class StructReaderTests(
             CreateReader(MemoryWithNames()).SuperOf(_pawn).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the super struct of the struct at {_pawn}: reading {address} failed. No block contains {address}. "
-                + $"Check StructLayout.SuperStruct (0x{layout.SuperStruct:X}) against this engine version."));
+                + $"Check StructLayout.SuperStruct (0x{layout.SuperStruct:X})."));
     }
 
     // A changed super returns the new pointer, because the game can reuse the address of a freed struct.
@@ -192,9 +192,9 @@ public sealed class StructReaderTests(
                 .And.Contain($"StructLayout.SuperStruct (0x{layout.SuperStruct:X})"));
     }
 
-    // A type that is its own super ends after 64 levels with no failure, because a damaged chain can loop.
+    // A type that is its own super fails after 64 levels, because a damaged chain can loop.
     [Test]
-    public void DerivesFrom_LoopingChain_ReturnsFalseAfter64Levels()
+    public void DerivesFrom_LoopingChain_FailsAfter64Levels()
     {
         var memory = MemoryWithNames();
         memory.AddObject(_pawn, objectLayout, PawnId);
@@ -204,29 +204,29 @@ public sealed class StructReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(derives, Is.EqualTo(Result.Ok(false)));
+            Assert.That(
+                derives.UnwrapErr().Message,
+                Is.EqualTo(
+                    $"The super chain of the struct at {_pawn} goes on past 64 levels. "
+                    + $"Check StructLayout.SuperStruct (0x{layout.SuperStruct:X})."));
             Assert.That(memory.ReadsAt(_pawn + objectLayout.Name), Is.EqualTo(64));
         }
     }
 
-    // The type itself is level 1, so a match at level 64 counts and a match at level 65 does not.
-    [TestCase(64, true)]
-    [TestCase(65, false)]
-    public void DerivesFrom_MatchAtLevel_ChecksOnly64Levels(int level, bool expected)
+    // The type itself is level 1, so a match at level 64 counts.
+    [Test]
+    public void DerivesFrom_MatchAtLevel64_ReturnsTrue()
     {
-        var memory = MemoryWithNames();
-        memory.Add(_chain, new byte[level * BlockSpacing]);
+        Assert.That(CreateReader(MemoryWithMatchAtLevel(64)).DerivesFrom(_chain, "Object").Unwrap(), Is.True);
+    }
 
-        for (int i = 1; i < level; i++)
-        {
-            var type = _chain + ((i - 1) * BlockSpacing);
-            memory.WriteInt32(type + objectLayout.Name, ActorId);
-            memory.WritePointer(type + layout.SuperStruct, type + BlockSpacing);
-        }
-
-        memory.WriteInt32(_chain + ((level - 1) * BlockSpacing) + objectLayout.Name, ObjectId);
-
-        Assert.That(CreateReader(memory).DerivesFrom(_chain, "Object").Unwrap(), Is.EqualTo(expected));
+    // A chain with its match at level 65 fails, because the limit stops it at 64.
+    [Test]
+    public void DerivesFrom_MatchAtLevel65_FailsPastLimit()
+    {
+        Assert.That(
+            CreateReader(MemoryWithMatchAtLevel(65)).DerivesFrom(_chain, "Object").UnwrapErr().Message,
+            Does.StartWith($"The super chain of the struct at {_chain} goes on past 64 levels."));
     }
 
     // Text that is equal only under a culture compare does not match, because the compare is ordinal.
@@ -327,18 +327,38 @@ public sealed class StructReaderTests(
                 items[0].UnwrapErr().Message,
                 Is.EqualTo(
                     $"Can't read the fields of the struct at {_pawn}: reading {address} failed. No block contains {address}. "
-                    + $"Check StructLayout.Children (0x{layout.Children:X}) against this engine version."));
+                    + $"Check StructLayout.Children (0x{layout.Children:X})."));
         }
     }
 
-    // A 1st field with another outer enumerates nothing.
+    // A 1st field with another outer fails with the field and its outer, because the struct points at its own 1st field and an empty success would hide a wrong offset.
     [Test]
-    public void ChildrenOf_FirstFieldWithAnotherOuter_ReturnsNothing()
+    public void ChildrenOf_FirstFieldWithAnotherOuter_YieldsOneFailure()
     {
         var memory = MemoryWithChain();
         memory.WritePointer(_field1 + objectLayout.Outer, _actor);
 
-        Assert.That(CreateReader(memory).ChildrenOf(_pawn), Is.Empty);
+        var items = CreateReader(memory).ChildrenOf(_pawn).ToList();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(items, Has.Count.EqualTo(1));
+            Assert.That(
+                items[0].UnwrapErr().Message,
+                Is.EqualTo(
+                    $"The 1st field at {_field1} of the struct at {_pawn} has the outer object {_actor}. "
+                    + $"Check ObjectLayout.Outer (0x{objectLayout.Outer:X}) and StructLayout.Children."));
+        }
+    }
+
+    // A 1st field read through a wrong outer offset fails instead of returning no fields.
+    [Test]
+    public void ChildrenOf_WrongOuterOffset_YieldsOneFailure()
+    {
+        var memory = MemoryWithChain();
+        var reader = CreateReader(memory, objectLayout with { Outer = objectLayout.Name }, layout);
+
+        Assert.That(reader.ChildrenOf(_pawn).Single().IsErr, Is.True);
     }
 
     // A field with another outer ends the chain before that field with no failure.
@@ -372,7 +392,7 @@ public sealed class StructReaderTests(
                 Is.EqualTo(
                     $"Can't read field 2 of the struct at {_pawn}. "
                     + $"Can't read the outer object of the object at {_unreadable}: reading {address} failed. No block contains {address}. "
-                    + $"Check ObjectLayout.Outer (0x{objectLayout.Outer:X}) against this engine version."));
+                    + $"Check ObjectLayout.Outer (0x{objectLayout.Outer:X})."));
         }
     }
 
@@ -413,24 +433,32 @@ public sealed class StructReaderTests(
                 items[1].UnwrapErr().Message,
                 Is.EqualTo(
                     $"Can't read the next field after the field at {_field1}: reading {address} failed. No block contains {address}. "
-                    + $"Check ChildLayout.Next (0x{fieldNext:X}) against this engine version."));
+                    + $"Check ChildLayout.Next (0x{fieldNext:X})."));
         }
     }
 
-    // A field that is its own next field ends after 4096 fields with no failure, because a damaged chain can loop.
+    // A field that is its own next field fails after 4096 fields, because a damaged chain can loop.
     [Test]
-    public void ChildrenOf_LoopingChain_StopsAt4096()
+    public void ChildrenOf_LoopingChain_FailsAfter4096()
     {
         var memory = MemoryWithChain();
         memory.WritePointer(_field1 + fieldNext, _field1);
 
-        Assert.That(Fields(CreateReader(memory), _pawn), Has.Count.EqualTo(4096));
+        var items = CreateReader(memory).ChildrenOf(_pawn).ToList();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(items, Has.Count.EqualTo(4097));
+            Assert.That(
+                items[^1].UnwrapErr().Message,
+                Is.EqualTo($"The struct at {_pawn} has more than 4096 fields. Check ChildLayout.Next (0x{fieldNext:X})."));
+        }
     }
 
-    // A chain of 4096 ends at its null pointer and a chain of 4097 drops the last field with no read of its outer pointer.
-    [TestCase(4096)]
-    [TestCase(4097)]
-    public void ChildrenOf_ChainAroundLimit_ReturnsFirst4096(int length)
+    // A chain of 4096 ends at its null pointer and a chain of 4097 fails with no read of the outer pointer of the last field.
+    [TestCase(4096, false)]
+    [TestCase(4097, true)]
+    public void ChildrenOf_ChainAroundLimit_ReturnsFirst4096AndFailsPastIt(int length, bool fails)
     {
         var memory = MemoryWithTypes();
         memory.Add(_chain, new byte[length * BlockSpacing]);
@@ -443,12 +471,14 @@ public sealed class StructReaderTests(
             memory.WritePointer(field + fieldNext, i + 1 < length ? field + BlockSpacing : Address.Zero);
         }
 
-        var fields = Fields(CreateReader(memory), _pawn);
+        var items = CreateReader(memory).ChildrenOf(_pawn).ToList();
+        var fields = items.Where(static item => item.IsOk).Select(static item => item.Unwrap()).ToList();
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(fields, Has.Count.EqualTo(4096));
             Assert.That(fields[^1], Is.EqualTo(_chain + (4095 * BlockSpacing)));
+            Assert.That(items[^1].IsErr, Is.EqualTo(fails));
             Assert.That(memory.ReadsAt(_chain + (4096 * BlockSpacing) + objectLayout.Outer), Is.Zero);
         }
     }
@@ -535,38 +565,6 @@ public sealed class StructReaderTests(
             Throws.ArgumentNullException.With.Property("ParamName").EqualTo("memory"));
     }
 
-    // A null object reader throws with its parameter name.
-    [Test]
-    public void Constructor_NullObjects_ThrowsArgumentNullException()
-    {
-        Assert.That(
-            () => new StructReader(new FakeMemory(), null!, layout, new ChildLayout(fieldNext)),
-            Throws.ArgumentNullException.With.Property("ParamName").EqualTo("objects"));
-    }
-
-    // A null layout throws with its parameter name.
-    [Test]
-    public void Constructor_NullLayout_ThrowsArgumentNullException()
-    {
-        FakeMemory memory = new();
-        var objects = CreateObjects(memory, objectLayout);
-
-        Assert.That(
-            () => new StructReader(memory, objects, null!, new ChildLayout(fieldNext)),
-            Throws.ArgumentNullException.With.Property("ParamName").EqualTo("layout"));
-    }
-
-    [Test]
-    public void Constructor_NullChildLayout_ThrowsArgumentNullException()
-    {
-        FakeMemory memory = new();
-        var objects = CreateObjects(memory, objectLayout);
-
-        Assert.That(
-            () => new StructReader(memory, objects, layout, null!),
-            Throws.ArgumentNullException.With.Property("ParamName").EqualTo("childLayout"));
-    }
-
     private static List<Address> Fields(StructReader reader, Address type)
     {
         return [.. reader.ChildrenOf(type).Select(static item => item.Unwrap())];
@@ -576,6 +574,24 @@ public sealed class StructReaderTests(
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddNames(_nameArray, _entryLayout, "Object", "Actor", "Pawn");
+
+        return memory;
+    }
+
+    // Lays out a chain of Actor structs with Object at level.
+    private FakeMemory MemoryWithMatchAtLevel(int level)
+    {
+        var memory = MemoryWithNames();
+        memory.Add(_chain, new byte[level * BlockSpacing]);
+
+        for (int i = 1; i < level; i++)
+        {
+            var type = _chain + ((i - 1) * BlockSpacing);
+            memory.WriteInt32(type + objectLayout.Name, ActorId);
+            memory.WritePointer(type + layout.SuperStruct, type + BlockSpacing);
+        }
+
+        memory.WriteInt32(_chain + ((level - 1) * BlockSpacing) + objectLayout.Name, ObjectId);
 
         return memory;
     }

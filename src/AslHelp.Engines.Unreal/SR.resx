@@ -16,10 +16,10 @@
     <value>Can't read the header of the name array at {0}: reading {1} failed. {2}</value>
   </data>
   <data name="NameEntryIndexMismatch" xml:space="preserve">
-    <value>The entry of name {0} at {1} has index {2}, which is name {3}. Check NameEntryLayout.Index (0x{4}) against this engine version.</value>
+    <value>The entry of name {0} at {1} has index {2}, which is name {3}. Check NameEntryLayout.Index (0x{4}).</value>
   </data>
   <data name="NameEntryIndexUnreadable" xml:space="preserve">
-    <value>Can't read the index of name {0} from its entry at {1}: reading {2} failed. {3} Check NameEntryLayout.Index (0x{4}) against this engine version.</value>
+    <value>Can't read the index of name {0} from its entry at {1}: reading {2} failed. {3} Check NameEntryLayout.Index (0x{4}).</value>
   </data>
   <data name="NameEntryNull" xml:space="preserve">
     <value>The entry pointer of name {0} is 0.</value>
@@ -28,7 +28,7 @@
     <value>Can't read the entry pointer of name {0}: reading {1} failed. {2}</value>
   </data>
   <data name="NameEntryTextUnreadable" xml:space="preserve">
-    <value>Can't read the text of name {0} from its entry at {1}: reading {2} failed. {3} Check NameEntryLayout.Name (0x{4}) against this engine version.</value>
+    <value>Can't read the text of name {0} from its entry at {1}: reading {2} failed. {3} Check NameEntryLayout.Name (0x{4}).</value>
   </data>
   <data name="NameIdNegative" xml:space="preserve">
     <value>Name {0} is below 0.</value>
@@ -46,36 +46,45 @@
     <value>Can't read the data pointer of the object array at {0}: reading {1} failed. {2}</value>
   </data>
   <data name="ObjectClassUnreadable" xml:space="preserve">
-    <value>Can't read the class of the object at {0}: reading {1} failed. {2} Check ObjectLayout.Class (0x{3}) against this engine version.</value>
+    <value>Can't read the class of the object at {0}: reading {1} failed. {2} Check ObjectLayout.Class (0x{3}).</value>
   </data>
   <data name="ObjectNameNotFound" xml:space="preserve">
-    <value>Can't read the name of the object at {0} with the name id {1}. {2} Check ObjectLayout.Name (0x{3}) against this engine version.</value>
+    <value>Can't read the name of the object at {0} with the name id {1}. {2} Check ObjectLayout.Name (0x{3}).</value>
   </data>
   <data name="ObjectNameNumberNegative" xml:space="preserve">
-    <value>The object at {0} has the name number {1}, which is below 0. Check ObjectLayout.Name (0x{2}) against this engine version.</value>
+    <value>The object at {0} has the name number {1}, which is below 0. Check ObjectLayout.Name (0x{2}).</value>
   </data>
   <data name="ObjectNameUnreadable" xml:space="preserve">
-    <value>Can't read the name of the object at {0}: reading {1} failed. {2} Check ObjectLayout.Name (0x{3}) against this engine version.</value>
+    <value>Can't read the name of the object at {0}: reading {1} failed. {2} Check ObjectLayout.Name (0x{3}).</value>
   </data>
   <data name="ObjectNull" xml:space="preserve">
     <value>The object pointer is 0.</value>
   </data>
   <data name="ObjectOuterUnreadable" xml:space="preserve">
-    <value>Can't read the outer object of the object at {0}: reading {1} failed. {2} Check ObjectLayout.Outer (0x{3}) against this engine version.</value>
+    <value>Can't read the outer object of the object at {0}: reading {1} failed. {2} Check ObjectLayout.Outer (0x{3}).</value>
+  </data>
+  <data name="StructChainPastLimit" xml:space="preserve">
+    <value>The super chain of the struct at {0} goes on past {1} levels. Check StructLayout.SuperStruct (0x{2}).</value>
   </data>
   <data name="StructChainUnreadable" xml:space="preserve">
     <value>Can't follow the super chain of the struct at {0} at level {1}. {2}</value>
   </data>
   <data name="StructChildrenUnreadable" xml:space="preserve">
-    <value>Can't read the fields of the struct at {0}: reading {1} failed. {2} Check StructLayout.Children (0x{3}) against this engine version.</value>
+    <value>Can't read the fields of the struct at {0}: reading {1} failed. {2} Check StructLayout.Children (0x{3}).</value>
   </data>
   <data name="StructFieldNextUnreadable" xml:space="preserve">
-    <value>Can't read the next field after the field at {0}: reading {1} failed. {2} Check ChildLayout.Next (0x{3}) against this engine version.</value>
+    <value>Can't read the next field after the field at {0}: reading {1} failed. {2} Check ChildLayout.Next (0x{3}).</value>
+  </data>
+  <data name="StructFieldsPastLimit" xml:space="preserve">
+    <value>The struct at {0} has more than {1} fields. Check ChildLayout.Next (0x{2}).</value>
   </data>
   <data name="StructFieldUnreadable" xml:space="preserve">
     <value>Can't read field {0} of the struct at {1}. {2}</value>
   </data>
+  <data name="StructFirstFieldOuterMismatch" xml:space="preserve">
+    <value>The 1st field at {0} of the struct at {1} has the outer object {2}. Check ObjectLayout.Outer (0x{3}) and StructLayout.Children.</value>
+  </data>
   <data name="StructSuperUnreadable" xml:space="preserve">
-    <value>Can't read the super struct of the struct at {0}: reading {1} failed. {2} Check StructLayout.SuperStruct (0x{3}) against this engine version.</value>
+    <value>Can't read the super struct of the struct at {0}: reading {1} failed. {2} Check StructLayout.SuperStruct (0x{3}).</value>
   </data>
 </root>

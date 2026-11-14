@@ -11,6 +11,7 @@ namespace AslHelp.Engines.Unreal;
 /// <remarks>
 ///     Caches each name by id, because a name never changes once the engine has made it.
 ///     A failed read stays out of the cache, because the engine can add the entry later.
+///     Isn't thread-safe, because the cache is a <see cref="Dictionary{TKey, TValue}"/> without a lock.
 /// </remarks>
 /// <param name="memory">The memory to read from.</param>
 /// <param name="array">The address of the array, which is a data pointer and then a 4-byte count.</param>
@@ -23,7 +24,8 @@ public sealed class FlatNameTable(
     Address array,
     NameEntryLayout layout)
 {
-    private const int MaxNameLength = 256;
+    // Use NAME_SIZE of the engine source, which is the longest name.
+    private const int MaxNameLength = 1024;
     private const int WideBit = 1;
 
     private readonly Address _array = array;

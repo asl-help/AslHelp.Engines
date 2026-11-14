@@ -26,6 +26,11 @@ public sealed class ObjectReader(
     private readonly FlatNameTable _names = names ?? throw new ArgumentNullException(nameof(names));
 
     /// <summary>
+    ///     Gets the offset of the outer pointer inside an object, for the failure of a caller that finds another outer object.
+    /// </summary>
+    internal int OuterOffset => _layout.Outer;
+
+    /// <summary>
     ///     Reads the base name of <paramref name="obj"/>, without the number suffix.
     /// </summary>
     /// <remarks>
@@ -72,10 +77,16 @@ public sealed class ObjectReader(
     /// </summary>
     /// <param name="obj">The address of the object.</param>
     /// <returns>
-    ///     The address of the class or a failure with the object and the failed read. A pointer of 0 returns <see cref="Address.Zero"/>.
+    ///     The address of the class or a failure with the object and the failed read when <paramref name="obj"/> is <see cref="Address.Zero"/>
+    ///     or the read fails. A class pointer of 0 returns <see cref="Address.Zero"/>.
     /// </returns>
     public Result<Address> ClassOf(Address obj)
     {
+        if (obj == Address.Zero)
+        {
+            return ObjectError.NullObject();
+        }
+
         var address = obj + _layout.Class;
 
         return _memory.ReadPointer(address).TryUnwrap(out var klass, out var error)
@@ -88,10 +99,16 @@ public sealed class ObjectReader(
     /// </summary>
     /// <param name="obj">The address of the object.</param>
     /// <returns>
-    ///     The address of the outer object or a failure with the object and the failed read. A pointer of 0 returns <see cref="Address.Zero"/>.
+    ///     The address of the outer object or a failure with the object and the failed read when <paramref name="obj"/> is <see cref="Address.Zero"/>
+    ///     or the read fails. An outer pointer of 0 returns <see cref="Address.Zero"/>.
     /// </returns>
     public Result<Address> OuterOf(Address obj)
     {
+        if (obj == Address.Zero)
+        {
+            return ObjectError.NullObject();
+        }
+
         var address = obj + _layout.Outer;
 
         return _memory.ReadPointer(address).TryUnwrap(out var outer, out var error)

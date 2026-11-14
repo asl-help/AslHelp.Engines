@@ -52,13 +52,14 @@ public sealed class StructReader(
     ///     Determines whether <paramref name="type"/> or a struct up its super chain is called <paramref name="name"/>.
     /// </summary>
     /// <remarks>
-    ///     Compares ordinally. Stops at <see cref="Address.Zero"/> and after 64 levels, because a damaged chain can loop.
+    ///     Compares ordinally. Stops at <see cref="Address.Zero"/> and fails after 64 levels, because a damaged chain can loop.
     /// </remarks>
     /// <param name="type">The address of the struct.</param>
     /// <param name="name">The base name to find.</param>
     /// <returns>
     ///     <see langword="true"/> when a struct on the chain is called <paramref name="name"/>, <see langword="false"/> when none is,
     ///     or a failure with the level of the chain and the failed read when a name or a super pointer on the way does not read.
+    ///     A chain that goes on past 64 levels fails too.
     /// </returns>
     /// <exception cref="ArgumentNullException">
     ///     <paramref name="name"/> is <see langword="null"/>.
@@ -87,6 +88,11 @@ public sealed class StructReader(
             }
         }
 
+        if (current != Address.Zero)
+        {
+            return StructError.ChainPastLimit(type, MaxDepth, _layout.SuperStruct);
+        }
+
         return false;
     }
 
@@ -94,15 +100,17 @@ public sealed class StructReader(
     ///     Enumerates the fields of <paramref name="type"/> in chain order.
     /// </summary>
     /// <remarks>
-    ///     Applies through Unreal Engine 4.24, where a field is an object with an outer object.
+    ///     Applies to every field through Unreal Engine 4.24 and to the functions from 4.25, where a field is an object with an outer object.
     ///     Reads each field when the enumeration moves to it, so a caller can stop early.
-    ///     Stops at <see cref="Address.Zero"/>, at a field whose outer object is not <paramref name="type"/> and after 4096 fields,
-    ///     because a damaged chain can loop.
+    ///     Stops at <see cref="Address.Zero"/> and at a later field whose outer object is not <paramref name="type"/>.
+    ///     Fails at a 1st field whose outer object is not <paramref name="type"/>, because the struct points at its own 1st field.
+    ///     Fails after 4096 fields, because a damaged chain can loop.
     ///     Ends at the 1st read that fails, with the failure as the last item, so the failure comes where the fields stop.
     /// </remarks>
     /// <param name="type">The address of the struct.</param>
     /// <returns>
-    ///     The addresses of the fields, then a failure if a read failed.
+    ///     The addresses of the fields, then a failure if a read failed, the 1st field has another outer object
+    ///     or the chain goes on past 4096 fields.
     /// </returns>
     public IEnumerable<Result<Address>> ChildrenOf(Address type)
     {
@@ -124,6 +132,12 @@ public sealed class StructReader(
 
             if (outer != type)
             {
+                // Fail a 1st field with another outer object, because the struct points at its own 1st field and a wrong offset would end as an empty success.
+                if (count == 0)
+                {
+                    yield return StructError.FirstFieldOuterMismatch(type, field, outer, _objects.OuterOffset);
+                }
+
                 yield break;
             }
 
@@ -138,6 +152,11 @@ public sealed class StructReader(
             }
 
             field = next;
+        }
+
+        if (field != Address.Zero)
+        {
+            yield return StructError.FieldsPastLimit(type, MaxChildren, _childLayout.Next);
         }
     }
 }

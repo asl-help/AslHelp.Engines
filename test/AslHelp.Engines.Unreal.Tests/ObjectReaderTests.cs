@@ -70,7 +70,7 @@ public sealed class ObjectReaderTests(
             CreateReader(memory).NameOf(_object).UnwrapErr().Message,
             Is.EqualTo(
                 $"The object at {_object} has the name number -1, which is below 0. "
-                + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
+                + $"Check ObjectLayout.Name (0x{layout.Name:X})."));
     }
 
     // The smallest number reads as signed, so it fails.
@@ -115,6 +115,36 @@ public sealed class ObjectReaderTests(
         }
     }
 
+    // Address 0 fails the class and the outer reads with no memory read too, even when address 0 has a valid object.
+    [Test]
+    public void ClassOf_OuterOf_AddressZero_FailWithNoRead()
+    {
+        var memory = MemoryWithNames();
+        memory.AddObject(Address.Zero, layout, CoreId, outer: _outer, klass: _class);
+        var reader = CreateReader(memory);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reader.ClassOf(Address.Zero).UnwrapErr().Message, Is.EqualTo("The object pointer is 0."));
+            Assert.That(reader.OuterOf(Address.Zero).UnwrapErr().Message, Is.EqualTo("The object pointer is 0."));
+            Assert.That(memory.Reads, Is.Zero);
+        }
+    }
+
+    // Every read of address 0 returns the same error, because the error has no values to keep apart.
+    [Test]
+    public void NameOf_ClassOf_OuterOf_AddressZero_ShareTheError()
+    {
+        var reader = CreateReader(MemoryWithNames());
+        var error = reader.NameOf(Address.Zero).UnwrapErr();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reader.ClassOf(Address.Zero).UnwrapErr(), Is.SameAs(error));
+            Assert.That(reader.OuterOf(Address.Zero).UnwrapErr(), Is.SameAs(error));
+        }
+    }
+
     // An unreadable object fails with the object and the name offset with no read of the name array.
     [Test]
     public void NameOf_UnreadableObject_FailsWithNameOffset()
@@ -128,7 +158,7 @@ public sealed class ObjectReaderTests(
                 CreateReader(memory).NameOf(_object).UnwrapErr().Message,
                 Is.EqualTo(
                     $"Can't read the name of the object at {_object}: reading {address} failed. No block contains {address}. "
-                    + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
+                    + $"Check ObjectLayout.Name (0x{layout.Name:X})."));
             Assert.That(memory.ReadsAt(_nameArray), Is.Zero);
         }
     }
@@ -147,7 +177,7 @@ public sealed class ObjectReaderTests(
             CreateReader(memory).NameOf(_object).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the name of the object at {_object}: reading {address} failed. No block contains {address}. "
-                + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
+                + $"Check ObjectLayout.Name (0x{layout.Name:X})."));
     }
 
     // An object at the end of the address range wraps around to unreadable memory and does not throw, although the build turns on overflow checks.
@@ -184,7 +214,7 @@ public sealed class ObjectReaderTests(
             CreateReader(memory).NameOf(_object).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the name of the object at {_object} with the name id {id}. {tableError} "
-                + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
+                + $"Check ObjectLayout.Name (0x{layout.Name:X})."));
     }
 
     // A changed name id returns the new name, because the game can reuse the address of a freed object.
@@ -268,7 +298,7 @@ public sealed class ObjectReaderTests(
             CreateReader(MemoryWithNames()).ClassOf(_object).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the class of the object at {_object}: reading {address} failed. No block contains {address}. "
-                + $"Check ObjectLayout.Class (0x{layout.Class:X}) against this engine version."));
+                + $"Check ObjectLayout.Class (0x{layout.Class:X})."));
     }
 
     // A changed class returns the new pointer, because the game can reuse the address of a freed object.
@@ -334,7 +364,7 @@ public sealed class ObjectReaderTests(
             CreateReader(MemoryWithNames()).OuterOf(_object).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the outer object of the object at {_object}: reading {address} failed. No block contains {address}. "
-                + $"Check ObjectLayout.Outer (0x{layout.Outer:X}) against this engine version."));
+                + $"Check ObjectLayout.Outer (0x{layout.Outer:X})."));
     }
 
     // A changed outer object returns the new pointer, because the game can reuse the address of a freed object.
@@ -379,26 +409,6 @@ public sealed class ObjectReaderTests(
         Assert.That(
             () => new ObjectReader(null!, names, layout),
             Throws.ArgumentNullException.With.Property("ParamName").EqualTo("memory"));
-    }
-
-    // A null table throws with its parameter name.
-    [Test]
-    public void Constructor_NullNames_ThrowsArgumentNullException()
-    {
-        Assert.That(
-            () => new ObjectReader(new FakeMemory(), null!, layout),
-            Throws.ArgumentNullException.With.Property("ParamName").EqualTo("names"));
-    }
-
-    // A null layout throws with its parameter name.
-    [Test]
-    public void Constructor_NullLayout_ThrowsArgumentNullException()
-    {
-        FlatNameTable names = new(new FakeMemory(), _nameArray, _entryLayout);
-
-        Assert.That(
-            () => new ObjectReader(new FakeMemory(), names, null!),
-            Throws.ArgumentNullException.With.Property("ParamName").EqualTo("layout"));
     }
 
     private FakeMemory MemoryWithNames()

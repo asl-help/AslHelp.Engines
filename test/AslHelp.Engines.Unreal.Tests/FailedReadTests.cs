@@ -66,8 +66,8 @@ public sealed class FailedReadTests
                 $"Can't follow the super chain of the struct at {_type} at level 1. "
                 + $"Can't read the name of the object at {_type} with the name id 0. "
                 + $"The entry of name 0 at {_entry} has index 10, which is name 5. "
-                + $"Check NameEntryLayout.Index (0x{_entryLayout.Index:X}) against this engine version. "
-                + $"Check ObjectLayout.Name (0x{_objectLayout.Name:X}) against this engine version."));
+                + $"Check NameEntryLayout.Index (0x{_entryLayout.Index:X}). "
+                + $"Check ObjectLayout.Name (0x{_objectLayout.Name:X})."));
     }
 
     // A match ends the chain, so a super pointer that does not read behind the match does not fail the call.
@@ -87,9 +87,9 @@ public sealed class FailedReadTests
         }
     }
 
-    // The limit ends the chain before level 65, so memory that does not read at that level does not fail the call.
+    // The limit ends the chain before level 65, so the call fails past the limit and doesn't read the struct at that level.
     [Test]
-    public void DerivesFrom_UnreadableStructAtLevel65_ReturnsFalse()
+    public void DerivesFrom_UnreadableStructAtLevel65_FailsPastLimit()
     {
         const int Spacing = 0x100;
 
@@ -106,7 +106,7 @@ public sealed class FailedReadTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(derives, Is.EqualTo(Result.Ok(false)));
+            Assert.That(derives.UnwrapErr().Message, Does.StartWith($"The super chain of the struct at {_chain} goes on past 64 levels."));
             Assert.That(memory.ReadsAt(_unreadable + _objectLayout.Name), Is.Zero);
         }
     }
@@ -125,7 +125,7 @@ public sealed class FailedReadTests
             Is.EqualTo(
                 $"Can't read the name of the object at {_type} with the name id 7. "
                 + $"Can't read the header of the name array at {_array}: reading {count} failed. No block contains {count}. "
-                + $"Check ObjectLayout.Name (0x{_objectLayout.Name:X}) against this engine version."));
+                + $"Check ObjectLayout.Name (0x{_objectLayout.Name:X})."));
     }
 
     // A text past the limit keeps the entry, the address of the text and the layout field around the failure of the string read.
@@ -134,13 +134,13 @@ public sealed class FailedReadTests
     {
         FakeMemory memory = new();
         memory.AddNameArray(_array, _data, 1, _entry);
-        memory.AddNameEntry(_entry, _entryLayout, 0, new string('x', 257));
+        memory.AddNameEntry(_entry, _entryLayout, 0, new string('x', 1025));
 
         Assert.That(
             new FlatNameTable(memory, _array, _entryLayout).Read(0).UnwrapErr().Message,
             Does.StartWith($"Can't read the text of name 0 from its entry at {_entry}: reading {_entry + _entryLayout.Name} failed.")
-                .And.Contain("no terminator within 256 characters")
-                .And.EndWith($"Check NameEntryLayout.Name (0x{_entryLayout.Name:X}) against this engine version."));
+                .And.Contain("no terminator within 1024 characters")
+                .And.EndWith($"Check NameEntryLayout.Name (0x{_entryLayout.Name:X})."));
     }
 
     private static (string Name, Func<bool> Probe)[] Probes()

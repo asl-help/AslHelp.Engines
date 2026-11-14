@@ -13,6 +13,20 @@ namespace AslHelp.Engines.Unreal.Errors;
 internal abstract record StructError : ResultError
 {
     /// <summary>
+    ///     Creates the error for a super chain that goes on past the limit.
+    /// </summary>
+    /// <param name="type">The address of the struct the chain starts from.</param>
+    /// <param name="limit">The number of levels that the chain stops after.</param>
+    /// <param name="offset">The offset of the super pointer in a struct.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static StructError ChainPastLimit(Address type, int limit, int offset)
+    {
+        return new ChainPastLimitError(type, limit, offset);
+    }
+
+    /// <summary>
     ///     Creates the error for a struct on the super chain whose name or super pointer did not read.
     /// </summary>
     /// <param name="type">The address of the struct the chain starts from.</param>
@@ -56,6 +70,35 @@ internal abstract record StructError : ResultError
     }
 
     /// <summary>
+    ///     Creates the error for a field chain that goes on past the limit.
+    /// </summary>
+    /// <param name="type">The address of the struct.</param>
+    /// <param name="limit">The number of fields that the chain stops after.</param>
+    /// <param name="offset">The offset of the next pointer in a field.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static StructError FieldsPastLimit(Address type, int limit, int offset)
+    {
+        return new FieldsPastLimitError(type, limit, offset);
+    }
+
+    /// <summary>
+    ///     Creates the error for a 1st field whose outer object is not the struct.
+    /// </summary>
+    /// <param name="type">The address of the struct.</param>
+    /// <param name="field">The address of the 1st field.</param>
+    /// <param name="outer">The outer object of the field.</param>
+    /// <param name="offset">The offset of the outer pointer in the field.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static StructError FirstFieldOuterMismatch(Address type, Address field, Address outer, int offset)
+    {
+        return new FirstFieldOuterMismatchError(type, field, outer, offset);
+    }
+
+    /// <summary>
     ///     Creates the error for a next pointer that did not read.
     /// </summary>
     /// <param name="field">The address of the field.</param>
@@ -87,6 +130,21 @@ internal abstract record StructError : ResultError
 }
 
 /// <summary>
+///     Represents a super chain that goes on past the limit.
+/// </summary>
+/// <param name="Type">The address of the struct the chain starts from.</param>
+/// <param name="Limit">The number of levels that the chain stops after.</param>
+/// <param name="Offset">The offset of the super pointer in a struct.</param>
+file sealed record ChainPastLimitError(
+    Address Type,
+    int Limit,
+    int Offset) : StructError
+{
+    /// <inheritdoc/>
+    public override string Message => SR.FormatStructChainPastLimit(Type, Limit, Offset.ToString("X", CultureInfo.InvariantCulture));
+}
+
+/// <summary>
 ///     Represents a struct on the super chain whose name or super pointer did not read.
 /// </summary>
 /// <param name="Type">The address of the struct the chain starts from.</param>
@@ -114,6 +172,39 @@ file sealed record FieldUnreadableError(
 {
     /// <inheritdoc/>
     public override string Message => SR.FormatStructFieldUnreadable(Position, Type, Cause.Message);
+}
+
+/// <summary>
+///     Represents a 1st field whose outer object is not the struct.
+/// </summary>
+/// <param name="Type">The address of the struct.</param>
+/// <param name="Field">The address of the 1st field.</param>
+/// <param name="Outer">The outer object of the field.</param>
+/// <param name="Offset">The offset of the outer pointer in the field.</param>
+file sealed record FirstFieldOuterMismatchError(
+    Address Type,
+    Address Field,
+    Address Outer,
+    int Offset) : StructError
+{
+    /// <inheritdoc/>
+    public override string Message
+        => SR.FormatStructFirstFieldOuterMismatch(Field, Type, Outer, Offset.ToString("X", CultureInfo.InvariantCulture));
+}
+
+/// <summary>
+///     Represents a field chain that goes on past the limit.
+/// </summary>
+/// <param name="Type">The address of the struct.</param>
+/// <param name="Limit">The number of fields that the chain stops after.</param>
+/// <param name="Offset">The offset of the next pointer in a field.</param>
+file sealed record FieldsPastLimitError(
+    Address Type,
+    int Limit,
+    int Offset) : StructError
+{
+    /// <inheritdoc/>
+    public override string Message => SR.FormatStructFieldsPastLimit(Type, Limit, Offset.ToString("X", CultureInfo.InvariantCulture));
 }
 
 /// <summary>

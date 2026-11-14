@@ -127,25 +127,25 @@ public sealed class UdkFixtureCheckTests(
         Assert.That(MeasureAndLog(), Does.Contain($"at {_image.FixtureInstance}"));
     }
 
-    // A field of another struct ends the chain, so the field behind it does not count.
+    // A 1st field of another struct fails the chain, so the field behind it does not count and the cause has the outer object.
     [Test]
-    public void Measure_FieldBehindAFieldOfAnotherStruct_FailsFieldNotFound()
+    public void Measure_FieldBehindAFirstFieldOfAnotherStruct_FailsChildrenUnreadable()
     {
         _image.Memory.WritePointer(Filler + layout.Next, FixtureField);
         _image.Memory.WritePointer(FixtureClass + layout.Children, Filler);
 
-        Assert.That(MeasureError(), Is.EqualTo(UdkSR.FixtureFieldNotFound));
+        Assert.That(MeasureError(), Does.StartWith(UdkSR.FixtureChildrenUnreadable).And.Contain($"The 1st field at {Filler} of the struct at {FixtureClass}"));
     }
 
-    // A chain that loops ends at the limit of the reader, so a damaged class fails the row and does not hang it.
+    // A chain that loops fails at the limit of the reader, so a damaged class fails the row and does not hang it.
     [Test]
-    public void Measure_FieldChainLoops_FailsFieldNotFound()
+    public void Measure_FieldChainLoops_FailsChildrenUnreadable()
     {
         _image.Memory.WritePointer(Filler + layout.Outer, FixtureClass);
         _image.Memory.WritePointer(Filler + layout.Next, Filler);
         _image.Memory.WritePointer(FixtureClass + layout.Children, Filler);
 
-        Assert.That(MeasureError(), Is.EqualTo(UdkSR.FixtureFieldNotFound));
+        Assert.That(MeasureError(), Does.StartWith(UdkSR.FixtureChildrenUnreadable));
     }
 
     // The offset comes from the field, so a value at another offset passes and the old position does not matter.

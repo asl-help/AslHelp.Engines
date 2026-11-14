@@ -1,7 +1,7 @@
 namespace AslHelp.Engines.Measuring.Cli.Unreal3.Errors;
 
 /// <summary>
-///     Represents a UDK player whose files or process did not read.
+///     Represents a UDK player whose process did not load or exited.
 /// </summary>
 internal sealed record UdkPlayerError : ResultError
 {
@@ -12,31 +12,6 @@ internal sealed record UdkPlayerError : ResultError
 
     /// <inheritdoc/>
     public override string Message { get; }
-
-    /// <summary>
-    ///     Creates the error for a file that is not a PE file.
-    /// </summary>
-    /// <param name="path">The path of the file.</param>
-    /// <returns>
-    ///     The error.
-    /// </returns>
-    public static UdkPlayerError ExecutableNotPe(string path)
-    {
-        return new(SR.FormatExecutableNotPe(path));
-    }
-
-    /// <summary>
-    ///     Creates the error for a file that did not open or read.
-    /// </summary>
-    /// <param name="path">The path of the file.</param>
-    /// <param name="reason">The message of the read.</param>
-    /// <returns>
-    ///     The error.
-    /// </returns>
-    public static UdkPlayerError FileUnreadable(string path, string reason)
-    {
-        return new(UdkSR.FormatFileUnreadable(path, reason));
-    }
 
     /// <summary>
     ///     Creates the error for an executable that the server did not load.

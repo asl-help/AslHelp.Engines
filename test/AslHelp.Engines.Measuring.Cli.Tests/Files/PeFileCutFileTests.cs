@@ -1,18 +1,17 @@
-using AslHelp.Engines.Measuring.Cli.Unreal3;
-using AslHelp.Memory;
+using AslHelp.Engines.Measuring.Cli.Files;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection.PortableExecutable;
 
-namespace AslHelp.Engines.Measuring.Cli.Tests.Unreal3;
+namespace AslHelp.Engines.Measuring.Cli.Tests.Files;
 
-public sealed class UdkSectionsCutFileTests
+public sealed class PeFileCutFileTests
 {
     private const int SectionHeaderSize = 40;
 
-    private static readonly string _testAssembly = typeof(UdkSectionsCutFileTests).Assembly.Location;
+    private static readonly string _testAssembly = typeof(PeFileCutFileTests).Assembly.Location;
 
     private TestFolder _folder = null!;
 
@@ -28,9 +27,9 @@ public sealed class UdkSectionsCutFileTests
         _folder.Delete();
     }
 
-    // A PE file cut off inside its headers fails with its path at every step of the read and does not throw.
+    // A PE file cut off inside its headers fails as no PE file at every cut and does not throw.
     [Test]
-    public void Read_FileCutInsideItsHeaders_FailsWithPath()
+    public void Open_FileCutInsideItsHeaders_FailsAsNotPe()
     {
         byte[] image = File.ReadAllBytes(_testAssembly);
         string file = Path.Combine(_folder.Root, "file.bin");
@@ -39,10 +38,7 @@ public sealed class UdkSectionsCutFileTests
         {
             File.WriteAllBytes(file, image.AsSpan(0, length).ToArray());
 
-            Assert.That(
-                UdkSections.Read(file, new FakeMemory(), new Address(0x0040_0000)).UnwrapErr().Message,
-                Is.EqualTo(SR.FormatExecutableNotPe(file)),
-                $"length: {length}");
+            Assert.That(PeFile.Open(file).UnwrapErr().Message, Is.EqualTo(SR.FormatExecutableNotPe(file)), $"length: {length}");
         }
     }
 

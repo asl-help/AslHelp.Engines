@@ -18,9 +18,6 @@
   <data name="ClassOffsetNotFound" xml:space="preserve">
     <value>No object called Class points at itself.</value>
   </data>
-  <data name="FileUnreadable" xml:space="preserve">
-    <value>Can't read '{0}': {1}</value>
-  </data>
   <data name="FixtureCheckNeeds" xml:space="preserve">
     <value>The fixture check needs {0}.</value>
   </data>

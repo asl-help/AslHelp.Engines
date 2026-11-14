@@ -1,9 +1,8 @@
-using AslHelp.Engines.Measuring.Cli.Unreal3.Errors;
+using AslHelp.Engines.Measuring.Cli.Files;
 using AslHelp.Memory;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.IO;
 using System.Reflection.PortableExecutable;
 
 namespace AslHelp.Engines.Measuring.Cli.Unreal3;
@@ -26,26 +25,16 @@ internal static class UdkSections
     /// </returns>
     public static Result<IReadOnlyList<UdkSection>> Read(string executablePath, IMemoryReader memory, Address moduleBase)
     {
+        if (!PeFile.Open(executablePath).TryUnwrap(out var reader, out var error))
+        {
+            return error;
+        }
+
         PEHeaders headers;
 
-        try
+        using (reader)
         {
-            using PEReader reader = new(File.OpenRead(executablePath));
             headers = reader.PEHeaders;
-        }
-        catch (BadImageFormatException)
-        {
-            return UdkPlayerError.ExecutableNotPe(executablePath);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            return UdkPlayerError.FileUnreadable(executablePath, exception.Message);
-        }
-
-        // Check the optional header, because PEReader reads a file without the PE signature as an object file with no error.
-        if (headers.PEHeader is null)
-        {
-            return UdkPlayerError.ExecutableNotPe(executablePath);
         }
 
         List<UdkSection> sections = [];

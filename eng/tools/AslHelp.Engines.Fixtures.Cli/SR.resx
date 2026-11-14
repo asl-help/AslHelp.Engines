@@ -150,6 +150,12 @@
   <data name="DownloadUrlRelative" xml:space="preserve">
     <value>The URL '{0}' is relative. Pass the absolute URL of the file to download.</value>
   </data>
+  <data name="DurationMinutes" xml:space="preserve">
+    <value>{0} min</value>
+  </data>
+  <data name="DurationSeconds" xml:space="preserve">
+    <value>{0} s</value>
+  </data>
   <data name="ExtractDestinationExists" xml:space="preserve">
     <value>The destination '{0}' exists. Delete it or pick another folder to extract into.</value>
   </data>

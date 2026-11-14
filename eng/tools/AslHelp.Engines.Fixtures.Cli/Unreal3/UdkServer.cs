@@ -131,7 +131,7 @@ internal static class UdkServer
                     ? UdkSR.FormatServerProgressFix(logPath)
                     : UdkSR.FormatServerStartFix(serverPath);
 
-                throw new TimeoutException(UdkSR.FormatServerNotReady(UdkLogScan.ReadyLine, timeout.TotalSeconds, next));
+                throw new TimeoutException(UdkSR.FormatServerNotReady(UdkLogScan.ReadyLine, DurationText.Format(timeout), next));
             }
 
             await Task.Delay(_logPollInterval, cancellationToken).ConfigureAwait(false);

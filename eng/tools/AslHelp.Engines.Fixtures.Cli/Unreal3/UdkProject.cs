@@ -223,7 +223,7 @@ internal static class UdkProject
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new TimeoutException(UdkSR.FormatMakeNotDone(timeout.TotalSeconds, NextStep(logPath, compilerPath)));
+                throw new TimeoutException(UdkSR.FormatMakeNotDone(DurationText.Format(timeout), NextStep(logPath, compilerPath)));
             }
 
             exitCode = player.ExitCode;

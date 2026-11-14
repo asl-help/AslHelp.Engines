@@ -40,7 +40,7 @@
     <value>UDK.com make exited with code 0 but did not write '{0}'. Read '{1}' and check that {2} is in UDKGame/Config/DefaultEngineUDK.ini.</value>
   </data>
   <data name="MakeNotDone" xml:space="preserve">
-    <value>UDK.com make did not finish within {0} seconds. {1}</value>
+    <value>UDK.com make did not finish within {0}. {1}</value>
   </data>
   <data name="MakeStartFix" xml:space="preserve">
     <value>The compiler did not start. Run '{0}' by hand to see why.</value>
@@ -70,7 +70,7 @@
     <value>The server '{0}' does not exist.</value>
   </data>
   <data name="ServerNotReady" xml:space="preserve">
-    <value>UDK.exe server did not log '{0}' within {1} seconds. {2}</value>
+    <value>UDK.exe server did not log '{0}' within {1}. {2}</value>
   </data>
   <data name="ServerProgressFix" xml:space="preserve">
     <value>Read '{0}' to see where it stopped.</value>

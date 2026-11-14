@@ -175,7 +175,7 @@ internal static class CommandLine
 
             if (measuredGroups.Count > 0)
             {
-                logger.GroupsHeader();
+                logger.GroupsHeader(measuredGroups.Count);
 
                 using var scope = logger.BeginGroupsScope();
 

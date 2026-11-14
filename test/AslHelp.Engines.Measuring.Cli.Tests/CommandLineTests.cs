@@ -199,7 +199,7 @@ public sealed class CommandLineTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(code, Is.EqualTo(1));
-            Assert.That(_error.ToString(), Does.Contain(_folder.Root));
+            Assert.That(_error.ToString(), Does.Contain($"players: 0 engine in '{_folder.Root}'"));
             Assert.That(File.Exists(_report), Is.False);
         }
     }
@@ -593,6 +593,7 @@ public sealed class CommandLineTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(log, Does.Contain("groups: 2"));
             Assert.That(report.RootElement.EnumerateObject().Select(static property => property.Name), Is.EqualTo(_reportKeys));
             Assert.That(groups[0].GetProperty("versions").EnumerateArray().Select(static entry => entry.GetString()), Is.EqualTo(_sharedVersions));
             Assert.That(groups[0].GetProperty("offsets").GetProperty("Type").GetProperty("Member").GetString(), Is.EqualTo("0x28"));
@@ -620,7 +621,7 @@ public sealed class CommandLineTests
         {
             Assert.That(code, Is.EqualTo(1));
             Assert.That(report.RootElement.GetProperty("groups").GetArrayLength(), Is.Zero);
-            Assert.That(_output.ToString(), Does.Not.Contain("same offsets"));
+            Assert.That(_output.ToString(), Does.Not.Contain("groups: "));
         }
     }
 
@@ -643,7 +644,7 @@ public sealed class CommandLineTests
         {
             Assert.That(code, Is.Zero, _error.ToString());
             Assert.That(report.RootElement.GetProperty("groups").GetArrayLength(), Is.Zero);
-            Assert.That(_output.ToString(), Does.Not.Contain("same offsets"));
+            Assert.That(_output.ToString(), Does.Not.Contain("groups: "));
         }
     }
 
@@ -761,7 +762,7 @@ public sealed class CommandLineTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(code, Is.Not.Zero);
-            Assert.That(_output.ToString(), Does.Not.Contain("same offsets"));
+            Assert.That(_output.ToString(), Does.Not.Contain("groups: "));
             Assert.That(File.Exists(_report), Is.False);
         }
     }

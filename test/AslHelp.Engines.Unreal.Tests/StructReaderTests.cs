@@ -24,9 +24,9 @@ public sealed class StructReaderTests(
     // Starts every address above the signed 4-byte range on x86 and above 4 GB on x64, so a 4-byte or sign-extended pointer read fails.
     private static readonly TestFixtureData[] _fixtures =
     [
-        new(MemoryLayout.X86, new Address(0x8000_0000), new ObjectLayout(0x04, 0x10, 0x18, 0x24), new StructLayout(0x40, 0x48, 0x50), 0x2C),
-        new(MemoryLayout.X86, new Address(0x8000_0000), new ObjectLayout(0x04, 0x10, 0x18, 0x24), new StructLayout(0x64, 0x5C, 0x70), 0x38),
-        new(MemoryLayout.X64, new Address(0x7FF6_0000_0000), new ObjectLayout(0x0C, 0x10, 0x18, 0x28), new StructLayout(0x60, 0x68, 0x70), 0x48),
+        new(MemoryLayout.X86, new Address(0x8000_0000), new ObjectLayout(0x10, 0x18, 0x24), new StructLayout(0x40, 0x48), 0x2C),
+        new(MemoryLayout.X86, new Address(0x8000_0000), new ObjectLayout(0x10, 0x18, 0x24), new StructLayout(0x64, 0x5C), 0x38),
+        new(MemoryLayout.X64, new Address(0x7FF6_0000_0000), new ObjectLayout(0x10, 0x18, 0x28), new StructLayout(0x60, 0x68), 0x48),
     ];
 
     private readonly Address _actor = start + 0x6000;
@@ -273,8 +273,8 @@ public sealed class StructReaderTests(
         var memory = MemoryWithTypes();
         var reader = CreateReader(
             memory,
-            objectLayout with { Index = UnknownOffset, Outer = UnknownOffset, Class = UnknownOffset },
-            layout with { Children = UnknownOffset, PropertySize = UnknownOffset });
+            objectLayout with { Outer = UnknownOffset, Class = UnknownOffset },
+            layout with { Children = UnknownOffset });
 
         using (Assert.EnterMultipleScope())
         {
@@ -510,8 +510,8 @@ public sealed class StructReaderTests(
         memory.AddObject(_field1, objectLayout, ObjectId, outer: _pawn);
         var reader = CreateReader(
             memory,
-            objectLayout with { Index = UnknownOffset, Name = UnknownOffset, Class = UnknownOffset },
-            layout with { SuperStruct = UnknownOffset, PropertySize = UnknownOffset });
+            objectLayout with { Name = UnknownOffset, Class = UnknownOffset },
+            layout with { SuperStruct = UnknownOffset });
 
         Address[] expected = [_field1];
 

@@ -17,8 +17,8 @@ public sealed class FailedReadTests
     private static readonly Address _entry = new(0x8000_2000);
     private static readonly NameEntryLayout _entryLayout = new(0, 12);
     private static readonly FieldLayout _fieldLayout = new(0x2C);
-    private static readonly ObjectLayout _objectLayout = new(0x04, 0x10, 0x18, 0x24);
-    private static readonly StructLayout _structLayout = new(0x40, 0x48, 0x50);
+    private static readonly ObjectLayout _objectLayout = new(0x10, 0x18, 0x24);
+    private static readonly StructLayout _structLayout = new(0x40, 0x48);
     private static readonly Address _type = new(0x8000_5000);
     private static readonly Address _unreadable = new(0x8000_9000);
 

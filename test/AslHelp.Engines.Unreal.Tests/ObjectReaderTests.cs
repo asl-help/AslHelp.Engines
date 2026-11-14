@@ -18,9 +18,9 @@ public sealed class ObjectReaderTests(
     // Starts every address above the signed 4-byte range on x86 and above 4 GB on x64, so a 4-byte or sign-extended pointer read fails.
     private static readonly TestFixtureData[] _fixtures =
     [
-        new(MemoryLayout.X86, new Address(0x8000_0000), new ObjectLayout(0x04, 0x10, 0x18, 0x24)),
-        new(MemoryLayout.X86, new Address(0x8000_0000), new ObjectLayout(0x08, 0x2C, 0x34, 0x14)),
-        new(MemoryLayout.X64, new Address(0x7FF6_0000_0000), new ObjectLayout(0x0C, 0x10, 0x18, 0x28)),
+        new(MemoryLayout.X86, new Address(0x8000_0000), new ObjectLayout(0x10, 0x18, 0x24)),
+        new(MemoryLayout.X86, new Address(0x8000_0000), new ObjectLayout(0x2C, 0x34, 0x14)),
+        new(MemoryLayout.X64, new Address(0x7FF6_0000_0000), new ObjectLayout(0x10, 0x18, 0x28)),
     ];
 
     private readonly Address _class = start + 0x7000;
@@ -229,7 +229,7 @@ public sealed class ObjectReaderTests(
     {
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, CoreId);
-        var reader = CreateReader(memory, layout with { Index = UnknownOffset, Outer = UnknownOffset, Class = UnknownOffset });
+        var reader = CreateReader(memory, layout with { Outer = UnknownOffset, Class = UnknownOffset });
 
         using (Assert.EnterMultipleScope())
         {
@@ -295,7 +295,7 @@ public sealed class ObjectReaderTests(
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddObject(_object, layout, CoreId, klass: _class);
-        var reader = CreateReader(memory, layout with { Index = UnknownOffset, Outer = UnknownOffset, Name = UnknownOffset });
+        var reader = CreateReader(memory, layout with { Outer = UnknownOffset, Name = UnknownOffset });
 
         using (Assert.EnterMultipleScope())
         {
@@ -361,7 +361,7 @@ public sealed class ObjectReaderTests(
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddObject(_object, layout, CoreId, outer: _outer);
-        var reader = CreateReader(memory, layout with { Index = UnknownOffset, Name = UnknownOffset, Class = UnknownOffset });
+        var reader = CreateReader(memory, layout with { Name = UnknownOffset, Class = UnknownOffset });
 
         using (Assert.EnterMultipleScope())
         {

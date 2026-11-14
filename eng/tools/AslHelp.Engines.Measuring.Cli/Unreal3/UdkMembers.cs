@@ -110,6 +110,7 @@ internal sealed class UdkMembers
     private const int SampleLength = 512;
     private const int UnknownOffset = -1;
 
+    private readonly int _indexOffset;
     private readonly IMemoryReader _memory;
     private readonly FlatNameTable _names;
     private readonly ILookup<string?, Address> _objectsByName;
@@ -137,12 +138,13 @@ internal sealed class UdkMembers
         Dictionary<string, int> offsets,
         Dictionary<string, string> unmeasured)
     {
+        _indexOffset = objects.IndexOffset;
         _memory = memory;
         _names = names.Table;
         _offsets = offsets;
         _pointerSize = memory.Layout.PointerSize;
         _unmeasured = unmeasured;
-        _layout = new ObjectLayout(objects.IndexOffset, UnknownOffset, nameOffset, UnknownOffset);
+        _layout = new ObjectLayout(UnknownOffset, nameOffset, UnknownOffset);
         _objects = new ObjectReader(memory, _names, _layout);
 
         // Read every name once, because the readers do not cache and each class lookup would read all objects again.
@@ -218,7 +220,7 @@ internal sealed class UdkMembers
                 continue;
             }
 
-            ObjectReader reader = new(memory, names.Table, new ObjectLayout(objects.IndexOffset, UnknownOffset, at, UnknownOffset));
+            ObjectReader reader = new(memory, names.Table, new ObjectLayout(UnknownOffset, at, UnknownOffset));
             HashSet<string> distinct = [with(StringComparer.Ordinal)];
             int named = 0;
 
@@ -320,7 +322,7 @@ internal sealed class UdkMembers
 
         foreach (int at in OffsetsBy(_pointerSize))
         {
-            if (at != _layout.Class && at != _layout.Name && at != _layout.Index)
+            if (at != _layout.Class && at != _layout.Name && at != _indexOffset)
             {
                 ObjectReader reader = new(_memory, _names, _layout with { Outer = at });
 
@@ -340,7 +342,7 @@ internal sealed class UdkMembers
         return OffsetsBy(_pointerSize).FirstOrDefault(
             at =>
             {
-                var reader = Structs(new StructLayout(at, UnknownOffset, UnknownOffset), UnknownOffset);
+                var reader = Structs(new StructLayout(at, UnknownOffset), UnknownOffset);
 
                 return reader.SuperOf(chain[^1]).UnwrapOr(Address.Zero) == Address.Zero
                     && chain.Zip(chain.Skip(1)).All(pair => reader.SuperOf(pair.First).UnwrapOr(Address.Zero) == pair.Second);
@@ -354,7 +356,7 @@ internal sealed class UdkMembers
             at =>
             {
                 // Skip the index and the name id, because they can grow along the chain too and both sit in front of the size.
-                if (at == _layout.Index || at == _layout.Name)
+                if (at == _indexOffset || at == _layout.Name)
                 {
                     return false;
                 }
@@ -380,7 +382,7 @@ internal sealed class UdkMembers
     {
         foreach (int children in OffsetsBy(_pointerSize))
         {
-            StructLayout layout = new(UnknownOffset, children, UnknownOffset);
+            StructLayout layout = new(UnknownOffset, children);
 
             if (!Structs(layout, UnknownOffset).ChildrenOf(objectClass).Any(static field => field.IsOk))
             {

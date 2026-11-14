@@ -56,7 +56,7 @@ internal static class UdkFixtureCheck
         StructReader structs = new(
             memory,
             objects,
-            new StructLayout(UnknownOffset, offsets[UdkMembers.Children], UnknownOffset),
+            new StructLayout(UnknownOffset, offsets[UdkMembers.Children]),
             new FieldLayout(offsets[UdkMembers.Next]));
 
         // Compare the class and not only the name, because a property of the game has the same name as the class.

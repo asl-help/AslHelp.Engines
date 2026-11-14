@@ -7,7 +7,7 @@ namespace AslHelp.Engines.Fixtures.Cli.Hosting;
 /// <summary>
 ///     Represents an executable that an <see cref="IPlayerHost"/> started.
 /// </summary>
-internal interface IPlayerRun : IAsyncDisposable
+internal interface IHostedRun : IAsyncDisposable
 {
     /// <summary>
     ///     Gets a value indicating whether the executable has exited.

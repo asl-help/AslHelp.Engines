@@ -7,7 +7,7 @@ using System.Security.Principal;
 
 namespace AslHelp.Engines.Fixtures.Cli.Tests.Hosting;
 
-public sealed class ContainerPlayerHostTests
+public sealed class ContainerHostTests
 {
     private TestFolder _folder = null!;
 
@@ -29,11 +29,11 @@ public sealed class ContainerPlayerHostTests
     {
         string install = Path.Combine(_folder.NewFolder(), "a b");
 
-        var parameters = ContainerPlayerHost.NewContainerParameters(install, @"Binaries\Win32\Game.exe", "server map?x=1 -flag");
+        var parameters = ContainerHost.NewContainerParameters(install, @"Binaries\Win32\Game.exe", "server map?x=1 -flag");
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(parameters.Image, Is.EqualTo(ContainerPlayerHost.Image));
+            Assert.That(parameters.Image, Is.EqualTo(ContainerHost.Image));
             Assert.That(parameters.HostConfig?.Binds?[0], Is.EqualTo($@"{install}:C:\player"));
             Assert.That(parameters.WorkingDir, Is.EqualTo(@"C:\player\Binaries\Win32"));
             Assert.That(string.Join('|', parameters.Cmd), Is.EqualTo(@"C:\player\Binaries\Win32\Game.exe|server|map?x=1|-flag"));
@@ -48,7 +48,7 @@ public sealed class ContainerPlayerHostTests
         string install = _folder.NewFolder();
         string subfolder = Directory.CreateDirectory(Path.Combine(install, "sub")).FullName;
 
-        ContainerPlayerHost.GrantCurrentUser(install);
+        ContainerHost.GrantCurrentUser(install);
 
         string file = Path.Combine(subfolder, "new.txt");
         File.WriteAllText(file, "x");
@@ -64,7 +64,7 @@ public sealed class ContainerPlayerHostTests
     [Test]
     public void NewContainerParameters_NoArguments_RunsOnlyTheExecutable()
     {
-        var parameters = ContainerPlayerHost.NewContainerParameters(_folder.NewFolder(), "Game.exe", "");
+        var parameters = ContainerHost.NewContainerParameters(_folder.NewFolder(), "Game.exe", "");
 
         Assert.That(string.Join('|', parameters.Cmd), Is.EqualTo(@"C:\player\Game.exe"));
     }

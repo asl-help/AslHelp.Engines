@@ -15,7 +15,7 @@ namespace AslHelp.Engines.Fixtures.Cli.Hosting;
 ///     Runs the executables of an install in a Windows container with the install mounted, so a build proves that the player
 ///     needs nothing that only the build machine has.
 /// </summary>
-internal sealed class ContainerPlayerHost : IPlayerHost, IDisposable
+internal sealed class ContainerHost : IPlayerHost, IDisposable
 {
     /// <summary>
     ///     Represents the image of the container.
@@ -38,7 +38,7 @@ internal sealed class ContainerPlayerHost : IPlayerHost, IDisposable
     ///     The 1st start pulls <see cref="Image"/> if this machine does not have it, which takes minutes.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The Docker engine does not run or refuses the image or the container.</exception>
-    public async Task<IPlayerRun> StartAsync(string installDirectory, string executablePath, string arguments, CancellationToken cancellationToken)
+    public async Task<IHostedRun> StartAsync(string installDirectory, string executablePath, string arguments, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(installDirectory);
         ArgumentNullException.ThrowIfNull(executablePath);
@@ -167,7 +167,7 @@ internal sealed class ContainerPlayerHost : IPlayerHost, IDisposable
 /// <param name="client">The client of the engine.</param>
 /// <param name="containerId">The ID of the container.</param>
 /// <param name="exit">The wait that completes once the container has exited.</param>
-file sealed class ContainerRun(DockerClient client, string containerId, Task<ContainerWaitResponse> exit) : IPlayerRun
+file sealed class ContainerRun(DockerClient client, string containerId, Task<ContainerWaitResponse> exit) : IHostedRun
 {
     /// <inheritdoc/>
     public bool HasExited => exit.IsCompleted;

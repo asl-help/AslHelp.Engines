@@ -21,5 +21,5 @@ internal interface IPlayerHost
     /// <exception cref="System.ArgumentNullException">An argument is <see langword="null"/>.</exception>
     /// <exception cref="System.InvalidOperationException">The host is not ready to run anything.</exception>
     /// <exception cref="System.OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
-    Task<IPlayerRun> StartAsync(string installDirectory, string executablePath, string arguments, CancellationToken cancellationToken);
+    Task<IHostedRun> StartAsync(string installDirectory, string executablePath, string arguments, CancellationToken cancellationToken);
 }

@@ -31,7 +31,7 @@ internal static class CommandLine
     public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error)
     {
         using Downloader downloader = new();
-        using ContainerPlayerHost host = new();
+        using ContainerHost host = new();
 
         return await RunAsync(
             args,

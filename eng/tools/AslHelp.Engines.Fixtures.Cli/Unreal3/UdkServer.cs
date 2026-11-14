@@ -96,7 +96,7 @@ internal static class UdkServer
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     /// <exception cref="TimeoutException">The ready line is not in the log within <paramref name="timeout"/>.</exception>
     private static async Task WaitForReadyLineAsync(
-        IPlayerRun player,
+        IHostedRun player,
         string serverPath,
         string logPath,
         TimeSpan timeout,

@@ -1,6 +1,7 @@
 using AslHelp.Engines.Fixtures.Cli.Hosting;
 using NUnit.Framework;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -94,6 +95,40 @@ public sealed class ProcessRunnerTests
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => ProcessRunner.RunAsync(info, CancellationToken.None));
 
         Assert.That(OutputLines(exception!), Is.EqualTo(["a", "b"]));
+    }
+
+    // The callback gets every line with text from both streams in the order of its stream and the code comes back instead of an exception.
+    [Test]
+    [Platform("Win")]
+    public async Task RunWithLinesAsync_ToolPrintsToBothStreams_GetsEveryLineAndReturnsTheCode()
+    {
+        var info = ProcessRunner.NewStartInfo(_cmdPath, "/c", "echo a& echo.& echo b& echo c>&2& exit 3");
+        List<string> lines = [];
+
+        int exitCode = await ProcessRunner.RunWithLinesAsync(info, lines.Add, CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exitCode, Is.EqualTo(3));
+            Assert.That(lines, Is.EquivalentTo(["a", "b", "c"]));
+            Assert.That(lines.IndexOf("a"), Is.LessThan(lines.IndexOf("b")));
+        }
+    }
+
+    // A callback that throws ends the tool and the exception reaches the caller, as a failed read does.
+    [Test]
+    [Platform("Win")]
+    public async Task RunWithLinesAsync_CallbackThrows_EndsTheToolAndThrows()
+    {
+        string folder = _folder.NewFolder();
+        var info = ProcessRunner.NewStartInfo(_cmdPath, "/c", "echo a& ping -n 30 127.0.0.1 > file.txt");
+        info.WorkingDirectory = folder;
+
+        await Assert.ThatAsync(
+            () => ProcessRunner.RunWithLinesAsync(info, _ => throw new InvalidDataException("line"), CancellationToken.None).WaitAsync(_runTimeout),
+            Throws.TypeOf<InvalidDataException>());
+
+        Assert.That(WaitUntil(() => TryDelete(folder), _exitTimeout), Is.True);
     }
 
     // Each argument shows as Process passes it on Windows, so a path with a space reads as 1 argument.

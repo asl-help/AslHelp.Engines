@@ -16,9 +16,19 @@
     <PackageReference Include="NUnit3TestAdapter" />
   </ItemGroup>
 
+  <!-- Embed the readme and the justfile, because tests compare their tables and pins with the code. -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(RootPath)/justfile" LogicalName="justfile" />
+    <EmbeddedResource Include="$(RootPath)/readme.md" LogicalName="readme.md" />
+  </ItemGroup>
+
   <!-- Embed the rows of the fake toolchain, because the release reader reads them from the assembly of the row type. -->
   <ItemGroup>
     <EmbeddedResource Include="fake-releases.json" LogicalName="fake-releases.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="Unreal4/install_engine_harness.py" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -93,6 +93,19 @@ Every pinned version from 2010-06-BETA on builds. The build refuses 2009-11-BETA
 1. Copy the sha1 of `UDKInstall-<version>.exe` from https://archive.org/metadata/udkinstaller into `eng/fixtures/unreal3/releases.json`, keeping the versions in order.
 2. Run the build command for it.
 
+### Unreal Engine 4 and 5
+
+We get the engines from Epic with [legendary](https://github.com/legendary-gl/legendary), pinned to 1 hotfix per minor version from 4.0 to 5.8. `eng/fixtures/unreal4/releases.json` lists them.
+
+Before your 1st build:
+
+1. Run `winget install astral-sh.uv`. uv gets Python 3.14 and legendary 0.21.1 on its own.
+2. Run `just legendary auth` once. It opens the Epic login in your browser and legendary saves the login in `~/.config/legendary`.
+
+Engines get installed to `<output>/engines/UE_<minor>`, minus the tagged files like `editor_symbols`. If an install gets cut off, it picks up where it stopped and every file gets a hash check. A download fails if no chunk finishes for 10 minutes. If long paths are off in Windows, keep `--output` at 28 characters or less.
+
+All 37 engines take 563 GiB together and the biggest one is 5.3 at 35 GiB. A build needs the engine's size plus 40 GiB of free scratch space. When the drive runs low, the tool removes the scratch folders of failed builds first and then the oldest finished engines. If that still isn't enough, the build fails.
+
 ## Measuring
 
 ```

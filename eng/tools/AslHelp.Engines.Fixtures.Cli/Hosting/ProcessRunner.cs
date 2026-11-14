@@ -25,7 +25,7 @@ internal static class ProcessRunner
     /// <summary>
     ///     Creates the start info of a tool that runs without a window, ends with this process, takes the given arguments and pipes its output.
     /// </summary>
-    /// <param name="fileName">The full path of the tool.</param>
+    /// <param name="fileName">The full path of the tool or its name on <c>PATH</c>.</param>
     /// <param name="arguments">The arguments, 1 per item and unquoted.</param>
     /// <returns>
     ///     The start info.
@@ -68,7 +68,54 @@ internal static class ProcessRunner
     /// <exception cref="Win32Exception">The tool cannot be started.</exception>
     public static async Task RunAsync(ProcessStartInfo info, CancellationToken cancellationToken)
     {
+        Queue<string> tail = new(TailLineCount);
+
+        int exitCode = await RunWithLinesAsync(info, line => AddToTail(tail, line), cancellationToken).ConfigureAwait(false);
+
+        if (exitCode != 0)
+        {
+            throw new InvalidOperationException(FailureMessage(info, exitCode, tail));
+        }
+    }
+
+    /// <summary>
+    ///     Adds <paramref name="line"/> to <paramref name="tail"/> and drops the oldest line once it has <see cref="TailLineCount"/> lines.
+    /// </summary>
+    /// <param name="tail">The last output lines, oldest first.</param>
+    /// <param name="line">The line to add.</param>
+    public static void AddToTail(Queue<string> tail, string line)
+    {
+        ArgumentNullException.ThrowIfNull(tail);
+
+        if (tail.Count == TailLineCount)
+        {
+            _ = tail.Dequeue();
+        }
+
+        tail.Enqueue(line);
+    }
+
+    /// <summary>
+    ///     Runs the tool of <paramref name="info"/>, passes each line that is not blank to <paramref name="onLine"/> and returns its exit code.
+    /// </summary>
+    /// <remarks>
+    ///     Both pipes are read while the tool runs, as in <see cref="RunAsync"/>. A code other than 0 doesn't throw, so the caller can map it.
+    ///     A callback that throws ends the tool and every process it started, as a cancel does.
+    /// </remarks>
+    /// <param name="info">The start info from <see cref="NewStartInfo"/>.</param>
+    /// <param name="onLine">The receiver of the lines. It gets 1 line at a time.</param>
+    /// <param name="cancellationToken">The token that ends the tool and every process it started.</param>
+    /// <returns>
+    ///     The exit code.
+    /// </returns>
+    /// <exception cref="ArgumentException"><paramref name="info"/> does not redirect both standard output and standard error.</exception>
+    /// <exception cref="ArgumentNullException"><paramref name="info"/> or <paramref name="onLine"/> is <see langword="null"/>.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
+    /// <exception cref="Win32Exception">The tool cannot be started.</exception>
+    public static async Task<int> RunWithLinesAsync(ProcessStartInfo info, Action<string> onLine, CancellationToken cancellationToken)
+    {
         ArgumentNullException.ThrowIfNull(info);
+        ArgumentNullException.ThrowIfNull(onLine);
 
         // Check both redirects before the start, because ReadAllLinesAsync checks them only on its 1st read, once the tool runs.
         if (!info.RedirectStandardOutput || !info.RedirectStandardError)
@@ -78,8 +125,6 @@ internal static class ProcessRunner
 
         // Check the token before the start, so a canceled call starts no tool.
         cancellationToken.ThrowIfCancellationRequested();
-
-        Queue<string> tail = new(TailLineCount);
 
         using Process process = new() { StartInfo = info };
         _ = process.Start();
@@ -97,12 +142,7 @@ internal static class ProcessRunner
                     continue;
                 }
 
-                if (tail.Count == TailLineCount)
-                {
-                    _ = tail.Dequeue();
-                }
-
-                tail.Enqueue(line.Content);
+                onLine(line.Content);
             }
 
             // Wait on the process handle, because Process.WaitForExitAsync returns as soon as the exit code is set, before the exe can be deleted.
@@ -120,10 +160,7 @@ internal static class ProcessRunner
             throw;
         }
 
-        if (status.ExitCode != 0)
-        {
-            throw new InvalidOperationException(FailureMessage(info, status.ExitCode, tail));
-        }
+        return status.ExitCode;
     }
 
     /// <summary>

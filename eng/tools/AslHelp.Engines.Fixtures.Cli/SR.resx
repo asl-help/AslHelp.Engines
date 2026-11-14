@@ -162,6 +162,15 @@
   <data name="DurationSeconds" xml:space="preserve">
     <value>{0} s</value>
   </data>
+  <data name="EngineNotOnDrive" xml:space="preserve">
+    <value>'{0}' doesn't start with a drive letter. Pass an --output folder on a local drive.</value>
+  </data>
+  <data name="EngineRemoved" xml:space="preserve">
+    <value>Removed {0}</value>
+  </data>
+  <data name="EngineSpaceLow" xml:space="preserve">
+    <value>Drive {0} has {1} GiB free and the install needs {2} GiB. Free space on it or pass another --output folder.</value>
+  </data>
   <data name="ExtractDestinationExists" xml:space="preserve">
     <value>The destination '{0}' exists. Delete it or pick another folder to extract into.</value>
   </data>

@@ -9,13 +9,14 @@ just format
 just encoding
 just check
 just fixtures <arguments>
+just legendary <arguments>
 just fixtures-all <folder>
 just measure <engine> <players> --output <file> [--targets <file>]
 ```
 
 `just check` runs the encoding check, the format check, the build and the tests, as CI does. Run it before a commit.
 
-`just fixtures` runs the `fixtures` command line from the current folder and passes each argument through whole, such as `just fixtures build <toolchain> <version> --output <folder>` or `just fixtures build <toolchain> --help`. `just fixtures-all` builds every pinned UDK version into the folder.
+`just fixtures` runs the `fixtures` command line from the current folder and passes each argument through as is, like `just fixtures build <toolchain> <version> --output <folder>` or `just fixtures build <toolchain> --help`. `just fixtures-all` builds every pinned UDK version into the folder. `just legendary` runs the pinned legendary through uv, like `just legendary auth`.
 
 The tool projects and their tests target `net11.0-windows`, because the players only run on Windows. The libraries in `src/` target `netstandard2.0` and their tests also run on `net4.8.1`. Build and test on Windows.
 
@@ -30,6 +31,9 @@ The tool projects and their tests target `net11.0-windows`, because the players 
 - `readme.md`, `changelog.md` and this file change in the same commit as the code they describe. `changelog.md` lists the changes to the libraries in `src/`, because the tools in `eng/tools/` do not ship.
 - The player tests of both test projects take the machine-wide lock, so `just test`, `just check` and CI run the test projects 1 at a time. Run the tests while no build runs on the machine.
 - Tests never read the machine's `FIXTURES_DAV_*` variables. A `CommandLine` test passes a store or clears the variables first.
+- A test that needs uv and the legendary package only runs when `FIXTURES_UV_TESTS` is 1. CI doesn't set it, so run those tests locally before a PR that changes `eng/fixtures/unreal4/install_engine.py`.
+- Engine installs stay in `<output>/engines`. Never put them in the repo, CI, CI logs or the store, because Epic serves them again.
+- `~/.config/legendary` has the Epic login. Only legendary reads it, so never open or print `user.json`.
 - A test that needs a real UDK installer or install runs only when `FIXTURES_UDK_INSTALLER` is the path of a downloaded `UDKInstall-<version>.exe` or `FIXTURES_UDK_INSTALL` is the path of an extracted install. The tests change that install. A test that needs a built player runs only when `FIXTURES_UDK_PLAYER` is the path of a player folder.
 - `.vscode/settings.json` turns off the analysis of the UnrealScript extension, because the engine classes like `Actor` are in the UDK install and not in the repo. To get the analysis, add `Development/Src` of a UDK install to the workspace and set `unrealscript.analyzeDocuments` to `OnlyActive` in the workspace file.
 - A file has 1 main type and any number of `file` types. A helper type stays nested only when it needs the private members of its outer type or sits in a member signature, because a `file` type cannot.

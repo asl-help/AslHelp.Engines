@@ -19,9 +19,10 @@
       CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
-  <!-- Embed the pin table, because only the code reads it. Set LogicalName, so the resource name does not depend on RootNamespace. -->
+  <!-- Embed the pin table and the install script, because only the code reads them. Set LogicalName, so the resource name does not depend on RootNamespace. -->
   <ItemGroup>
     <EmbeddedResource Include="$(MSBuildThisFileDirectory)/releases.json" LogicalName="Unreal4/releases.json" />
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)/install_engine.py" LogicalName="Unreal4/install_engine.py" />
   </ItemGroup>
 
 </Project>

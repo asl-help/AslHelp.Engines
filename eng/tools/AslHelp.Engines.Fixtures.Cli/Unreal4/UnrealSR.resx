@@ -33,11 +33,26 @@
   <data name="DisplayName" xml:space="preserve">
     <value>Unreal Engine</value>
   </data>
+  <data name="EngineFilesMismatch" xml:space="preserve">
+    <value>{0} failed the file hash check. Run the build again, which downloads only the bad files.{1}</value>
+  </data>
+  <data name="EngineInstallFailed" xml:space="preserve">
+    <value>Installing {0} failed with code {1}.{2}</value>
+  </data>
+  <data name="EngineManagedByLegendary" xml:space="preserve">
+    <value>Legendary lists {0} as installed and would reuse its folder. Take it off the list with 'just legendary uninstall --keep-files {0}'.</value>
+  </data>
   <data name="ManifestNoFixtureData" xml:space="preserve">
     <value>The headers in '{0}' don't declare {1}.</value>
   </data>
   <data name="ManifestNoMemberName" xml:space="preserve">
     <value>The declaration '{0}' in '{1}' doesn't end in a member name.</value>
+  </data>
+  <data name="ManifestNotPinned" xml:space="preserve">
+    <value>The manifest of {0} doesn't match its pin in {1}. Epic changed the manifest or the row is wrong.{2}</value>
+  </data>
+  <data name="NotLoggedIn" xml:space="preserve">
+    <value>Legendary isn't logged in. Run 'just legendary auth'.{0}</value>
   </data>
   <data name="ReleasesBadFlag" xml:space="preserve">
     <value>{0} has an empty switch for version '{1}'. Remove it and build the tool again.</value>
@@ -62,5 +77,8 @@
   </data>
   <data name="SourceFolderNotFound" xml:space="preserve">
     <value>The source folder '{0}' does not exist.</value>
+  </data>
+  <data name="UvNotFound" xml:space="preserve">
+    <value>'{0}' wasn't found. Install uv with 'winget install astral-sh.uv'.</value>
   </data>
 </root>

@@ -50,6 +50,17 @@ fixtures-all output:
     }
     exit $failed
 
+# Run the pinned legendary with the arguments as typed, such as `just legendary auth`.
+[no-cd]
+[positional-arguments]
+[script("pwsh", "-NoLogo", "-NoProfile")]
+legendary *args:
+    if (-not (Get-Command uv -ErrorAction Ignore)) { [Console]::Error.WriteLine("'uv' wasn't found. Install uv with 'winget install astral-sh.uv'."); exit 1 }
+    # Use the pins of UnrealEngine.cs, because the login and the install have to run the same legendary. A test compares them.
+    uv run --no-project --python 3.14 --with legendary-gl==0.21.1 legendary @args
+    # Exit with the code of the run or with 1 when uv did not start, because the script exits 0 after a failed command.
+    exit ($LASTEXITCODE ?? 1)
+
 # Run the measuring command line with the arguments as typed, from the current folder.
 [no-cd]
 [positional-arguments]

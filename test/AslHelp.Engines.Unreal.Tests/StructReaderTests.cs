@@ -413,7 +413,7 @@ public sealed class StructReaderTests(
                 items[1].UnwrapErr().Message,
                 Is.EqualTo(
                     $"Can't read the next field after the field at {_field1}: reading {address} failed. No block contains {address}. "
-                    + $"Check FieldLayout.Next (0x{fieldNext:X}) against this engine version."));
+                    + $"Check ChildLayout.Next (0x{fieldNext:X}) against this engine version."));
         }
     }
 
@@ -531,7 +531,7 @@ public sealed class StructReaderTests(
         var objects = CreateObjects(new FakeMemory(), objectLayout);
 
         Assert.That(
-            () => new StructReader(null!, objects, layout, new FieldLayout(fieldNext)),
+            () => new StructReader(null!, objects, layout, new ChildLayout(fieldNext)),
             Throws.ArgumentNullException.With.Property("ParamName").EqualTo("memory"));
     }
 
@@ -540,7 +540,7 @@ public sealed class StructReaderTests(
     public void Constructor_NullObjects_ThrowsArgumentNullException()
     {
         Assert.That(
-            () => new StructReader(new FakeMemory(), null!, layout, new FieldLayout(fieldNext)),
+            () => new StructReader(new FakeMemory(), null!, layout, new ChildLayout(fieldNext)),
             Throws.ArgumentNullException.With.Property("ParamName").EqualTo("objects"));
     }
 
@@ -552,19 +552,19 @@ public sealed class StructReaderTests(
         var objects = CreateObjects(memory, objectLayout);
 
         Assert.That(
-            () => new StructReader(memory, objects, null!, new FieldLayout(fieldNext)),
+            () => new StructReader(memory, objects, null!, new ChildLayout(fieldNext)),
             Throws.ArgumentNullException.With.Property("ParamName").EqualTo("layout"));
     }
 
     [Test]
-    public void Constructor_NullFieldLayout_ThrowsArgumentNullException()
+    public void Constructor_NullChildLayout_ThrowsArgumentNullException()
     {
         FakeMemory memory = new();
         var objects = CreateObjects(memory, objectLayout);
 
         Assert.That(
             () => new StructReader(memory, objects, layout, null!),
-            Throws.ArgumentNullException.With.Property("ParamName").EqualTo("fieldLayout"));
+            Throws.ArgumentNullException.With.Property("ParamName").EqualTo("childLayout"));
     }
 
     private static List<Address> Fields(StructReader reader, Address type)
@@ -619,6 +619,6 @@ public sealed class StructReaderTests(
 
     private StructReader CreateReader(FakeMemory memory, ObjectLayout objects, StructLayout structs)
     {
-        return new StructReader(memory, CreateObjects(memory, objects), structs, new FieldLayout(fieldNext));
+        return new StructReader(memory, CreateObjects(memory, objects), structs, new ChildLayout(fieldNext));
     }
 }

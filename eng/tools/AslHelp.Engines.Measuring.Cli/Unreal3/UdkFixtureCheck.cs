@@ -57,7 +57,7 @@ internal static class UdkFixtureCheck
             memory,
             objects,
             new StructLayout(UnknownOffset, offsets[UdkMembers.Children]),
-            new FieldLayout(offsets[UdkMembers.Next]));
+            new ChildLayout(offsets[UdkMembers.Next]));
 
         // Compare the class and not only the name, because a property of the game has the same name as the class.
         var fixtureClass = measured.ObjectsByName[ClassName]

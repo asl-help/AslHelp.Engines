@@ -569,7 +569,7 @@ internal sealed class UdkMembers
 
     private StructReader Structs(StructLayout layout, int next)
     {
-        return new StructReader(_memory, _objects, layout, new FieldLayout(next));
+        return new StructReader(_memory, _objects, layout, new ChildLayout(next));
     }
 
     private void UseLayout(ObjectLayout layout)

@@ -26,6 +26,11 @@ public sealed class ObjectReader(
     private readonly INameTable _names = names ?? throw new ArgumentNullException(nameof(names));
 
     /// <summary>
+    ///     Gets the offset of the class pointer inside an object, for the failure of a caller that finds a class pointer of 0.
+    /// </summary>
+    internal int ClassOffset => _layout.Class;
+
+    /// <summary>
     ///     Gets the offset of the outer pointer inside an object, for the failure of a caller that finds another outer object.
     /// </summary>
     internal int OuterOffset => _layout.Outer;

@@ -7,6 +7,7 @@ namespace AslHelp.Engines.Unreal.Tests;
 
 public sealed class FailedReadTests
 {
+    private const int LargestBytesPerNestedProbe = 384;
     private const int LargestBytesPerProbe = 256;
     private const int ProbeCount = 1000;
     private const int WarmUpCount = 16;
@@ -18,6 +19,7 @@ public sealed class FailedReadTests
     private static readonly Address _entry = new(0x8000_2000);
     private static readonly NameEntryLayout _entryLayout = new(0, 12);
     private static readonly ObjectLayout _objectLayout = new(0x10, 0x18, 0x24);
+    private static readonly PropertyLayout _propertyLayout = new(0x20, 0x24, 0x34);
     private static readonly StructLayout _structLayout = new(0x40, 0x48);
     private static readonly Address _type = new(0x8000_5000);
     private static readonly Address _unreadable = new(0x8000_9000);
@@ -32,6 +34,23 @@ public sealed class FailedReadTests
             {
                 Assert.That(BytesPerProbe(name, probe), Is.LessThan(LargestBytesPerProbe), name);
             }
+        }
+    }
+
+    // The object shape runs 2 iterators because it enumerates StructReader.ChildrenOf, so its limit is 384 bytes, less than 1 formatted message.
+    [Test]
+    public void PropertiesOf_ObjectShapeFailedProbe_AllocatesLessThanAMessage()
+    {
+        var memory = MemoryWithNames();
+        ObjectPropertyReader reader = new(memory, CreateObjects(memory), CreateStructs(memory), _propertyLayout);
+
+        long bytes = BytesPerProbe("failed", () => reader.PropertiesOf(_unreadable).First().IsErr);
+        long formatted = BytesPerProbe("formatted", () => reader.PropertiesOf(_unreadable).First().UnwrapErr().Message.Length > 0);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(bytes, Is.LessThan(LargestBytesPerNestedProbe));
+            Assert.That(formatted, Is.GreaterThan(LargestBytesPerNestedProbe));
         }
     }
 
@@ -164,6 +183,9 @@ public sealed class FailedReadTests
         ObjectItemLayout item = new(0, 0x10);
         ItemObjectArray itemObjects = new(memory, _unreadable, new ItemObjectArrayLayout(0, 0x8), item);
         ChunkedObjectArray chunkedObjects = new(memory, _unreadable, new ChunkedObjectArrayLayout(0, 0xC, 0x14, 65536), item);
+        ObjectPropertyReader objectProperties = new(memory, objects, structs, _propertyLayout);
+        FieldPropertyLayout fieldLayout = new(0x04, 0x10, 0x14);
+        FieldPropertyReader fieldProperties = new(memory, names, new FieldStructLayout(0x30), fieldLayout, new FieldClassLayout(0), _propertyLayout);
 
         return
         [
@@ -182,6 +204,12 @@ public sealed class FailedReadTests
             ("IndirectObjectArray.Read", () => indirectObjects.Read(1).First().IsErr),
             ("ItemObjectArray.Read", () => itemObjects.Read(1).First().IsErr),
             ("ChunkedObjectArray.Read", () => chunkedObjects.Read(1).First().IsErr),
+            ("ObjectPropertyReader.KindOf", () => objectProperties.KindOf(_unreadable).IsErr),
+            ("ObjectPropertyReader.OffsetOf", () => objectProperties.OffsetOf(_unreadable).IsErr),
+            ("FieldPropertyReader.PropertiesOf", () => fieldProperties.PropertiesOf(_unreadable).First().IsErr),
+            ("FieldPropertyReader.NameOf", () => fieldProperties.NameOf(_unreadable).IsErr),
+            ("FieldPropertyReader.KindOf", () => fieldProperties.KindOf(_unreadable).IsErr),
+            ("FieldPropertyReader.ArrayDimOf", () => fieldProperties.ArrayDimOf(_unreadable).IsErr),
         ];
     }
 

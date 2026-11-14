@@ -138,6 +138,48 @@
   <data name="ObjectOuterUnreadable" xml:space="preserve">
     <value>Can't read the outer object of the object at {0}: reading {1} failed. {2} Check ObjectLayout.Outer (0x{3}).</value>
   </data>
+  <data name="PropertyArrayDimUnreadable" xml:space="preserve">
+    <value>Can't read the array size of the property at {0}: reading {1} failed. {2} Check PropertyLayout.ArrayDim (0x{3}).</value>
+  </data>
+  <data name="PropertyClassNameUnreadable" xml:space="preserve">
+    <value>Can't read the name of the class at {0} of the property at {1} from {2}. {3} Check FieldClassLayout.Name (0x{4}).</value>
+  </data>
+  <data name="PropertyClassNull" xml:space="preserve">
+    <value>The class pointer of the property at {0} is 0. Check FieldPropertyLayout.Class (0x{1}).</value>
+  </data>
+  <data name="PropertyClassUnreadable" xml:space="preserve">
+    <value>Can't read the class of the property at {0}: reading {1} failed. {2} Check FieldPropertyLayout.Class (0x{3}).</value>
+  </data>
+  <data name="PropertyElementSizeUnreadable" xml:space="preserve">
+    <value>Can't read the element size of the property at {0}: reading {1} failed. {2} Check PropertyLayout.ElementSize (0x{3}).</value>
+  </data>
+  <data name="PropertyFieldClassNull" xml:space="preserve">
+    <value>The class pointer of field {0} of the struct at {1} is 0. Check ObjectLayout.Class (0x{2}).</value>
+  </data>
+  <data name="PropertyFieldClassUnreadable" xml:space="preserve">
+    <value>Can't read the class of field {0} of the struct at {1}. {2}</value>
+  </data>
+  <data name="PropertyKindUnreadable" xml:space="preserve">
+    <value>Can't read the kind of the property at {0}. {1}</value>
+  </data>
+  <data name="PropertyListPastLimit" xml:space="preserve">
+    <value>The struct at {0} has more than {1} properties. Check FieldPropertyLayout.Next (0x{2}).</value>
+  </data>
+  <data name="PropertyListUnreadable" xml:space="preserve">
+    <value>Can't read the properties of the struct at {0}: reading {1} failed. {2} Check FieldStructLayout.ChildProperties (0x{3}).</value>
+  </data>
+  <data name="PropertyNameNumberNegative" xml:space="preserve">
+    <value>The name at {0} has the number {1}, which is below 0.</value>
+  </data>
+  <data name="PropertyNameUnreadable" xml:space="preserve">
+    <value>Can't read the name of the property at {0} from {1}. {2} Check FieldPropertyLayout.Name (0x{3}).</value>
+  </data>
+  <data name="PropertyNextUnreadable" xml:space="preserve">
+    <value>Can't read the next property after the property at {0}: reading {1} failed. {2} Check FieldPropertyLayout.Next (0x{3}).</value>
+  </data>
+  <data name="PropertyOffsetUnreadable" xml:space="preserve">
+    <value>Can't read the offset of the property at {0}: reading {1} failed. {2} Check PropertyLayout.Offset (0x{3}).</value>
+  </data>
   <data name="StructChainPastLimit" xml:space="preserve">
     <value>The super chain of the struct at {0} goes on past {1} levels. Check StructLayout.SuperStruct (0x{2}).</value>
   </data>

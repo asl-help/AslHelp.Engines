@@ -119,6 +119,34 @@ internal sealed class FakeMemory : IMemoryReader
     }
 
     /// <summary>
+    ///     Adds a property that isn't an object in a block as large as an object.
+    /// </summary>
+    /// <param name="field">The address of the property.</param>
+    /// <param name="layout">The offsets inside the property.</param>
+    /// <param name="nameId">The name id.</param>
+    /// <param name="klass">The field class.</param>
+    /// <param name="next">The next property.</param>
+    public void AddField(Address field, FieldPropertyLayout layout, int nameId, Address klass = default, Address next = default)
+    {
+        Add(field, new byte[ObjectSize]);
+        WriteInt32(field + layout.Name, nameId);
+        WritePointer(field + layout.Class, klass);
+        WritePointer(field + layout.Next, next);
+    }
+
+    /// <summary>
+    ///     Adds a field class in a block as large as an object.
+    /// </summary>
+    /// <param name="klass">The address of the field class.</param>
+    /// <param name="layout">The offsets inside the field class.</param>
+    /// <param name="nameId">The name id.</param>
+    public void AddFieldClass(Address klass, FieldClassLayout layout, int nameId)
+    {
+        Add(klass, new byte[ObjectSize]);
+        WriteInt32(klass + layout.Name, nameId);
+    }
+
+    /// <summary>
     ///     Adds a block of pointers, such as a chunk table or a chunk of entry pointers.
     /// </summary>
     /// <param name="start">The address of the 1st pointer.</param>

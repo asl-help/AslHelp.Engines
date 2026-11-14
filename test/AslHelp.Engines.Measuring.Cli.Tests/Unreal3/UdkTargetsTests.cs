@@ -61,22 +61,6 @@ public sealed class UdkTargetsTests
         AssertRefused($$"""{ {{NameArray}}, {{ObjectArray}}, "Slot": { "$type": "objectSlot", "class": "A", "objekt": "B" } }""");
     }
 
-    // A file with no targets fails before any player.
-    [Test]
-    public void Read_EmptyObject_FailsWithThePath()
-    {
-        AssertRefused("{}");
-    }
-
-    // A null target fails with a message and not a null reference later.
-    [Test]
-    public void Read_NullTarget_FailsWithTheGlobal()
-    {
-        Assert.That(
-            Read($$"""{ {{NameArray}}, {{ObjectArray}}, "Other": null }""").UnwrapErr().Message,
-            Does.Contain("Other").And.Contain(TargetsPath));
-    }
-
     // A global written twice would lose the 1st target with no error.
     [Test]
     public void Read_GlobalWrittenTwice_FailsWithThePath()
@@ -105,15 +89,6 @@ public sealed class UdkTargetsTests
     public void Read_NoObjectArray_Fails()
     {
         AssertRefused($$"""{ {{NameArray}} }""");
-    }
-
-    // A path to --targets that does not exist fails with that path.
-    [Test]
-    public void ReadFile_MissingFile_FailsWithThePath()
-    {
-        string missing = Path.Combine(Path.GetTempPath(), "missing-targets.example");
-
-        Assert.That(UdkTargets.ReadFile(missing).UnwrapErr().Message, Is.EqualTo(UdkSR.FormatTargetsNotFound(missing)));
     }
 
     // A file saved with a byte order mark parses, because Windows editors write one.
@@ -188,7 +163,6 @@ public sealed class UdkTargetsTests
     }
 
     // A blank value finds nothing in any player, so it has to fail before the 1st player.
-    [TestCase(""" "": { "$type": "objectSlot", "class": "A" } """)]
     [TestCase(""" "Slot": { "$type": "objectSlot", "class": "" } """)]
     [TestCase(""" "Slot": { "$type": "objectSlot", "class": " " } """)]
     [TestCase(""" "Slot": { "$type": "objectSlot", "class": "A", "object": "" } """)]

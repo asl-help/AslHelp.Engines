@@ -39,7 +39,7 @@ internal sealed class UdkMeasurer : IEngineMeasurer
     /// <inheritdoc/>
     public Result LoadTargets(string? path)
     {
-        var read = path is null ? UdkTargets.ReadEmbedded() : UdkTargets.ReadFile(path);
+        var read = UdkTargets.Read(path);
 
         if (!read.TryUnwrap(out var targets, out var error))
         {

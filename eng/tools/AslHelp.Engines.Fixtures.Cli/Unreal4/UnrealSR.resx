@@ -45,6 +45,24 @@
   <data name="ExecutableNotFound" xml:space="preserve">
     <value>The executable '{0}' does not exist.</value>
   </data>
+  <data name="GameDllMissing" xml:space="preserve">
+    <value>{0} exited during the check because a DLL is missing (0xC0000135). {1}</value>
+  </data>
+  <data name="GameExited" xml:space="preserve">
+    <value>{0} exited with code {1} (0x{1:X8}) during the check. {2}</value>
+  </data>
+  <data name="GameLogFix" xml:space="preserve">
+    <value>Read '{0}' for the errors.</value>
+  </data>
+  <data name="GameNotReady" xml:space="preserve">
+    <value>{0} didn't write {1} within {2}. {3}</value>
+  </data>
+  <data name="GameProgressFix" xml:space="preserve">
+    <value>Read '{0}' to see where it stopped.</value>
+  </data>
+  <data name="GameStartFix" xml:space="preserve">
+    <value>Run '{0} {1}' by hand to see why.</value>
+  </data>
   <data name="ImageMissing" xml:space="preserve">
     <value>The build image {0} is missing. Build it with: docker build -t {0} "{1}"</value>
   </data>

@@ -1,3 +1,4 @@
+using AslHelp.Engines.Measuring.Cli.Unreal3.Errors;
 using AslHelp.Engines.Unreal;
 using AslHelp.Memory;
 using System;
@@ -237,7 +238,7 @@ internal sealed class UdkMembers
             }
         }
 
-        return best == UnknownOffset ? UdkError.NameOffsetNotFound() : best;
+        return best == UnknownOffset ? UdkMemberError.NameOffsetNotFound() : best;
     }
 
     /// <summary>
@@ -268,7 +269,7 @@ internal sealed class UdkMembers
             }
         }
 
-        return UdkError.ClassOffsetNotFound();
+        return UdkMemberError.ClassOffsetNotFound();
     }
 
     /// <summary>
@@ -331,7 +332,7 @@ internal sealed class UdkMembers
             }
         }
 
-        return found == UnknownOffset ? UdkError.OuterOffsetNotFound() : found;
+        return found == UnknownOffset ? UdkMemberError.OuterOffsetNotFound() : found;
     }
 
     private int FindSuperOffset(Address[] chain)
@@ -537,7 +538,7 @@ internal sealed class UdkMembers
     {
         var found = FindClass(classClass, name);
 
-        return found == Address.Zero ? UdkError.ClassNotFound(name) : found;
+        return found == Address.Zero ? UdkMemberError.ClassNotFound(name) : found;
     }
 
     private int Record(string member, int offset, string reason)

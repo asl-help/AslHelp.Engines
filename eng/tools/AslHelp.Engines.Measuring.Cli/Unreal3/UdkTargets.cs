@@ -1,3 +1,4 @@
+using AslHelp.Engines.Measuring.Cli.Unreal3.Errors;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -24,7 +25,7 @@ internal static class UdkTargets
     {
         using var json = typeof(UdkTargets).Assembly.GetManifestResourceStream(TargetsResource);
 
-        return json is null ? UdkError.TargetsNotEmbedded(TargetsResource) : Read(json, TargetsResource);
+        return json is null ? UdkTargetsError.TargetsNotEmbedded(TargetsResource) : Read(json, TargetsResource);
     }
 
     /// <summary>
@@ -45,11 +46,11 @@ internal static class UdkTargets
         }
         catch (IOException exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         {
-            return UdkError.TargetsNotFound(path);
+            return UdkTargetsError.TargetsNotFound(path);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return UdkError.FileUnreadable(path, exception.Message);
+            return UdkPlayerError.FileUnreadable(path, exception.Message);
         }
     }
 
@@ -74,12 +75,12 @@ internal static class UdkTargets
         catch (Exception exception) when (exception is JsonException or NotSupportedException)
         {
             // Catch NotSupportedException too, because a target without a type reads as the abstract record.
-            return UdkError.TargetsInvalid(path, exception.Message);
+            return UdkTargetsError.TargetsInvalid(path, exception.Message);
         }
 
         if (targets is null or { Count: 0 })
         {
-            return UdkError.TargetsEmpty(path);
+            return UdkTargetsError.TargetsEmpty(path);
         }
 
         return Validate(targets, path).And(Result.Ok<IReadOnlyDictionary<string, UdkTarget>>(targets));
@@ -100,29 +101,29 @@ internal static class UdkTargets
             // Check for null, because the nullable annotations of the parse do not reach the values of a dictionary.
             if (target is null)
             {
-                return UdkError.TargetsNull(path, global);
+                return UdkTargetsError.TargetsNull(path, global);
             }
 
             if (string.IsNullOrWhiteSpace(global) || HasBlankValue(target))
             {
-                return UdkError.TargetsBlankValue(path, global);
+                return UdkTargetsError.TargetsBlankValue(path, global);
             }
 
             if (target is UdkNameArrayTarget { FirstNames.Count: < LeastFirstNames })
             {
-                return UdkError.TargetsFewFirstNames(path, global, LeastFirstNames);
+                return UdkTargetsError.TargetsFewFirstNames(path, global, LeastFirstNames);
             }
         }
 
         if (targets.Values.OfType<UdkNameArrayTarget>().Count() != 1)
         {
-            return UdkError.TargetsNeedsOneNameArray(path);
+            return UdkTargetsError.TargetsNeedsOneNameArray(path);
         }
 
         // Require the object array too, because the search for every member and slot starts from it.
         if (targets.Values.OfType<UdkObjectArrayTarget>().Count() != 1)
         {
-            return UdkError.TargetsNeedsOneObjectArray(path);
+            return UdkTargetsError.TargetsNeedsOneObjectArray(path);
         }
 
         return Result.Ok();

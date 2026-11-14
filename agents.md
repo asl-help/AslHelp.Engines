@@ -10,13 +10,13 @@ just encoding
 just check
 just fixtures <arguments>
 just legendary <arguments>
-just fixtures-all <folder>
+just fixtures-all <toolchain> <folder>
 just measure <engine> <players> --output <file> [--targets <file>]
 ```
 
-`just check` runs the encoding check, the format check, the build and the tests, as CI does. Run it before a commit.
+`just check` runs the encoding check, the format check, the build and the tests, the same as CI. Run it before every commit. If `just check` doesn't find the runtime, set `DOTNET_ROOT` to the .NET install, like `C:\Program Files\dotnet`.
 
-`just fixtures` runs the `fixtures` command line from the current folder and passes each argument through as is, like `just fixtures build <toolchain> <version> --output <folder>` or `just fixtures build <toolchain> --help`. `just fixtures-all` builds every pinned UDK version into the folder. `just legendary` runs the pinned legendary through uv, like `just legendary auth`.
+`just fixtures` runs the `fixtures` command line from the current folder and passes each argument through as is, like `just fixtures build <toolchain> <version> --output <folder>` or `just fixtures build <toolchain> --help`. `just fixtures-all` builds every pinned version of the toolchain into the folder. `just legendary` runs the pinned legendary through uv, like `just legendary auth`.
 
 The tool projects and their tests target `net11.0-windows`, because the players only run on Windows. The libraries in `src/` target `netstandard2.0` and their tests also run on `net4.8.1`. Build and test on Windows.
 

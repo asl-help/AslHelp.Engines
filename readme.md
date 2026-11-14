@@ -66,10 +66,10 @@ Unreal Engine 3 players are built with UDK, the free Unreal Engine 3 release.
 
 ```
 dotnet run --project eng/tools/AslHelp.Engines.Fixtures.Cli -- build unreal3 2015-02 --output ../fixtures
-just fixtures-all ../fixtures
+just fixtures-all unreal3 ../fixtures
 ```
 
-`just fixtures-all` builds every pinned version 1 at a time and prints the exit code, the seconds and the last output line of each. It exits with the number of failed versions, so a full run exits with 1 because the build refuses 2009-11-BETA.
+`just fixtures-all` builds every pinned version of the toolchain, 1 at a time. It shows each build's output while it runs, then a line with the exit code, the time in seconds and the last output line. Its exit code is the number of versions that failed.
 
 The build needs a Docker engine that runs Windows containers and that your user can reach. The 1st build pulls `mcr.microsoft.com/windows/server:ltsc2025`, which is about 16 GB. We use that image because it's the smallest one with `dsound.dll` and `dinput8.dll`.
 

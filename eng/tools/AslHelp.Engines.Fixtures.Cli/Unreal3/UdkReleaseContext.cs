@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace AslHelp.Engines.Fixtures.Cli.Unreal3;
 
 /// <summary>
-///     Reads <c>installers.json</c> with generated code, so the tool needs no reflection over <see cref="UdkInstaller"/>.
+///     Reads <c>releases.json</c> with generated code instead of reflection over <see cref="UdkRelease"/>.
 /// </summary>
 /// <remarks>
 ///     Every key of a row is required, a null is refused where the type does not allow it and a key outside them is refused,
@@ -14,5 +14,5 @@ namespace AslHelp.Engines.Fixtures.Cli.Unreal3;
     RespectNullableAnnotations = true,
     RespectRequiredConstructorParameters = true,
     UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
-[JsonSerializable(typeof(UdkInstaller[]))]
-internal sealed partial class UdkInstallerContext : JsonSerializerContext;
+[JsonSerializable(typeof(UdkRelease[]))]
+internal sealed partial class UdkReleaseContext : JsonSerializerContext;

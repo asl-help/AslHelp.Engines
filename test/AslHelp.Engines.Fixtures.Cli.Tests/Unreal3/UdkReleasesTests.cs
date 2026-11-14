@@ -9,7 +9,7 @@ using System.Text.Json;
 
 namespace AslHelp.Engines.Fixtures.Cli.Tests.Unreal3;
 
-public sealed class UdkInstallersTests
+public sealed class UdkReleasesTests
 {
     private const string InstallerPrefix = "UDKInstall-";
     private const string InstallerSuffix = ".exe";
@@ -18,11 +18,11 @@ public sealed class UdkInstallersTests
     [Test]
     public void All_Rows_AreUniqueAndOrdered()
     {
-        string[] versions = new string[UdkInstallers.All.Count];
+        string[] versions = new string[UdkReleases.All.Count];
 
         for (int i = 0; i < versions.Length; i++)
         {
-            versions[i] = UdkInstallers.All[i].Version;
+            versions[i] = UdkReleases.All[i].Version;
         }
 
         using (Assert.EnterMultipleScope())
@@ -39,9 +39,9 @@ public sealed class UdkInstallersTests
     {
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(UdkInstallers.All, Is.Not.Empty);
+            Assert.That(UdkReleases.All, Is.Not.Empty);
 
-            foreach (var row in UdkInstallers.All)
+            foreach (var row in UdkReleases.All)
             {
                 Assert.That(row.Sha1, Does.Match("^[0-9a-f]{40}$"), row.Version);
             }
@@ -54,9 +54,9 @@ public sealed class UdkInstallersTests
     {
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(UdkInstallers.All, Is.Not.Empty);
+            Assert.That(UdkReleases.All, Is.Not.Empty);
 
-            foreach (var row in UdkInstallers.All)
+            foreach (var row in UdkReleases.All)
             {
                 var installer = row.File;
                 Assert.That(installer.Name, Is.EqualTo($"{InstallerPrefix}{row.Version}{InstallerSuffix}"), installer.Name);
@@ -70,9 +70,9 @@ public sealed class UdkInstallersTests
     [Test]
     public void Find_LowercaseVersion_ReturnsThePinnedInstaller()
     {
-        var installer = UdkInstallers.Find("2011-03-beta2");
+        var installer = UdkReleases.Find("2011-03-beta2");
 
-        Assert.That(installer, Is.EqualTo(new UdkInstaller(
+        Assert.That(installer, Is.EqualTo(new UdkRelease(
                 "2011-03-BETA2",
                 "1c578892b9adfb861a62d4960cc5cfd80e26801f")));
     }
@@ -83,7 +83,7 @@ public sealed class UdkInstallersTests
     public void Find_UnpinnedVersion_ThrowsWithThePinnedVersions()
     {
         Assert.That(
-            () => UdkInstallers.Find("1999-01"),
+            () => UdkReleases.Find("1999-01"),
             Throws.InvalidOperationException
                 .With.Message.Contains("1999-01")
                 .And.Message.Contains("2009-11-BETA")
@@ -93,7 +93,7 @@ public sealed class UdkInstallersTests
                 .And.Message.Not.Contains("(Parameter"));
     }
 
-    // A row reads with camelCase keys, as installers.json writes them.
+    // A row reads with camelCase keys, as releases.json writes them.
     [Test]
     public void Read_Rows_ReadsVersionAndSha1()
     {
@@ -104,13 +104,13 @@ public sealed class UdkInstallersTests
             ]
             """);
 
-        UdkInstaller[] expected =
+        UdkRelease[] expected =
         [
             new("1.0", "0000000000000000000000000000000000000001"),
             new("2.0", "0000000000000000000000000000000000000002"),
         ];
 
-        var installers = UdkInstallers.Read(json);
+        var installers = UdkReleases.Read(json);
 
         Assert.That(installers, Is.EqualTo(expected));
     }
@@ -122,7 +122,7 @@ public sealed class UdkInstallersTests
         using var json = Utf8Stream("""[{ "version": "1.0" }]""");
 
         Assert.That(
-            () => UdkInstallers.Read(json),
+            () => UdkReleases.Read(json),
             Throws.TypeOf<InvalidDataException>().With.InnerException.TypeOf<JsonException>());
     }
 
@@ -133,7 +133,7 @@ public sealed class UdkInstallersTests
         using var json = Utf8Stream("""[{ "version": null, "sha1": "0000000000000000000000000000000000000001" }]""");
 
         Assert.That(
-            () => UdkInstallers.Read(json),
+            () => UdkReleases.Read(json),
             Throws.TypeOf<InvalidDataException>().With.InnerException.TypeOf<JsonException>());
     }
 
@@ -144,18 +144,18 @@ public sealed class UdkInstallersTests
         using var json = Utf8Stream("""[{ "version": "1.0", "sha1": "0000000000000000000000000000000000000001", "note": "" }]""");
 
         Assert.That(
-            () => UdkInstallers.Read(json),
+            () => UdkReleases.Read(json),
             Throws.TypeOf<InvalidDataException>().With.InnerException.TypeOf<JsonException>());
     }
 
-    // A damaged file is refused with installers.json in the message, so the CLI output points at the file to fix and not only a JSON path.
+    // A damaged file is refused with releases.json in the message, so the CLI output points at the file to fix and not only a JSON path.
     [Test]
     public void Read_DamagedJson_ThrowsWithTheFileName()
     {
         using var json = Utf8Stream("""[{ "version": "1.0" "sha1": "0000000000000000000000000000000000000001" }]""");
 
         Assert.That(
-            () => UdkInstallers.Read(json),
+            () => UdkReleases.Read(json),
             Throws.TypeOf<InvalidDataException>().With.Message.Contains("releases.json"));
     }
 
@@ -166,7 +166,7 @@ public sealed class UdkInstallersTests
         using var json = Utf8Stream("""[{ "version": "1.0", "sha1": "000000000000000000000000000000000000000A" }]""");
 
         Assert.That(
-            () => UdkInstallers.Read(json),
+            () => UdkReleases.Read(json),
             Throws.TypeOf<InvalidDataException>().With.Message.Contains("releases.json").And.Message.Contains("'1.0'"));
     }
 
@@ -177,7 +177,7 @@ public sealed class UdkInstallersTests
         using var json = Utf8Stream("null");
 
         Assert.That(
-            () => UdkInstallers.Read(json),
+            () => UdkReleases.Read(json),
             Throws.TypeOf<InvalidDataException>().With.Message.Contains("releases.json"));
     }
 

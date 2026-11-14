@@ -32,7 +32,7 @@ It prints a line as each step starts. The installer download and the download an
 
 A failed step prints its error and exits with code 1. A download or an upload fails its step when connecting to the server takes more than 30 seconds. It also fails when the server sends no response within 1 minute or the transfer moves no bytes for 1 minute. After the last byte of an upload, the server gets 5 minutes to respond, because it stores the file first. The message has the URL or the store path.
 
-A toolchain download keeps the bytes it has, so the next run resumes it. A failed download from the store starts over on the next run. Run 1 build at a time per `--output` folder, because 2 runs into the same folder write the same files.
+If a toolchain download stops, the next run picks it up where it left off. A run keeps `.fixtures.lock` open in the `--output` folder, so a 2nd run into the same folder fails right away.
 
 ### Cache
 

@@ -473,6 +473,46 @@ public sealed class CommandLineTests
         }
     }
 
+    // A 2nd run into an output folder that another run has fails before the store and the install, because the 2 runs would
+    // delete each other's .partial files.
+    [Test]
+    public async Task RunAsync_BuildOutputLockedByAnotherRun_FailsBeforeAnyStep()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        FakeToolchain toolchain = new("player");
+        FakeCacheStore store = new();
+
+        using (new FileStream(Path.Combine(_output, ".fixtures.lock"), FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+        {
+            int code = await RunBuildAsync(output, error, toolchain, store);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(code, Is.EqualTo(1));
+                Assert.That(error.ToString(), Does.Contain($"The folder {_output} is in use by another fixtures run."));
+                Assert.That(store.Calls, Is.Empty);
+                Assert.That(toolchain.Calls, Is.Empty);
+            }
+        }
+    }
+
+    // A run removes its lock file at the end, so the next run into the folder starts.
+    [Test]
+    public async Task RunAsync_BuildDone_RemovesTheLockFile()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+
+        int code = await RunBuildAsync(output, error, new FakeToolchain("player"), store: null);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero);
+            Assert.That(File.Exists(Path.Combine(_output, ".fixtures.lock")), Is.False);
+        }
+    }
+
     // A damaged archive in the store counts as a miss with a line that has the store path, so the run builds the player
     // again and its upload replaces the damaged copy.
     [Test]

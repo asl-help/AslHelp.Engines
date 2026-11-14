@@ -17,7 +17,11 @@ namespace AslHelp.Engines.Fixtures.Cli;
 /// </summary>
 internal static class CommandLine
 {
+    private const string LockFileName = ".fixtures.lock";
     private const string ProjectsPath = "projects";
+
+    // Match ERROR_SHARING_VIOLATION as an HRESULT, because another run has the lock file open.
+    private const int SharingViolation = unchecked((int)0x80070020);
 
     /// <summary>
     ///     Parses <paramref name="args"/> and runs the command in them with every toolchain and the WebDAV cache.
@@ -165,6 +169,9 @@ internal static class CommandLine
                 throw new InvalidOperationException(SR.FormatPlayerListedTwice(toolchain.Name, version, repeated));
             }
 
+            // Lock the output folder for the whole run, because a 2nd run into it deletes the .partial files of the 1st.
+            using var outputLock = LockOutput(outputDirectory);
+
             using var store = openStore(output);
 
             // Draw the bars on the writer of the steps, so the bars and the step lines come out in order.
@@ -226,6 +233,29 @@ internal static class CommandLine
             await error.WriteLineAsync(FailureText(exception).AsMemory(), CancellationToken.None).ConfigureAwait(false);
 
             return 1;
+        }
+    }
+
+    /// <summary>
+    ///     Creates the folder and opens its lock file with no sharing, so a 2nd run into the folder fails at once.
+    /// </summary>
+    /// <param name="outputDirectory">The folder for the downloads, the install and the players.</param>
+    /// <returns>
+    ///     The open lock file, which is deleted once it is disposed.
+    /// </returns>
+    /// <exception cref="IOException">Another run has the folder or the lock file cannot be created.</exception>
+    private static FileStream LockOutput(string outputDirectory)
+    {
+        string folder = Directory.CreateDirectory(outputDirectory).FullName;
+        string path = Path.Combine(folder, LockFileName);
+
+        try
+        {
+            return new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
+        }
+        catch (IOException exception) when (exception.HResult == SharingViolation)
+        {
+            throw new IOException(SR.FormatOutputInUse(folder), exception);
         }
     }
 

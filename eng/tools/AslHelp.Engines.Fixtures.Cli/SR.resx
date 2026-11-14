@@ -165,6 +165,9 @@
   <data name="OutputDescription" xml:space="preserve">
     <value>The folder for the downloads, the install and the players.</value>
   </data>
+  <data name="OutputInUse" xml:space="preserve">
+    <value>The folder {0} is in use by another fixtures run.</value>
+  </data>
   <data name="PackFolderIsLink" xml:space="preserve">
     <value>The folder '{0}' is a link. Replace it with a real folder before packing.</value>
   </data>

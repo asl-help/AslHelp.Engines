@@ -54,7 +54,7 @@ public sealed class UdkEdgeCaseTests
 
         using (Assert.EnterMultipleScope())
         {
-            foreach (var release in UdkReleases.All)
+            foreach (var release in EmbeddedReleases<UdkRelease>.All)
             {
                 var players = udk.ListPlayers(release.Version.Replace("BETA", "beta", StringComparison.Ordinal), parseResult);
 

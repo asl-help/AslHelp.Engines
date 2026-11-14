@@ -180,6 +180,27 @@
   <data name="ProcessOutputNotRedirected" xml:space="preserve">
     <value>The start info of '{0}' does not redirect both output streams. Set RedirectStandardOutput and RedirectStandardError to true.</value>
   </data>
+  <data name="ReleaseNotPinned" xml:space="preserve">
+    <value>{0} '{1}' isn't pinned. Pass 1 of: {2}. {3} lists the pins.</value>
+  </data>
+  <data name="ReleasesBadSha1" xml:space="preserve">
+    <value>{0} has the sha1 '{1}' for version '{2}'. Write it as 40 lowercase hex chars and build the tool again.</value>
+  </data>
+  <data name="ReleasesInvalid" xml:space="preserve">
+    <value>{0} is not a valid release file. {1} Fix the file and build the tool again.</value>
+  </data>
+  <data name="ReleasesKeyTwice" xml:space="preserve">
+    <value>{0} has '{1}' in 2 rows. Keep 1 row per pin and build the tool again.</value>
+  </data>
+  <data name="ReleasesNull" xml:space="preserve">
+    <value>{0} is null. Write a JSON array of rows, 1 per pin.</value>
+  </data>
+  <data name="ReleasesNullRow" xml:space="preserve">
+    <value>{0} has a null row. Write 1 object per pin.</value>
+  </data>
+  <data name="ResourceNotEmbedded" xml:space="preserve">
+    <value>The tool doesn't have {0} embedded. Build the tool again.</value>
+  </data>
   <data name="RootDescription" xml:space="preserve">
     <value>Builds the fixture players that the engine libraries' live tests read from.</value>
   </data>

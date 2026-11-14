@@ -16,4 +16,9 @@
     <PackageReference Include="NUnit3TestAdapter" />
   </ItemGroup>
 
+  <!-- Embed the rows of the fake toolchain, because the release reader reads them from the assembly of the row type. -->
+  <ItemGroup>
+    <EmbeddedResource Include="fake-releases.json" LogicalName="fake-releases.json" />
+  </ItemGroup>
+
 </Project>

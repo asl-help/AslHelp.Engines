@@ -46,19 +46,19 @@ internal sealed class Udk(
 
     /// <inheritdoc/>
     /// <remarks>
-    ///     A UDK version has 1 player, so the list has only the version as in <see cref="UdkReleases.All"/>.
+    ///     A UDK version has 1 player, so the list has only the version as in <see cref="EmbeddedReleases{UdkRelease}.All"/>.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    ///     <see cref="UdkReleases.All"/> doesn't have a row of <paramref name="version"/>.
+    ///     <see cref="EmbeddedReleases{UdkRelease}.All"/> doesn't have a row of <paramref name="version"/>.
     /// </exception>
     public IReadOnlyList<string> ListPlayers(string version, ParseResult parseResult)
     {
-        return [UdkReleases.Find(version).Version];
+        return [EmbeddedReleases<UdkRelease>.Find(version).Version];
     }
 
     /// <inheritdoc/>
     /// <remarks>
-    ///     The inputs are the version as in <see cref="UdkReleases.All"/>, every file of the project folder as it is on disk,
+    ///     The inputs are the version as in <see cref="EmbeddedReleases{UdkRelease}.All"/>, every file of the project folder as it is on disk,
     ///     the installer sha1, the make and server command lines, the line edit of <c>UDKGame/Config/DefaultEngineUDK.ini</c>,
     ///     the delete of <c>UDKGame/Config/UDKEngine.ini</c> and the build version. The runtime DLLs are no input, because
     ///     the key is built before the install exists. The installer sha1 pins the import tables they are read from and the
@@ -66,14 +66,14 @@ internal sealed class Udk(
     /// </remarks>
     /// <exception cref="DirectoryNotFoundException"><paramref name="projectDirectory"/> does not exist. Nothing is added.</exception>
     /// <exception cref="InvalidOperationException">
-    ///     <see cref="UdkReleases.All"/> doesn't have a row of <paramref name="player"/>.
+    ///     <see cref="EmbeddedReleases{UdkRelease}.All"/> doesn't have a row of <paramref name="player"/>.
     /// </exception>
     public string AddKeyInputs(CacheKeyBuilder builder, string player, string projectDirectory)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         // Look the version up first, so an unpinned version adds nothing and every spelling of a version shares 1 key.
-        var release = UdkReleases.Find(player);
+        var release = EmbeddedReleases<UdkRelease>.Find(player);
 
         // Add the project first, so a missing folder throws before any other input is added.
         _ = builder
@@ -92,13 +92,13 @@ internal sealed class Udk(
     /// <inheritdoc/>
     /// <remarks>
     ///     The install goes to <c>udk-&lt;version&gt;</c> under <paramref name="outputDirectory"/> and the installer to
-    ///     <c>downloads</c> next to it. The folder spells the version as in <see cref="UdkReleases.All"/>. An existing
+    ///     <c>downloads</c> next to it. The folder spells the version as in <see cref="EmbeddedReleases{UdkRelease}.All"/>. An existing
     ///     install folder sends no request, so a cached install works offline. A missing one sends 1 request, the pinned
     ///     download. An install whose redist has the PhysX installer, UDK 2009-11, is refused once it is
     ///     extracted. An install without a redist passes. The runtime step reports a missing redist if it needs one.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    ///     <see cref="UdkReleases.All"/> doesn't have a row of <paramref name="player"/> or the install needs the PhysX installer.
+    ///     <see cref="EmbeddedReleases{UdkRelease}.All"/> doesn't have a row of <paramref name="player"/> or the install needs the PhysX installer.
     /// </exception>
     public async Task<string> InstallAsync(
         string player,
@@ -111,7 +111,7 @@ internal sealed class Udk(
 
         // Look the version up first, so an unpinned version touches neither the network nor the disk
         // and every spelling of a version shares 1 install folder.
-        var release = UdkReleases.Find(player);
+        var release = EmbeddedReleases<UdkRelease>.Find(player);
         string output = Path.GetFullPath(outputDirectory);
         string installDirectory = Path.Combine(output, $"udk-{release.Version}");
 

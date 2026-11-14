@@ -37,7 +37,7 @@ The tool projects and their tests target `net11.0-windows`, because the players 
 ## Layout
 
 - `src/AslHelp.Engines.Unreal`: engine library. 1 type per storage shape, because shapes change between minor engine versions, not major ones.
-- `eng/tools/AslHelp.Engines.Fixtures`: parts both command lines use, such as cache keys and `Player`.
+- `eng/tools/AslHelp.Engines.Fixtures`: parts both command lines use, like cache keys, `Player`, the UDK install paths in `Unreal3/UdkInstall` and the player tags and ids in `Unreal4/UnrealPlayer`.
 - `eng/tools/AslHelp.Engines.Fixtures.Cli`: `fixtures` command line. An engine plugs in through `IToolchain`, which adds its own command line options and lists the players of a version. `EmbeddedReleases` reads the `releases.json` of an engine with the shared checks and the row type of the engine adds its own checks through `IReleaseRow`. A store plugs in through `ICacheStore`. `Formats/` reads and writes archives, cabinets, self-extracting zips and PE imports. `Hosting/` runs players and build steps in containers and processes. `Transfer/` downloads files, talks to the WebDAV store and shows progress.
 - `eng/tools/AslHelp.Engines.Measuring.Cli`: `measure` command line. An engine plugs in through `IEngineMeasurer`. `Routes/` is the route search, with no engine in it.
 - `eng/fixtures/<engine>`: what 1 engine brings. `releases.json` and `targets.json` are the pin table and the measure targets. The `fixtures` command line imports `fixtures.props` and the `measure` command line imports `measure.props`, so a new engine adds 1 folder and 1 import line per command line.

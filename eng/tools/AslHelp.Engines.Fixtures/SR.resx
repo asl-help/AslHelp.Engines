@@ -69,8 +69,17 @@
   <data name="NoInputs" xml:space="preserve">
     <value>Call Build first, then read the inputs it hashed.</value>
   </data>
+  <data name="PlayerArchInvalid" xml:space="preserve">
+    <value>{0} isn't a player architecture. Use X64 or X86.</value>
+  </data>
+  <data name="PlayerConfigInvalid" xml:space="preserve">
+    <value>{0} isn't a player build configuration. Use Development or Shipping.</value>
+  </data>
   <data name="PlayerNotFound" xml:space="preserve">
     <value>The player '{0}' does not exist. Build or download it first, then pass its path.</value>
+  </data>
+  <data name="PlayerTagInvalid" xml:space="preserve">
+    <value>'{0}' isn't a player tag such as win-x64-shipping.</value>
   </data>
   <data name="ResumeFailed" xml:space="preserve">
     <value>Could not resume '{0}'.</value>

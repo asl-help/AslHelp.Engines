@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 namespace AslHelp.Engines.Fixtures.Cli.Hosting;
 
 /// <summary>
-///     Represents an executable that an <see cref="IPlayerHost"/> started.
+///     Represents an executable that an <see cref="IPlayerHost"/> or an <see cref="IBuildHost"/> started.
 /// </summary>
 internal interface IHostedRun : IAsyncDisposable
 {

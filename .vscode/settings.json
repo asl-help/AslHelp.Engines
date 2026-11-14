@@ -6,11 +6,23 @@
     "*.csproj": "${capture}.Package.props",
     "I*.cs": "${capture}Extensions.cs, ${capture}Extensions.*.cs",
     "*.cs": "${capture}Extensions.cs, ${capture}Extensions.*.cs",
+    "*.h": "${capture}.cpp",
     "readme.md": "agents.md, changelog.md, justfile, license.md",
+  },
+  "files.associations": {
+    "*.uproject": "json",
   },
   "files.exclude": {
     "artifacts/": true,
   },
+  "json.schemas": [
+    {
+      "fileMatch": [
+        "*.uproject",
+      ],
+      "url": "https://www.schemastore.org/uproject.json",
+    },
+  ],
   "unrealscript.analyzeDocuments": "None",
   "unrealscript.generation": "3",
 }

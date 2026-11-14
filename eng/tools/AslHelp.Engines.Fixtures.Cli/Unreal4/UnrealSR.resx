@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="DirectiveBadCondition" xml:space="preserve">
+    <value>{0}({1}): bad condition '{2}'. Write an op and a major.minor, such as &gt;=4.14. The ops are &gt;=, &gt;, &lt;, &lt;= and ==.</value>
+  </data>
+  <data name="DirectiveElseTwice" xml:space="preserve">
+    <value>{0}({1}): second @else for the @if on line {2}.</value>
+  </data>
+  <data name="DirectiveElseWithoutIf" xml:space="preserve">
+    <value>{0}({1}): @else without @if.</value>
+  </data>
+  <data name="DirectiveEndifWithoutIf" xml:space="preserve">
+    <value>{0}({1}): @endif without @if.</value>
+  </data>
+  <data name="DirectiveUnclosed" xml:space="preserve">
+    <value>{0}({1}): @if without @endif.</value>
+  </data>
+  <data name="DirectiveUnknown" xml:space="preserve">
+    <value>{0}({1}): unknown directive '{2}'. Use @if, @else or @endif.</value>
+  </data>
+  <data name="ManifestNoFixtureData" xml:space="preserve">
+    <value>The headers in '{0}' don't declare {1}.</value>
+  </data>
+  <data name="ManifestNoMemberName" xml:space="preserve">
+    <value>The declaration '{0}' in '{1}' doesn't end in a member name.</value>
+  </data>
+  <data name="SourceFolderNotFound" xml:space="preserve">
+    <value>The source folder '{0}' does not exist.</value>
+  </data>
+</root>

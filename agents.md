@@ -25,7 +25,7 @@ The tool projects and their tests target `net11.0-windows`, because the players 
 - Files under `eng/fixtures` check out with CRLF on every machine, because the player cache key hashes their bytes.
 - The route search reads files and never a running game, so a measurer only returns the path of the executable.
 - Log lines of the `measure` command sit in `[LoggerMessage]` methods of `MeasureLog` and `Unreal3/UdkLog`, because Microsoft.Extensions.Logging takes their templates at compile time.
-- Other text that users read, such as messages, step lines and command help, sits in the `SR.resx` of its project. The UDK text sits in `Unreal3/UdkSR.resx`. `Microsoft.CodeAnalysis.ResxSourceGenerator` generates the `SR` and `UdkSR` classes, with a property for each message and a `Format` method for each message with placeholders, such as `SR.FormatFolderNotFound(path)`.
+- Other text that users read, like messages, step lines and command help, goes in the `SR.resx` of its project. UDK text goes in `Unreal3/UdkSR.resx` and Unreal Engine 4 and 5 text in `Unreal4/UnrealSR.resx`. `Microsoft.CodeAnalysis.ResxSourceGenerator` generates the `SR`, `UdkSR` and `UnrealSR` classes. They get a property for each message and a `Format` method for each message with placeholders, like `SR.FormatFolderNotFound(path)`.
 - `src/` and the `measure` tool return `Result` or `Result<T>` for expected failures. They throw for cancellation and programmer errors and `UdkPlayer` still throws for a player that does not start. A probing loop uses `UnwrapOr`, because a miss is normal there.
 - `readme.md`, `changelog.md` and this file change in the same commit as the code they describe. `changelog.md` lists the changes to the libraries in `src/`, because the tools in `eng/tools/` do not ship.
 - The player tests of both test projects take the machine-wide lock, so `just test`, `just check` and CI run the test projects 1 at a time. Run the tests while no build runs on the machine.
@@ -43,7 +43,8 @@ The tool projects and their tests target `net11.0-windows`, because the players 
 - `eng/tools/AslHelp.Engines.Measuring.Cli`: `measure` command line. An engine plugs in through `IEngineMeasurer`. `Routes/` is the route search, with no engine in it.
 - `eng/fixtures/<engine>`: what 1 engine brings. `releases.json` and `targets.json` are the pin table and the measure targets. The `fixtures` command line imports `fixtures.props` and the `measure` command line imports `measure.props`, so a new engine adds 1 folder and 1 import line per command line.
 - `eng/fixtures/unreal3`: UnrealScript classes of the Unreal Engine 3 player.
+- `eng/fixtures/unreal4`: C++ project of the Unreal Engine 4 and 5 players, 1 tree for every minor from 4.0 to 5.8. `//@if >=4.14`, `//@else` and `//@endif` lines (`;@` in `.ini`) keep or drop the lines after them for the version being rendered. The operators are `>=`, `>`, `<`, `<=` and `==` on major.minor.
 - `test/<Project>.Tests`: tests of a project.
 - `eng/CheckEncoding.cs`: encoding and line ending check, same file in every repo.
 - A new project goes into `src/` if it ships, `eng/tools/` if not, and into `AslHelp.Engines.slnx`.
-- Engine code sits in a folder per engine, such as `Unreal3/`. Everything else uses neutral names, with no engine in them.
+- Engine code goes in a folder per engine, like `Unreal3/` or `Unreal4/` (that one is for Unreal Engine 4 and 5). Everything else uses neutral names without any engine in them.

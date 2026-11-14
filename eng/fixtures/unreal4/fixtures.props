@@ -1,0 +1,22 @@
+<Project>
+
+  <!-- Copy only these files, so a stray editor file next to them doesn't change the player key. -->
+  <ItemGroup>
+    <Content
+      Include="$(MSBuildThisFileDirectory)/*.uproject"
+      Link="projects/unreal4/%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" />
+    <Content
+      Include="$(MSBuildThisFileDirectory)/Config/*.ini"
+      Link="projects/unreal4/Config/%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" />
+    <Content
+      Include="
+        $(MSBuildThisFileDirectory)/Source/**/*.cpp;
+        $(MSBuildThisFileDirectory)/Source/**/*.cs;
+        $(MSBuildThisFileDirectory)/Source/**/*.h"
+      Link="projects/unreal4/Source/%(RecursiveDir)%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

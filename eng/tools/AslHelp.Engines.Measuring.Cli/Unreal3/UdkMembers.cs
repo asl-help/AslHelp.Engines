@@ -238,6 +238,7 @@ internal sealed class UdkMembers
                 }
             }
 
+            // Compare the percentage in whole numbers, because named / sample.Count rounds down to 0.
             if (named * 100 >= sample.Count * LeastNamedPercent && distinct.Count > mostDistinct)
             {
                 best = at;

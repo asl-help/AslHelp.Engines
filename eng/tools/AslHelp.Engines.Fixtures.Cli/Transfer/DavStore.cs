@@ -582,9 +582,9 @@ internal sealed class DavStore : ICacheStore
             >= 300 and < 400 when response.Headers.Location is { } location
                 => SR.FormatDavRedirectToFix(UrlVariable, new Uri(request.RequestUri!, location)),
             >= 300 and < 400 => SR.FormatDavRedirectFix(UrlVariable),
-            409 when request.Method == _mkcol => SR.FormatDavFolderMissingFix(UrlVariable),
-            413 => SR.DavTooLargeFix,
-            507 => SR.DavNoSpaceFix,
+            (int)HttpStatusCode.Conflict when request.Method == _mkcol => SR.FormatDavFolderMissingFix(UrlVariable),
+            (int)HttpStatusCode.RequestEntityTooLarge => SR.DavTooLargeFix,
+            (int)HttpStatusCode.InsufficientStorage => SR.DavNoSpaceFix,
             >= 400 and < 500 => SR.FormatDavRequestRefusedFix(UrlVariable),
             _ => SR.DavServerFix,
         };

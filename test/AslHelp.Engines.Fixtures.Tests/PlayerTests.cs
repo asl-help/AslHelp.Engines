@@ -117,7 +117,7 @@ public sealed class PlayerTests
 
         Assert.That(
             () => Player.Start(PingInfo() with { LockTimeout = _shortTimeout }),
-            Throws.TypeOf<TimeoutException>().With.Message.Contains("Another player"));
+            Throws.TypeOf<TimeoutException>().With.Message.Contains("player lock"));
     }
 
     // Dispose gives the machine lock back before it returns.

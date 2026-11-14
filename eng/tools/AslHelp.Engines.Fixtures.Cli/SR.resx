@@ -37,7 +37,7 @@
     <value>The base URL '{0}' is relative. Pass the absolute URL of the WebDAV folder.</value>
   </data>
   <data name="BuildDescription" xml:space="preserve">
-    <value>Restores the players of a version from the cache. If any are missing, installs a toolchain, builds them in 1 pass, checks that each starts and caches each.</value>
+    <value>Builds the players of a version or restores them from the cache.</value>
   </data>
   <data name="Building" xml:space="preserve">
     <value>Building {0} in {1}: {2}</value>

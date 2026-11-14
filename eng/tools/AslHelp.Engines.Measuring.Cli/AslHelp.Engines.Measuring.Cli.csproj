@@ -18,8 +18,6 @@
     <PackageReference Include="System.CommandLine" />
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="Unreal3/targets.json" LogicalName="Unreal3/targets.json" />
-  </ItemGroup>
+  <Import Project="$(FixturesPath)/unreal3/measure.props" />
 
 </Project>

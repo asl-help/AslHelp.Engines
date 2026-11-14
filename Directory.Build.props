@@ -6,6 +6,7 @@
 
     <SrcPath>$(RootPath)/src</SrcPath>
     <ToolsPath>$(RootPath)/eng/tools</ToolsPath>
+    <FixturesPath>$(RootPath)/eng/fixtures</FixturesPath>
     <TestPath>$(RootPath)/test</TestPath>
 
     <ArtifactsPath>$(RootPath)/artifacts</ArtifactsPath>

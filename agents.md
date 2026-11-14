@@ -22,7 +22,7 @@ The tool projects and their tests target `net11.0-windows`, because the players 
 ## Rules
 
 - Text files are UTF-8 without a BOM. Git stores them with LF line endings.
-- Files under `test/fixtures` check out with CRLF on every machine, because the player cache key hashes their bytes.
+- Files under `eng/fixtures` check out with CRLF on every machine, because the player cache key hashes their bytes.
 - The route search reads files and never a running game, so a measurer only returns the path of the executable.
 - Log lines of the `measure` command sit in `[LoggerMessage]` methods of `MeasureLog` and `Unreal3/UdkLog`, because Microsoft.Extensions.Logging takes their templates at compile time.
 - Other text that users read, such as messages, step lines and command help, sits in the `SR.resx` of its project. The UDK text sits in `Unreal3/UdkSR.resx`. `Microsoft.CodeAnalysis.ResxSourceGenerator` generates the `SR` and `UdkSR` classes, with a property for each message and a `Format` method for each message with placeholders, such as `SR.FormatFolderNotFound(path)`.
@@ -40,7 +40,8 @@ The tool projects and their tests target `net11.0-windows`, because the players 
 - `eng/tools/AslHelp.Engines.Fixtures`: parts both command lines use, such as cache keys and `Player`.
 - `eng/tools/AslHelp.Engines.Fixtures.Cli`: `fixtures` command line. An engine plugs in through `IToolchain`, a store through `ICacheStore`.
 - `eng/tools/AslHelp.Engines.Measuring.Cli`: `measure` command line. An engine plugs in through `IEngineMeasurer`. `Routes/` is the route search, with no engine in it.
-- `test/fixtures/unreal3`: UnrealScript classes of the Unreal Engine 3 player.
+- `eng/fixtures/<engine>`: what 1 engine brings. `releases.json` and `targets.json` are the pin table and the measure targets. The `fixtures` command line imports `fixtures.props` and the `measure` command line imports `measure.props`, so a new engine adds 1 folder and 1 import line per command line.
+- `eng/fixtures/unreal3`: UnrealScript classes of the Unreal Engine 3 player.
 - `test/<Project>.Tests`: tests of a project.
 - `eng/CheckEncoding.cs`: encoding and line ending check, same file in every repo.
 - A new project goes into `src/` if it ships, `eng/tools/` if not, and into `AslHelp.Engines.slnx`.

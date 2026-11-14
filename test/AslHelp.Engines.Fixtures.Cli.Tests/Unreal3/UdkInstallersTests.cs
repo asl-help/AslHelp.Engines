@@ -88,7 +88,7 @@ public sealed class UdkInstallersTests
                 .With.Message.Contains("1999-01")
                 .And.Message.Contains("2009-11-BETA")
                 .And.Message.Contains("2015-02")
-                .And.Message.Contains("installers.json")
+                .And.Message.Contains("releases.json")
                 .And.Message.Contains("Adding a UDK version")
                 .And.Message.Not.Contains("(Parameter"));
     }
@@ -156,7 +156,7 @@ public sealed class UdkInstallersTests
 
         Assert.That(
             () => UdkInstallers.Read(json),
-            Throws.TypeOf<InvalidDataException>().With.Message.Contains("installers.json"));
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("releases.json"));
     }
 
     // An uppercase sha1 is refused at load with the file and the version, so a bad pin fails every build and not only the download.
@@ -167,7 +167,7 @@ public sealed class UdkInstallersTests
 
         Assert.That(
             () => UdkInstallers.Read(json),
-            Throws.TypeOf<InvalidDataException>().With.Message.Contains("installers.json").And.Message.Contains("'1.0'"));
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("releases.json").And.Message.Contains("'1.0'"));
     }
 
     // The JSON literal null is refused, so a file that is only null never reads as no versions.
@@ -178,7 +178,7 @@ public sealed class UdkInstallersTests
 
         Assert.That(
             () => UdkInstallers.Read(json),
-            Throws.TypeOf<InvalidDataException>().With.Message.Contains("installers.json"));
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("releases.json"));
     }
 
     private static MemoryStream Utf8Stream(string text)

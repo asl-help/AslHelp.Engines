@@ -185,7 +185,7 @@ public sealed class UdkTests
                 () => NewOfflineUdk().AddKeyInputs(builder, "1999-01"),
                 Throws.InvalidOperationException
                     .With.Message.Contains("1999-01")
-                    .And.Message.Contains("installers.json")
+                    .And.Message.Contains("releases.json")
                     .And.Message.Not.Contains("(Parameter"));
             Assert.That(builder.Build(), Is.EqualTo(new CacheKeyBuilder("player").Build()));
         }

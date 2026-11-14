@@ -10,8 +10,8 @@ namespace AslHelp.Engines.Fixtures.Cli.Unreal3;
 /// </summary>
 internal static class UdkInstallers
 {
-    private const string InstallersPath = "eng/tools/AslHelp.Engines.Fixtures.Cli/Unreal3/installers.json";
-    private const string InstallersResource = "Unreal3/installers.json";
+    private const string InstallersPath = "eng/fixtures/unreal3/releases.json";
+    private const string InstallersResource = "Unreal3/releases.json";
 
     private static readonly Lazy<IReadOnlyList<UdkInstaller>> _installers = new(ReadEmbedded);
 

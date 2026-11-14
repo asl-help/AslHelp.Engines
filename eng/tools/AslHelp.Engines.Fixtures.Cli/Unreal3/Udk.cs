@@ -58,23 +58,26 @@ internal sealed class Udk(
 
     /// <inheritdoc/>
     /// <remarks>
-    ///     The inputs are the version as in <see cref="UdkReleases.All"/>, the installer sha1, the make and server command
-    ///     lines, the line edit of <c>UDKGame/Config/DefaultEngineUDK.ini</c>, the delete of
-    ///     <c>UDKGame/Config/UDKEngine.ini</c> and the build version. The runtime DLLs are no input, because the key is
-    ///     built before the install exists. The installer sha1 pins the import tables they are read from and the redist
-    ///     they come from. <c>BuildVersion</c> pins the code that reads them.
+    ///     The inputs are the version as in <see cref="UdkReleases.All"/>, every file of the project folder as it is on disk,
+    ///     the installer sha1, the make and server command lines, the line edit of <c>UDKGame/Config/DefaultEngineUDK.ini</c>,
+    ///     the delete of <c>UDKGame/Config/UDKEngine.ini</c> and the build version. The runtime DLLs are no input, because
+    ///     the key is built before the install exists. The installer sha1 pins the import tables they are read from and the
+    ///     redist they come from. <c>BuildVersion</c> pins the code that reads them.
     /// </remarks>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="projectDirectory"/> does not exist. Nothing is added.</exception>
     /// <exception cref="InvalidOperationException">
     ///     <see cref="UdkReleases.All"/> doesn't have a row of <paramref name="player"/>.
     /// </exception>
-    public string AddKeyInputs(CacheKeyBuilder builder, string player)
+    public string AddKeyInputs(CacheKeyBuilder builder, string player, string projectDirectory)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         // Look the version up first, so an unpinned version adds nothing and every spelling of a version shares 1 key.
         var release = UdkReleases.Find(player);
 
+        // Add the project first, so a missing folder throws before any other input is added.
         _ = builder
+            .AddDirectory("project", projectDirectory)
             .Add("version", release.Version)
             .Add("installer-sha1", release.Sha1)
             .Add("make-command", UdkProject.MakeCommand)

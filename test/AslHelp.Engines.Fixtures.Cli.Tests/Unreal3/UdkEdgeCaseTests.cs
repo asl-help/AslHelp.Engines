@@ -59,7 +59,7 @@ public sealed class UdkEdgeCaseTests
                 var players = udk.ListPlayers(release.Version.Replace("BETA", "beta", StringComparison.Ordinal), parseResult);
 
                 Assert.That(players, Is.EqualTo([release.Version]));
-                Assert.That(udk.AddKeyInputs(new CacheKeyBuilder("player"), players[0]), Is.EqualTo(release.Version));
+                Assert.That(udk.AddKeyInputs(new CacheKeyBuilder("player"), players[0], _projects), Is.EqualTo(release.Version));
             }
         }
     }

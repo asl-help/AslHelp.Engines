@@ -46,11 +46,11 @@ The `build` command keeps each player in a WebDAV folder, so a player is built o
 
 With none of them set, the build stays local and prints a line that lists them. With only some of them set, the build fails and lists the missing ones.
 
-The key of a player covers the toolchain name, the files of the player project that the build uses and the inputs the toolchain adds. These inputs are what goes into the build, not the code of the tool. A player is built once per key. Other machines and later commits download it.
+The key of a player covers the toolchain name and the inputs the toolchain adds, like the player project as the build uses it. The key covers what goes into the build, not the code of the tool. A player is built once per key and other machines download it.
 
 The section of each toolchain lists its inputs. In a folder name, `<hash>` is the first 16 hex characters of the key and `<version>` is the version the toolchain pins for that player, not the one you typed. Players go in `<output>/<toolchain>-<version>-<hash>` on disk and in `players/<toolchain>/<version>/<hash>.tar.zst` in the store, with a `<hash>.json` manifest next to the archive.
 
-The manifest lists what a player was built from, so you can see why 2 keys differ. It sits in the player folder as `manifest.json` too. It lists the full key as `player-` and all 64 hex chars of its hash, the toolchain, the version and every input in the order the key hashed them. The project folder shows up as 1 content hash, not as a list of files. A build never reads a manifest, so a missing one never fails a build.
+The manifest lists every input of the key, so you can see why 2 keys are different. You'll also find it in the player folder as `manifest.json`. It has the full key (`player-` plus all 64 hex characters of the hash), the toolchain, the version and the inputs in the order the key hashed them. The project shows up as 1 content hash, not as a list of files. A build never reads a manifest, so a missing one never fails a build.
 
 For each player, the build checks these in order:
 
@@ -84,7 +84,7 @@ The build needs a Docker engine that runs Windows containers and that your user 
 7. It runs `Binaries/Win32/UDK.exe server <map>?game=Fixture.FixtureGame -unattended -nullrhi -FORCELOGFLUSH` in a container with the 1st map under `UDKGame/Content/Maps` and waits up to 2 minutes for `ScriptLog: Fixture ready` in `UDKGame/Logs/Launch.log`. After a pass it deletes the log, because the log has the machine name, the user and the paths of the build.
 8. The player ends up in `<output>/unreal3-<version>-<hash>` with the install layout and `manifest.json` inside. `udk-<version>` is the install only until then.
 
-The key of a UDK player covers the pinned version, the installer sha1, the make and server command lines, the ini edits and a build version. The runtime DLLs are no key input, because the key is built before the install exists. The installer sha1 pins the files they are read from. Bump `BuildVersion` in `Udk` when a build step changes in a way none of the other inputs show, so every player is built again.
+The key of a UDK player covers the pinned version, the project folder as it is on disk, the installer sha1, the make and server command lines, the ini edits and a build version. The runtime DLLs aren't a key input because the key is built before the install exists. The installer sha1 pins the files they come from. Bump `BuildVersion` in `Udk` when a build step changes in a way the other inputs don't show, so every player is built again.
 
 The compiler and the server run in a Windows container with the install mounted, so a build fails when the player needs something that only the build machine has. The `-nullrhi` switch turns rendering off, because a container has no display. The build gives your user full control of the install before each start, because the files a container writes belong to the administrator of the container. A step that finds files missing or damaged in the extracted install needs a fresh extraction: delete `<output>/udk-<version>` and run the build again.
 

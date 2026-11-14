@@ -178,7 +178,7 @@ public sealed class UdkTests
     {
         CacheKeyBuilder builder = new("player");
 
-        string version = NewOfflineUdk().AddKeyInputs(builder, "2011-03-beta2");
+        string version = NewOfflineUdk().AddKeyInputs(builder, "2011-03-beta2", OutputProject());
         _ = builder.Build();
 
         using (Assert.EnterMultipleScope())
@@ -205,7 +205,7 @@ public sealed class UdkTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                () => NewOfflineUdk().AddKeyInputs(builder, "1999-01"),
+                () => NewOfflineUdk().AddKeyInputs(builder, "1999-01", OutputProject()),
                 Throws.InvalidOperationException
                     .With.Message.Contains("1999-01")
                     .And.Message.Contains("releases.json")
@@ -214,12 +214,13 @@ public sealed class UdkTests
         }
     }
 
-    // The key has the version, installer-sha1, make-command, server-command, config-edit, config-delete and build-version 2
-    // and nothing else, so a change to any of them shows here first.
+    // The key has the project folder as it is on disk, the version, installer-sha1, make-command, server-command, config-edit,
+    // config-delete and build-version 2 and nothing else, so a change to any of them shows here first.
     [Test]
     public void AddKeyInputs_PinnedVersion_AddsEveryBuildInput()
     {
         var expected = new CacheKeyBuilder("player")
+            .AddDirectory("project", OutputProject())
             .Add("version", "2015-02")
             .Add("installer-sha1", "71f79806a4f6dab673ba85b540ea12629b8bc41e")
             .Add("make-command", @"Binaries\Win32\UDK.com make -unattended -nullrhi")
@@ -230,6 +231,19 @@ public sealed class UdkTests
             .Build();
 
         Assert.That(KeyOf("2015-02"), Is.EqualTo(expected));
+    }
+
+    // The UDK project isn't rendered, so a gate line is hashed as raw bytes and a change behind it changes the key.
+    [Test]
+    public void AddKeyInputs_ChangeBehindGateLine_ChangesKey()
+    {
+        string project = WriteProject();
+        WriteBytes(project, "Classes/Fixture.h", "//@if >=4.20\nA\n//@endif\n"u8.ToArray());
+        var before = KeyOf("2015-02", project);
+
+        WriteBytes(project, "Classes/Fixture.h", "//@if >=4.20\nC\n//@endif\n"u8.ToArray());
+
+        Assert.That(KeyOf("2015-02", project), Is.Not.EqualTo(before));
     }
 
     // An unpinned version fails at the key with the message that lists the pinned versions, before the store opens and before any request.
@@ -364,10 +378,10 @@ public sealed class UdkTests
         await Assert.ThatAsync(() => udk.CheckAsync(install!, CancellationToken.None), Throws.Nothing);
     }
 
-    private CacheKey KeyOf(string version)
+    private CacheKey KeyOf(string version, string? projectDirectory = null)
     {
         CacheKeyBuilder builder = new("player");
-        _ = NewOfflineUdk().AddKeyInputs(builder, version);
+        _ = NewOfflineUdk().AddKeyInputs(builder, version, projectDirectory ?? OutputProject());
 
         return builder.Build();
     }

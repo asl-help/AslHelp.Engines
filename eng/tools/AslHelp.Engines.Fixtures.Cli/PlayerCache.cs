@@ -47,9 +47,9 @@ internal sealed class PlayerCache(
     ///     Builds the key of the player that <paramref name="toolchain"/> builds at <paramref name="version"/>.
     /// </summary>
     /// <remarks>
-    ///     The key covers the toolchain name, every file of the project folder and the inputs the toolchain adds with
-    ///     <see cref="IToolchain.AddKeyInputs"/>, so a change to any of them builds the player again and a new build of
-    ///     this tool does not.
+    ///     The key covers the toolchain name and the inputs the toolchain adds with <see cref="IToolchain.AddKeyInputs"/>,
+    ///     the project folder among them, so a change to any of them builds the player again and a new build of this tool
+    ///     does not.
     /// </remarks>
     /// <param name="toolchain">The toolchain.</param>
     /// <param name="version">The player id from <see cref="IToolchain.ListPlayers"/>.</param>
@@ -58,23 +58,20 @@ internal sealed class PlayerCache(
     ///     The player key, with a key of kind <c>player</c>, the version as the toolchain pins it and the inputs the key hashed.
     /// </returns>
     /// <exception cref="ArgumentException">
-    ///     <paramref name="toolchain"/> adds an input called <c>toolchain</c> or <c>project</c> or pins a version that is not a
-    ///     valid folder name. It is thrown before the project files are read.
+    ///     <paramref name="toolchain"/> adds an input called <c>toolchain</c> or pins a version that is not a valid folder name.
     /// </exception>
     /// <exception cref="DirectoryNotFoundException"><paramref name="projectDirectory"/> does not exist.</exception>
     /// <exception cref="IOException">A file of the project folder cannot be read.</exception>
     /// <exception cref="InvalidOperationException">
-    ///     <paramref name="toolchain"/> doesn't have a release of <paramref name="version"/>. It is thrown before the project files are read.
-    ///     It is also thrown when the version the toolchain returns is not the input <c>version</c> it adds.
+    ///     <paramref name="toolchain"/> doesn't have a release of <paramref name="version"/>. It is also thrown when the version
+    ///     the toolchain returns is not the input <c>version</c> it adds.
     /// </exception>
     public static PlayerKey KeyOf(IToolchain toolchain, string version, string projectDirectory)
     {
         CacheKeyBuilder builder = new(Kind);
-        _ = builder
-            .Add("toolchain", toolchain.Name)
-            .AddDirectory("project", projectDirectory);
+        _ = builder.Add("toolchain", toolchain.Name);
 
-        string pinned = toolchain.AddKeyInputs(builder, version);
+        string pinned = toolchain.AddKeyInputs(builder, version, projectDirectory);
 
         // Check the pinned version first, because it becomes a folder name and a store path segment.
         if (!IsFolderName(pinned))

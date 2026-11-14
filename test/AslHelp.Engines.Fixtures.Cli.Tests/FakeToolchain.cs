@@ -98,12 +98,18 @@ internal sealed class FakeToolchain(
     }
 
     /// <inheritdoc/>
-    public string AddKeyInputs(CacheKeyBuilder builder, string player)
+    /// <remarks>
+    ///     The inputs are every file of the project folder as it is on disk, the version and <see cref="ExtraKeyInput"/>.
+    /// </remarks>
+    public string AddKeyInputs(CacheKeyBuilder builder, string player, string projectDirectory)
     {
         string pinned = PinnedVersion ?? player;
 
         // Skip Record, because every build computes the key and the tests of a cache hit expect no calls.
-        _ = builder.Add("version", HashedVersion ?? pinned).Add("extra", ExtraKeyInput);
+        _ = builder
+            .AddDirectory("project", projectDirectory)
+            .Add("version", HashedVersion ?? pinned)
+            .Add("extra", ExtraKeyInput);
 
         return pinned;
     }

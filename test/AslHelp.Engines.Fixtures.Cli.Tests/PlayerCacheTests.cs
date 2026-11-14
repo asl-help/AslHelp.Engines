@@ -52,10 +52,10 @@ public sealed class PlayerCacheTests
         Assert.That(second.Key, Is.EqualTo(first.Key));
     }
 
-    // The key equals 1 built by hand from the toolchain name, the project folder and the toolchain's inputs, so nothing about
-    // the build of the tool is in it.
+    // The key equals 1 built by hand from the toolchain name and the toolchain's inputs, the project folder among them, so nothing
+    // about the build of the tool is in it and KeyOf adds no project input of its own.
     [Test]
-    public void KeyOf_FakeToolchain_HasOnlyTheNameTheProjectAndTheToolchainInputs()
+    public void KeyOf_FakeToolchain_HasOnlyTheNameAndTheToolchainInputs()
     {
         var expected = new CacheKeyBuilder("player")
             .Add("toolchain", "player")
@@ -78,7 +78,7 @@ public sealed class PlayerCacheTests
         Assert.That(PlayerCache.KeyOf(toolchain, "1.1", _project).Key, Is.Not.EqualTo(PlayerCache.KeyOf(toolchain, "1.0", _project).Key));
     }
 
-    // A 1-byte change in a project file changes the key, so an edited player project is built again.
+    // A 1-byte change in a project file changes the key, because KeyOf passes the project folder to the toolchain.
     [Test]
     public void KeyOf_ChangedProjectFile_ChangesKey()
     {

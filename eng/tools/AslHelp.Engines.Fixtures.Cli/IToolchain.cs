@@ -41,18 +41,26 @@ internal interface IToolchain
     /// </summary>
     /// <remarks>
     ///     The inputs are what goes into the build: the version as the toolchain pins it, the pinned download, the
-    ///     commands it runs and the edits it makes. The code that runs the build is not an input. A change to a build
-    ///     step that no input shows needs a new input that shows it, such as a build version the toolchain adds.
+    ///     project files as the build reads them, the commands it runs and the edits it makes. The code that runs the
+    ///     build is not an input. A change to a build step that no input shows needs a new input that shows it, such as
+    ///     a build version the toolchain adds.
     /// </remarks>
-    /// <param name="builder">The builder of the player key. The names <c>toolchain</c> and <c>project</c> are taken.</param>
+    /// <param name="builder">The builder of the player key. The name <c>toolchain</c> is taken.</param>
     /// <param name="player">The player id from <see cref="ListPlayers"/>.</param>
+    /// <param name="projectDirectory">
+    ///     The player project, such as a folder under <c>projects</c>. The toolchain adds it as the input <c>project</c>.
+    /// </param>
     /// <returns>
     ///     The version as the toolchain pins it, the same value it adds as the input <c>version</c>, so the player folder
     ///     and the store path spell it that way and never as typed.
     /// </returns>
-    /// <exception cref="ArgumentNullException"><paramref name="builder"/> or <paramref name="player"/> is <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="builder"/>, <paramref name="player"/> or <paramref name="projectDirectory"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="DirectoryNotFoundException"><paramref name="projectDirectory"/> does not exist. Nothing is added.</exception>
+    /// <exception cref="IOException">A file of <paramref name="projectDirectory"/> cannot be read.</exception>
     /// <exception cref="InvalidOperationException">There is no release of <paramref name="player"/>. Nothing is added.</exception>
-    string AddKeyInputs(CacheKeyBuilder builder, string player);
+    string AddKeyInputs(CacheKeyBuilder builder, string player, string projectDirectory);
 
     /// <summary>
     ///     Installs the release of <paramref name="player"/> into a folder under <paramref name="outputDirectory"/>

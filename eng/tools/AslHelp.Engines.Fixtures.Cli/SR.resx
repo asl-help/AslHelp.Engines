@@ -37,10 +37,13 @@
     <value>The base URL '{0}' is relative. Pass the absolute URL of the WebDAV folder.</value>
   </data>
   <data name="BuildDescription" xml:space="preserve">
-    <value>Restores the player from the cache or installs a toolchain, builds its player in it, checks that the player starts and caches the player.</value>
+    <value>Restores the players of a version from the cache. If any are missing, installs a toolchain, builds them in 1 pass, checks that each starts and caches each.</value>
   </data>
   <data name="Building" xml:space="preserve">
-    <value>Building {0} in {1}</value>
+    <value>Building {0} in {1}: {2}</value>
+  </data>
+  <data name="BuiltFolderCount" xml:space="preserve">
+    <value>{0} built {1} players but returned {2} folders.</value>
   </data>
   <data name="CabinetEndsEarly" xml:space="preserve">
     <value>The cabinet ends before its last file entry.</value>
@@ -147,8 +150,11 @@
   <data name="NoContentRange" xml:space="preserve">
     <value>(none)</value>
   </data>
+  <data name="NoPlayers" xml:space="preserve">
+    <value>{0} {1} doesn't have a player that fits the options.</value>
+  </data>
   <data name="OutputDescription" xml:space="preserve">
-    <value>The folder for the downloads, the install and the player.</value>
+    <value>The folder for the downloads, the install and the players.</value>
   </data>
   <data name="PackFolderIsLink" xml:space="preserve">
     <value>The folder '{0}' is a link. Replace it with a real folder before packing.</value>
@@ -161,6 +167,9 @@
   </data>
   <data name="PinnedHashInvalid" xml:space="preserve">
     <value>'{0}' is not a sha1 digest. Write the pin as 40 lowercase hex chars.</value>
+  </data>
+  <data name="PlayerListedTwice" xml:space="preserve">
+    <value>{0} {1} lists the player {2} twice.</value>
   </data>
   <data name="ProcessFailed" xml:space="preserve">
     <value>'{0}' exited with code {1} (0x{1:X8}).</value>
@@ -183,8 +192,8 @@
   <data name="StorePathInvalid" xml:space="preserve">
     <value>The path '{0}' is not a relative '/' separated path. Pass a path like 'players/abc.tar.zst' with no empty, '.' or '..' segment.</value>
   </data>
-  <data name="ToolchainDescription" xml:space="preserve">
-    <value>The toolchain to build the player with.</value>
+  <data name="ToolchainBuildDescription" xml:space="preserve">
+    <value>Builds players with {0}.</value>
   </data>
   <data name="TransferNoConnection" xml:space="preserve">
     <value>{0} '{1}' could not connect to the server. {2}</value>

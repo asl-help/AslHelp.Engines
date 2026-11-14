@@ -52,7 +52,7 @@ internal sealed class PlayerCache(
     ///     this tool does not.
     /// </remarks>
     /// <param name="toolchain">The toolchain.</param>
-    /// <param name="version">The version of the toolchain, as typed.</param>
+    /// <param name="version">The player id from <see cref="IToolchain.ListPlayers"/>.</param>
     /// <param name="projectDirectory">The project folder of the player.</param>
     /// <returns>
     ///     The player key, with a key of kind <c>player</c>, the version as the toolchain pins it and the inputs the key hashed.
@@ -164,7 +164,7 @@ internal sealed class PlayerCache(
     }
 
     /// <summary>
-    ///     Writes the manifest into the install of a new build, moves the install to the player folder of
+    ///     Writes the manifest into the folder of a new build, moves that folder to the player folder of
     ///     <paramref name="key"/> and uploads its archive and then the manifest to the store.
     /// </summary>
     /// <remarks>
@@ -173,23 +173,23 @@ internal sealed class PlayerCache(
     ///     its archive. The archive is deleted only after both uploads, so a failed upload keeps it for an upload by hand.
     /// </remarks>
     /// <param name="key">The key of the player.</param>
-    /// <param name="installDirectory">The install that the player was built and checked in.</param>
+    /// <param name="playerDirectory">The checked folder of the player from <see cref="IToolchain.BuildAsync"/>.</param>
     /// <param name="cancellationToken">The token that stops the upload.</param>
     /// <returns>
     ///     The full path of the player folder.
     /// </returns>
     /// <exception cref="IOException">The move, the manifest write, the pack or an upload failed.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
-    public async Task<string> StoreAsync(PlayerKey key, string installDirectory, CancellationToken cancellationToken)
+    public async Task<string> StoreAsync(PlayerKey key, string playerDirectory, CancellationToken cancellationToken)
     {
         string player = PlayerPath(key);
-        string installManifest = Path.Combine(installDirectory, ManifestFileName);
+        string builtManifest = Path.Combine(playerDirectory, ManifestFileName);
 
-        await output.WriteLineAsync(SR.FormatCacheWritingManifest(installManifest).AsMemory(), cancellationToken).ConfigureAwait(false);
-        await WriteManifestAsync(key, installManifest, cancellationToken).ConfigureAwait(false);
+        await output.WriteLineAsync(SR.FormatCacheWritingManifest(builtManifest).AsMemory(), cancellationToken).ConfigureAwait(false);
+        await WriteManifestAsync(key, builtManifest, cancellationToken).ConfigureAwait(false);
 
-        await output.WriteLineAsync(SR.FormatCacheMoving(installDirectory, player).AsMemory(), cancellationToken).ConfigureAwait(false);
-        Directory.Move(installDirectory, player);
+        await output.WriteLineAsync(SR.FormatCacheMoving(playerDirectory, player).AsMemory(), cancellationToken).ConfigureAwait(false);
+        Directory.Move(playerDirectory, player);
 
         string manifest = Path.Combine(player, ManifestFileName);
 
@@ -225,7 +225,7 @@ internal sealed class PlayerCache(
     ///     Writes <paramref name="key"/> as indented camelCase JSON to <paramref name="path"/>.
     /// </summary>
     /// <remarks>
-    ///     A stopped write leaves a cut manifest in the install, which the next build of that install writes again.
+    ///     A stopped write leaves a cut manifest in the built folder, which the next build writes again.
     /// </remarks>
     /// <param name="key">The key of the player.</param>
     /// <param name="path">The manifest file to create or replace.</param>

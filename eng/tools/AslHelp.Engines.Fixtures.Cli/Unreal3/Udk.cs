@@ -3,6 +3,8 @@ using AslHelp.Engines.Fixtures.Cli.Hosting;
 using AslHelp.Engines.Fixtures.Cli.Transfer;
 using AslHelp.Engines.Fixtures.Unreal3;
 using System;
+using System.Collections.Generic;
+using System.CommandLine;
 using System.Globalization;
 using System.IO;
 using System.Threading;
@@ -34,10 +36,25 @@ internal sealed class Udk(
     /// <inheritdoc/>
     public string Name => "unreal3";
 
+    /// <inheritdoc/>
+    public IReadOnlyList<Option> Options => [];
+
     /// <summary>
     ///     Gets how long <see cref="CheckAsync"/> waits for the ready line once the server runs. The default is 2 minutes.
     /// </summary>
     public TimeSpan CheckTimeout { get; init; } = UdkServer.DefaultCheckTimeout;
+
+    /// <inheritdoc/>
+    /// <remarks>
+    ///     A UDK version has 1 player, so the list has only the version as in <see cref="UdkReleases.All"/>.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    ///     <see cref="UdkReleases.All"/> doesn't have a row of <paramref name="version"/>.
+    /// </exception>
+    public IReadOnlyList<string> ListPlayers(string version, ParseResult parseResult)
+    {
+        return [UdkReleases.Find(version).Version];
+    }
 
     /// <inheritdoc/>
     /// <remarks>
@@ -48,14 +65,14 @@ internal sealed class Udk(
     ///     they come from. <c>BuildVersion</c> pins the code that reads them.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    ///     <see cref="UdkReleases.All"/> doesn't have a row of <paramref name="version"/>.
+    ///     <see cref="UdkReleases.All"/> doesn't have a row of <paramref name="player"/>.
     /// </exception>
-    public string AddKeyInputs(CacheKeyBuilder builder, string version)
+    public string AddKeyInputs(CacheKeyBuilder builder, string player)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         // Look the version up first, so an unpinned version adds nothing and every spelling of a version shares 1 key.
-        var release = UdkReleases.Find(version);
+        var release = UdkReleases.Find(player);
 
         _ = builder
             .Add("version", release.Version)
@@ -78,20 +95,20 @@ internal sealed class Udk(
     ///     extracted. An install without a redist passes. The runtime step reports a missing redist if it needs one.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    ///     <see cref="UdkReleases.All"/> doesn't have a row of <paramref name="version"/> or the install needs the PhysX installer.
+    ///     <see cref="UdkReleases.All"/> doesn't have a row of <paramref name="player"/> or the install needs the PhysX installer.
     /// </exception>
     public async Task<string> InstallAsync(
-        string version,
+        string player,
         string outputDirectory,
         IProgress<TransferProgress>? progress,
         CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(version);
+        ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(outputDirectory);
 
         // Look the version up first, so an unpinned version touches neither the network nor the disk
         // and every spelling of a version shares 1 install folder.
-        var release = UdkReleases.Find(version);
+        var release = UdkReleases.Find(player);
         string output = Path.GetFullPath(outputDirectory);
         string installDirectory = Path.Combine(output, $"udk-{release.Version}");
 
@@ -126,12 +143,13 @@ internal sealed class Udk(
     /// </remarks>
     /// <param name="installDirectory">The extracted install from <see cref="InstallAsync"/>.</param>
     /// <param name="projectDirectory">The player project, with the <c>.uc</c> files of the package in <c>Classes</c>, outside the install.</param>
+    /// <param name="players">The 1 player id from <see cref="ListPlayers"/>.</param>
     /// <param name="cancellationToken">The token that stops the compile.</param>
     /// <returns>
-    ///     A task that completes once <c>UDKGame/Script/Fixture.u</c> is written.
+    ///     <paramref name="installDirectory"/> as the 1 player folder, once <c>UDKGame/Script/Fixture.u</c> is written.
     /// </returns>
     /// <exception cref="ArgumentNullException">
-    ///     <paramref name="installDirectory"/> or <paramref name="projectDirectory"/> is <see langword="null"/>.
+    ///     <paramref name="installDirectory"/>, <paramref name="projectDirectory"/> or <paramref name="players"/> is <see langword="null"/>.
     /// </exception>
     /// <exception cref="DirectoryNotFoundException"><paramref name="projectDirectory"/> doesn't have a <c>Classes</c> folder.</exception>
     /// <exception cref="FileNotFoundException">
@@ -149,10 +167,15 @@ internal sealed class Udk(
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     /// <exception cref="TimeoutException">The compile runs longer than <see cref="UdkProject.DefaultMakeTimeout"/>.</exception>
-    public async Task BuildAsync(string installDirectory, string projectDirectory, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<string>> BuildAsync(
+        string installDirectory,
+        string projectDirectory,
+        IReadOnlyList<string> players,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(installDirectory);
         ArgumentNullException.ThrowIfNull(projectDirectory);
+        ArgumentNullException.ThrowIfNull(players);
 
         // Check the compiler before any write, so an install without it keeps its earlier package.
         UdkProject.ThrowIfNoCompiler(installDirectory);
@@ -161,6 +184,8 @@ internal sealed class Udk(
         UdkClrConfig.Add(installDirectory);
         UdkProject.AddFixturePackage(installDirectory, Path.Combine(projectDirectory, UdkProject.ProjectClassesPath));
         await UdkProject.MakeAsync(host, installDirectory, UdkProject.DefaultMakeTimeout, cancellationToken).ConfigureAwait(false);
+
+        return [installDirectory];
     }
 
     /// <inheritdoc/>
@@ -173,8 +198,8 @@ internal sealed class Udk(
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     /// <exception cref="TimeoutException">The ready line is not in the log within <see cref="CheckTimeout"/>.</exception>
-    public Task CheckAsync(string installDirectory, CancellationToken cancellationToken)
+    public Task CheckAsync(string playerDirectory, CancellationToken cancellationToken)
     {
-        return UdkServer.CheckAsync(host, installDirectory, CheckTimeout, cancellationToken);
+        return UdkServer.CheckAsync(host, playerDirectory, CheckTimeout, cancellationToken);
     }
 }

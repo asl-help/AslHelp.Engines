@@ -2,6 +2,7 @@ using AslHelp.Engines.Fixtures.Cli.Transfer;
 using AslHelp.Engines.Fixtures.Cli.Unreal3;
 using NUnit.Framework;
 using System;
+using System.CommandLine;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -143,6 +144,27 @@ public sealed class UdkTests
         Assert.That(install, Is.EqualTo(Path.Combine(_folder.Root, "udk-2013-07")));
     }
 
+    // A casing variant lists 1 player with the pinned spelling, so the key and the folders never use the typed spelling.
+    [Test]
+    public void ListPlayers_CasingVariant_ReturnsThePinnedSpelling()
+    {
+        var players = NewOfflineUdk().ListPlayers("2011-03-beta2", new RootCommand().Parse([]));
+
+        Assert.That(players, Is.EqualTo(["2011-03-BETA2"]));
+    }
+
+    // An unpinned version throws with the message of AddKeyInputs, so a typo fails before the keys and the store.
+    [Test]
+    public void ListPlayers_UnpinnedVersion_ThrowsWithThePinnedVersions()
+    {
+        Assert.That(
+            () => NewOfflineUdk().ListPlayers("1999-01", new RootCommand().Parse([])),
+            Throws.InvalidOperationException
+                .With.Message.Contains("1999-01")
+                .And.Message.Contains("2015-02")
+                .And.Message.Contains("releases.json"));
+    }
+
     // A casing variant adds the pinned spelling, so 2011-03-beta2 and 2011-03-BETA2 share 1 player.
     [Test]
     public void AddKeyInputs_CasingVariant_GivesSameKey()
@@ -267,7 +289,7 @@ public sealed class UdkTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await NewOfflineUdk().BuildAsync(install, WriteProject(), CancellationToken.None),
+                async () => await NewOfflineUdk().BuildAsync(install, WriteProject(), ["2015-02"], CancellationToken.None),
                 Throws.TypeOf<FileNotFoundException>().With.Message.Contains(Path.Combine(install, "Binaries", "Win32", "UDK.com")));
             Assert.That(Directory.Exists(Path.Combine(install, "Development")), Is.False);
             Assert.That(File.ReadAllBytes(IniPath(install)), Is.EqualTo(Encoding.ASCII.GetBytes(DefaultIni)));
@@ -285,7 +307,7 @@ public sealed class UdkTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await NewOfflineUdk().BuildAsync(install, WriteProject(), CancellationToken.None),
+                async () => await NewOfflineUdk().BuildAsync(install, WriteProject(), ["2015-02"], CancellationToken.None),
                 Throws.TypeOf<FileNotFoundException>().With.Message.Contains(Path.Combine(Binaries(install), "UDK.exe")));
             Assert.That(Directory.Exists(Path.Combine(install, "Development")), Is.False);
             Assert.That(File.ReadAllBytes(IniPath(install)), Is.EqualTo(Encoding.ASCII.GetBytes(DefaultIni)));
@@ -307,22 +329,26 @@ public sealed class UdkTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await NewOfflineUdk().BuildAsync(install, WriteProject(), CancellationToken.None),
+                async () => await NewOfflineUdk().BuildAsync(install, WriteProject(), ["2015-02"], CancellationToken.None),
                 Throws.InvalidOperationException.With.Message.Contains(Path.Combine(install, "UDKGame", "Script", "Fixture.u")));
             Assert.That(File.Exists(Path.Combine(install, "Development", "Src", "Fixture", "Classes", "FixtureGame.uc")), Is.True);
         }
     }
 
-    // A real install compiles the package into UDKGame/Script/Fixture.u.
+    // A real install compiles the package into UDKGame/Script/Fixture.u and is the folder of the player.
     [Test]
     public async Task BuildAsync_RealInstall_WritesFixturePackage()
     {
         string? install = Environment.GetEnvironmentVariable(InstallVariable);
         Assume.That(install is not null && Directory.Exists(install), $"Set {InstallVariable} to an extracted install to run this test.");
 
-        await NewOfflineUdk().BuildAsync(install!, OutputProject(), CancellationToken.None);
+        var folders = await NewOfflineUdk().BuildAsync(install!, OutputProject(), ["2015-02"], CancellationToken.None);
 
-        Assert.That(File.Exists(Path.Combine(install!, "UDKGame", "Script", "Fixture.u")), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(folders, Is.EqualTo([install!]));
+            Assert.That(File.Exists(Path.Combine(install!, "UDKGame", "Script", "Fixture.u")), Is.True);
+        }
     }
 
     // A real install with the built package starts the server, which logs the ready line once the fixture is spawned.
@@ -333,7 +359,7 @@ public sealed class UdkTests
         Assume.That(install is not null && Directory.Exists(install), $"Set {InstallVariable} to an extracted install to run this test.");
 
         var udk = NewOfflineUdk();
-        await udk.BuildAsync(install!, OutputProject(), CancellationToken.None);
+        _ = await udk.BuildAsync(install!, OutputProject(), ["2015-02"], CancellationToken.None);
 
         await Assert.ThatAsync(() => udk.CheckAsync(install!, CancellationToken.None), Throws.Nothing);
     }

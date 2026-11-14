@@ -48,9 +48,9 @@ internal static class CommandLine
     /// <param name="args">The command and its arguments.</param>
     /// <param name="output">The writer for help and progress.</param>
     /// <param name="error">The writer for parse errors and failures.</param>
-    /// <param name="toolchains">The toolchains the commands can pick by name.</param>
+    /// <param name="toolchains">The toolchains, each with its own subcommand of <c>build</c>.</param>
     /// <param name="openStore">
-    ///     The function that opens the cache store for a build or returns <see langword="null"/> to keep the player local.
+    ///     The function that opens the cache store for a build or returns <see langword="null"/> to keep the players local.
     ///     The function gets the writer for the steps, for a line about how to set up the store.
     /// </param>
     /// <param name="projectsDirectory">The folder with 1 player project folder per toolchain name.</param>
@@ -65,67 +65,80 @@ internal static class CommandLine
         Func<TextWriter, ICacheStore?> openStore,
         string projectsDirectory)
     {
-        Argument<IToolchain> toolchainArgument = new("toolchain")
-        {
-            Description = SR.ToolchainDescription,
-            CustomParser = result => toolchains.First(toolchain => toolchain.Name.Equals(result.Tokens[0].Value, StringComparison.Ordinal)),
-        };
-        toolchainArgument.AcceptOnlyFromAmong([.. toolchains.Select(static toolchain => toolchain.Name)]);
-
         Argument<string> versionArgument = new("version") { Description = SR.VersionDescription };
         Option<string> outputOption = new("--output") { Description = SR.OutputDescription, Required = true };
 
-        Command build = new("build", SR.BuildDescription)
-        {
-            toolchainArgument,
-            versionArgument,
-            outputOption,
-        };
+        Command build = new("build", SR.BuildDescription);
+        build.SetAction(PrintHelpAndFail);
 
-        build.SetAction((parseResult, cancellationToken) => BuildAsync(
-            parseResult.GetRequiredValue(toolchainArgument),
-            parseResult.GetRequiredValue(versionArgument),
-            parseResult.GetRequiredValue(outputOption),
-            openStore,
-            projectsDirectory,
-            output,
-            error,
-            cancellationToken));
+        foreach (var toolchain in toolchains)
+        {
+            Command command =
+            [
+                with(toolchain.Name, SR.FormatToolchainBuildDescription(toolchain.Name)),
+                versionArgument,
+                outputOption,
+                .. toolchain.Options,
+            ];
+
+            command.SetAction((parseResult, cancellationToken) => BuildAsync(
+                toolchain,
+                parseResult.GetRequiredValue(versionArgument),
+                parseResult.GetRequiredValue(outputOption),
+                parseResult,
+                openStore,
+                projectsDirectory,
+                output,
+                error,
+                cancellationToken));
+
+            build.Subcommands.Add(command);
+        }
 
         RootCommand root = [with(SR.RootDescription), build];
-
-        // Print the help and fail, so a script that passes no command stops.
-        root.SetAction(parseResult =>
-        {
-            _ = new HelpAction().Invoke(parseResult);
-            return 1;
-        });
+        root.SetAction(PrintHelpAndFail);
 
         return root.Parse(args).InvokeAsync(new() { Output = output, Error = error });
     }
 
     /// <summary>
-    ///     Restores the player of <paramref name="version"/> of <paramref name="toolchain"/> from the cache
-    ///     or installs the toolchain, builds the player, checks it and caches it.
+    ///     Prints the help of the parsed command and fails, so a script without a subcommand stops.
+    /// </summary>
+    /// <param name="parseResult">The parsed command line.</param>
+    /// <returns>
+    ///     1, the exit code of a failed run.
+    /// </returns>
+    private static int PrintHelpAndFail(ParseResult parseResult)
+    {
+        _ = new HelpAction().Invoke(parseResult);
+
+        return 1;
+    }
+
+    /// <summary>
+    ///     Restores the players of <paramref name="version"/> of <paramref name="toolchain"/> from the cache. If any are
+    ///     missing, it installs the toolchain once, builds them in 1 pass and checks and caches each in order.
     /// </summary>
     /// <param name="toolchain">The toolchain.</param>
-    /// <param name="version">The version to install.</param>
-    /// <param name="outputDirectory">The folder for the downloads, the install and the player.</param>
+    /// <param name="version">The version as the user typed it.</param>
+    /// <param name="outputDirectory">The folder for the downloads, the install and the players.</param>
+    /// <param name="parseResult">The parsed command line with the values of the toolchain options.</param>
     /// <param name="openStore">
     ///     The function that opens the cache store with the writer for the steps or returns <see langword="null"/> for none.
     /// </param>
     /// <param name="projectsDirectory">The folder with 1 player project folder per toolchain name.</param>
-    /// <param name="output">The writer for the steps and the player folder.</param>
+    /// <param name="output">The writer for the steps and the player folders.</param>
     /// <param name="error">The writer for a failed step.</param>
     /// <param name="cancellationToken">The token that stops the running step.</param>
     /// <returns>
-    ///     0 once the player folder is ready or 1 after a failed step.
+    ///     0 once every player folder is ready or 1 after a failed step. Players cached before the failed step stay cached.
     /// </returns>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     private static async Task<int> BuildAsync(
         IToolchain toolchain,
         string version,
         string outputDirectory,
+        ParseResult parseResult,
         Func<TextWriter, ICacheStore?> openStore,
         string projectsDirectory,
         TextWriter output,
@@ -134,35 +147,76 @@ internal static class CommandLine
     {
         try
         {
-            // Build the key first, so a missing project folder or an unknown version fails before the store opens and before the install.
+            var listed = toolchain.ListPlayers(version, parseResult);
+
+            // Fail on an empty list, because a run that exits with 0 without a player folder looks like a success to a script.
+            if (listed.Count == 0)
+            {
+                throw new InvalidOperationException(SR.FormatNoPlayers(toolchain.Name, version));
+            }
+
+            // Build the keys first, so a missing project folder or an unknown version fails before the store opens and before the install.
             string project = Path.Combine(projectsDirectory, toolchain.Name);
-            var key = PlayerCache.KeyOf(toolchain, version, project);
+            PlayerKey[] keys = [.. listed.Select(player => PlayerCache.KeyOf(toolchain, player, project))];
+
+            // Fail on a repeated player here, because after the install and the build its 2nd store needs the folder that the 1st store moved.
+            if (keys.CountBy(static key => key.Version).FirstOrDefault(static entry => entry.Value > 1).Key is { } repeated)
+            {
+                throw new InvalidOperationException(SR.FormatPlayerListedTwice(toolchain.Name, version, repeated));
+            }
 
             using var store = openStore(output);
 
             // Draw the bars on the writer of the steps, so the bars and the step lines come out in order.
             var bars = TransferBars.Create(output);
             PlayerCache cache = new(store, outputDirectory, output, bars);
-            string? player = await cache.TryRestoreAsync(key, cancellationToken).ConfigureAwait(false);
 
-            if (player is null)
+            string?[] folders = new string?[keys.Length];
+            List<int> missing = [];
+
+            for (int i = 0; i < keys.Length; i++)
             {
-                string installing = SR.FormatInstalling(toolchain.Name, key.Version, outputDirectory);
-                await output.WriteLineAsync(installing.AsMemory(), cancellationToken).ConfigureAwait(false);
-                string install = await bars.ShowAsync(
-                    $"{toolchain.Name} {key.Version}",
-                    progress => toolchain.InstallAsync(key.Version, outputDirectory, progress, cancellationToken)).ConfigureAwait(false);
+                folders[i] = await cache.TryRestoreAsync(keys[i], cancellationToken).ConfigureAwait(false);
 
-                await output.WriteLineAsync(SR.FormatBuilding(project, install).AsMemory(), cancellationToken).ConfigureAwait(false);
-                await toolchain.BuildAsync(install, project, cancellationToken).ConfigureAwait(false);
-
-                await output.WriteLineAsync(SR.FormatChecking(install).AsMemory(), cancellationToken).ConfigureAwait(false);
-                await toolchain.CheckAsync(install, cancellationToken).ConfigureAwait(false);
-
-                player = await cache.StoreAsync(key, install, cancellationToken).ConfigureAwait(false);
+                if (folders[i] is null)
+                {
+                    missing.Add(i);
+                }
             }
 
-            await output.WriteLineAsync(player.AsMemory(), cancellationToken).ConfigureAwait(false);
+            if (missing.Count > 0)
+            {
+                string first = keys[missing[0]].Version;
+                string installing = SR.FormatInstalling(toolchain.Name, first, outputDirectory);
+                await output.WriteLineAsync(installing.AsMemory(), cancellationToken).ConfigureAwait(false);
+                string install = await bars.ShowAsync(
+                    $"{toolchain.Name} {first}",
+                    progress => toolchain.InstallAsync(first, outputDirectory, progress, cancellationToken)).ConfigureAwait(false);
+
+                string[] players = [.. missing.Select(index => keys[index].Version)];
+                string building = SR.FormatBuilding(project, install, string.Join(", ", players));
+                await output.WriteLineAsync(building.AsMemory(), cancellationToken).ConfigureAwait(false);
+                var built = await toolchain.BuildAsync(install, project, players, cancellationToken).ConfigureAwait(false);
+
+                // Fail on a wrong count, because the folders pair up with the players by position and a wrong pair caches the wrong player.
+                if (built.Count != players.Length)
+                {
+                    throw new InvalidOperationException(SR.FormatBuiltFolderCount(toolchain.Name, players.Length, built.Count));
+                }
+
+                for (int i = 0; i < missing.Count; i++)
+                {
+                    await output.WriteLineAsync(SR.FormatChecking(built[i]).AsMemory(), cancellationToken).ConfigureAwait(false);
+                    await toolchain.CheckAsync(built[i], cancellationToken).ConfigureAwait(false);
+
+                    folders[missing[i]] = await cache.StoreAsync(keys[missing[i]], built[i], cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            foreach (string? folder in folders)
+            {
+                await output.WriteLineAsync(folder.AsMemory(), cancellationToken).ConfigureAwait(false);
+            }
 
             return 0;
         }

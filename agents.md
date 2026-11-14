@@ -15,7 +15,7 @@ just measure <engine> <players> --output <file> [--targets <file>]
 
 `just check` runs the encoding check, the format check, the build and the tests, as CI does. Run it before a commit.
 
-`just fixtures` runs the `fixtures` command line from the current folder and passes each argument through whole, such as `just fixtures build <toolchain> <version> --output <folder>`. `just fixtures-all` builds every pinned UDK version into the folder.
+`just fixtures` runs the `fixtures` command line from the current folder and passes each argument through whole, such as `just fixtures build <toolchain> <version> --output <folder>` or `just fixtures build <toolchain> --help`. `just fixtures-all` builds every pinned UDK version into the folder.
 
 The tool projects and their tests target `net11.0-windows`, because the players only run on Windows. The libraries in `src/` target `netstandard2.0` and their tests also run on `net4.8.1`. Build and test on Windows.
 
@@ -38,7 +38,7 @@ The tool projects and their tests target `net11.0-windows`, because the players 
 
 - `src/AslHelp.Engines.Unreal`: engine library. 1 type per storage shape, because shapes change between minor engine versions, not major ones.
 - `eng/tools/AslHelp.Engines.Fixtures`: parts both command lines use, such as cache keys and `Player`.
-- `eng/tools/AslHelp.Engines.Fixtures.Cli`: `fixtures` command line. An engine plugs in through `IToolchain`, a store through `ICacheStore`. `Formats/` reads and writes archives, cabinets, self-extracting zips and PE imports. `Hosting/` runs players and build steps in containers and processes. `Transfer/` downloads files, talks to the WebDAV store and shows progress.
+- `eng/tools/AslHelp.Engines.Fixtures.Cli`: `fixtures` command line. An engine plugs in through `IToolchain`, which adds its own command line options and lists the players of a version. A store plugs in through `ICacheStore`. `Formats/` reads and writes archives, cabinets, self-extracting zips and PE imports. `Hosting/` runs players and build steps in containers and processes. `Transfer/` downloads files, talks to the WebDAV store and shows progress.
 - `eng/tools/AslHelp.Engines.Measuring.Cli`: `measure` command line. An engine plugs in through `IEngineMeasurer`. `Routes/` is the route search, with no engine in it.
 - `eng/fixtures/<engine>`: what 1 engine brings. `releases.json` and `targets.json` are the pin table and the measure targets. The `fixtures` command line imports `fixtures.props` and the `measure` command line imports `measure.props`, so a new engine adds 1 folder and 1 import line per command line.
 - `eng/fixtures/unreal3`: UnrealScript classes of the Unreal Engine 3 player.

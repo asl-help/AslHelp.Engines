@@ -12,18 +12,21 @@ AslHelp.Engines has the libraries that read game engines from memory and the too
 
 ```
 just fixtures --help
+just fixtures build <toolchain> --help
 just fixtures build <toolchain> <version> --output <folder>
 ```
 
 | Argument | Value |
 |---|---|
-| `<toolchain>` | The toolchain to build the player with. |
+| `<toolchain>` | The toolchain that builds the players. |
 | `<version>` | The version of the toolchain, as its release lists it. |
-| `--output` | The folder for the downloads, the install and the player. Required. |
+| `--output` | The folder for the downloads, the install and the players. Required. |
+
+Each toolchain can add its own options. Run `build <toolchain> --help` to see them.
 
 `just fixtures` runs the command line from the current folder, so a relative `--output` folder is read from there. Without `just`, run `dotnet run --project eng/tools/AslHelp.Engines.Fixtures.Cli -- <arguments>` from the repo root.
 
-The `build` command installs the toolchain at that version into the `--output` folder, builds the player in it and checks that the player starts. Then it moves the install to `<output>/<toolchain>-<version>-<hash>` and prints that folder last.
+1 version can have several players. The `build` command installs the toolchain once into the `--output` folder, builds all the players in 1 pass and checks that each one starts. Then it moves each player to `<output>/<toolchain>-<version>-<hash>` and prints the player folders at the end, 1 per line. If a check fails, it exits with code 1 but keeps the players it already stored.
 
 It prints a line as each step starts. The installer download and the download and upload of a player archive show a progress bar with the size, the speed and the time left, which is cleared when the transfer ends. When the output is not a terminal, such as a log in CI, a transfer prints its name and its percentage instead, once when it starts, at 25, 50 and 75 percent and from 95 percent on.
 
@@ -45,15 +48,15 @@ With none of them set, the build stays local and prints a line that lists them. 
 
 The key of a player covers the toolchain name, the files of the player project that the build uses and the inputs the toolchain adds. These inputs are what goes into the build, not the code of the tool. A player is built once per key. Other machines and later commits download it.
 
-The section of each toolchain lists its inputs. The version in a path is the one the toolchain pins, not the one you typed. `<hash>` is the first 16 hex chars of the key. On disk the player sits in the folder `<output>/<toolchain>-<version>-<hash>`. In the store it sits at `players/<toolchain>/<version>/<hash>.tar.zst`, with its manifest `<hash>.json` beside it.
+The section of each toolchain lists its inputs. In a folder name, `<hash>` is the first 16 hex characters of the key and `<version>` is the version the toolchain pins for that player, not the one you typed. Players go in `<output>/<toolchain>-<version>-<hash>` on disk and in `players/<toolchain>/<version>/<hash>.tar.zst` in the store, with a `<hash>.json` manifest next to the archive.
 
 The manifest lists what a player was built from, so you can see why 2 keys differ. It sits in the player folder as `manifest.json` too. It lists the full key as `player-` and all 64 hex chars of its hash, the toolchain, the version and every input in the order the key hashed them. The project folder shows up as 1 content hash, not as a list of files. A build never reads a manifest, so a missing one never fails a build.
 
-A build checks these in order:
+For each player, the build checks these in order:
 
 1. If `<output>/<toolchain>-<version>-<hash>` exists, it is the player. Nothing is sent over the network.
-2. If the store has `players/<toolchain>/<version>/<hash>.tar.zst`, the build downloads it to `<output>/<toolchain>-<version>-<hash>.tar.zst`, unpacks it into `<output>/<toolchain>-<version>-<hash>` and deletes the archive. The toolchain is not installed.
-3. Otherwise it installs the toolchain, builds and checks the player, writes `manifest.json` into the install and moves the install to `<output>/<toolchain>-<version>-<hash>`. Then it packs the folder into `<output>/<toolchain>-<version>-<hash>.tar.zst`, uploads that to `players/<toolchain>/<version>/<hash>.tar.zst`, uploads the manifest to `<hash>.json` beside it and deletes the archive.
+2. If the store has `players/<toolchain>/<version>/<hash>.tar.zst`, the build downloads it to `<output>/<toolchain>-<version>-<hash>.tar.zst`, unpacks it into `<output>/<toolchain>-<version>-<hash>` and deletes the archive. It doesn't rebuild the player.
+3. Otherwise it installs the toolchain once, builds all the players that neither the folder nor the store has in 1 pass and checks each one. It writes `manifest.json` into each built folder and moves that folder to `<output>/<toolchain>-<version>-<hash>`. Then it packs the folder into `<output>/<toolchain>-<version>-<hash>.tar.zst`, uploads that to `players/<toolchain>/<version>/<hash>.tar.zst`, uploads the manifest to `<hash>.json` next to it and deletes the archive.
 
 The archive goes up before the manifest, so a manifest in the store always has its archive. A failed upload keeps the player folder and the archive. The next run finds the folder and does not upload again, so upload the archive and the manifest by hand or delete the folder to build again.
 

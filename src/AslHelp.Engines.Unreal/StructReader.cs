@@ -55,7 +55,7 @@ public sealed class StructReader(
     ///     Compares ordinally. Stops at <see cref="Address.Zero"/> and fails after 64 levels, because a damaged chain can loop.
     /// </remarks>
     /// <param name="type">The address of the struct.</param>
-    /// <param name="name">The base name to find.</param>
+    /// <param name="name">The name to find, as <see cref="ObjectReader.NameOf"/> returns it.</param>
     /// <returns>
     ///     <see langword="true"/> when a struct on the chain is called <paramref name="name"/>, <see langword="false"/> when none is,
     ///     or a failure with the level of the chain and the failed read when a name or a super pointer on the way does not read.

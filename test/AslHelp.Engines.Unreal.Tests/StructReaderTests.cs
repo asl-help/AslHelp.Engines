@@ -137,9 +137,9 @@ public sealed class StructReaderTests(
                 .And.Contain($"The object at {_actor} has the name number -1"));
     }
 
-    // A struct with a number matches by its base name and not by a name with the number as a suffix.
+    // A struct with a number matches by its full name, as NameOf returns it, and not by its base name.
     [Test]
-    public void DerivesFrom_TypeWithNumber_MatchesBaseName()
+    public void DerivesFrom_TypeWithNumber_MatchesFullName()
     {
         var memory = MemoryWithTypes();
         memory.WriteInt32(_actor + objectLayout.Name + sizeof(int), 5);
@@ -147,8 +147,8 @@ public sealed class StructReaderTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(reader.DerivesFrom(_pawn, "Actor").Unwrap(), Is.True);
-            Assert.That(reader.DerivesFrom(_pawn, "Actor_4").Unwrap(), Is.False);
+            Assert.That(reader.DerivesFrom(_pawn, "Actor_4").Unwrap(), Is.True);
+            Assert.That(reader.DerivesFrom(_pawn, "Actor").Unwrap(), Is.False);
         }
     }
 

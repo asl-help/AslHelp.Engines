@@ -853,6 +853,18 @@ public sealed class UdkMeasurementTests(
         Assert.That(measurement.Unmeasured[World], Is.EqualTo(UdkSR.FormatUnmeasuredSlot("World")));
     }
 
+    // The object name of a slot compares with the whole name, so TheWorld with a number prints as TheWorld_0 and does not fit.
+    [Test]
+    public void Measure_SlotObjectWithANumber_ReportsItUnmeasured()
+    {
+        var world = _image.Memory.ReadPointer(FakeImage.Base + _image.WorldSlotRva).Unwrap();
+        _image.Memory.WriteInt32(world + layout.Name + sizeof(int), 1);
+
+        var measurement = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", NullLogger.Instance).Unwrap();
+
+        Assert.That(measurement.Unmeasured[World], Is.EqualTo(UdkSR.FormatUnmeasuredSlot("World")));
+    }
+
     // A class that no object derives from goes to unmeasured with the class in the reason.
     [Test]
     public void Measure_SlotOfUnknownClass_ReportsItUnmeasured()

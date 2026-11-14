@@ -86,6 +86,25 @@ public sealed class UdkFixtureCheckTests(
         Assert.That(_image.Memory.ReadsAt(filler + layout.Class), Is.Zero);
     }
 
+    // The game spawns the instance as the class name with a number, such as FixtureData_0, so the search finds it by its base name
+    // and still reads no class of other objects.
+    [Test]
+    public void Measure_InstanceWithANumber_ReadsNoClassOfOtherObjects()
+    {
+        _image = new FakeImage(layout, FirstNames, fillers: 600);
+        _image.Memory.WriteInt32(_image.FixtureInstance + layout.Name + sizeof(int), 1);
+
+        var filler = _image.Memory.ReadPointer(FakeImage.ObjectPointerAt(FakeImage.FirstFillerPosition + 599)).UnwrapOr(Address.Zero);
+
+        string log = MeasureAndLog();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(log, Does.Contain($"at {_image.FixtureInstance}"));
+            Assert.That(_image.Memory.ReadsAt(filler + layout.Class), Is.Zero);
+        }
+    }
+
     // The object array doesn't have a fixed order, so an instance in front of its class still counts.
     [Test]
     public void Measure_InstanceInFrontOfItsClass_ReadsIt()

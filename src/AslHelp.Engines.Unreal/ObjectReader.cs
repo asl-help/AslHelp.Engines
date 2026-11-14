@@ -31,14 +31,15 @@ public sealed class ObjectReader(
     internal int OuterOffset => _layout.Outer;
 
     /// <summary>
-    ///     Reads the base name of <paramref name="obj"/>, without the number suffix.
+    ///     Reads the name of <paramref name="obj"/> as the engine prints it.
     /// </summary>
     /// <remarks>
-    ///     Gives the same text for 2 objects whose names differ only in the number.
+    ///     Returns the base name for name number 0 and the base name, <c>_</c> and the number minus 1 for a number above 0,
+    ///     such as <c>Actor_4</c> for number 5.
     /// </remarks>
     /// <param name="obj">The address of the object.</param>
     /// <returns>
-    ///     The base name or a failure with the object and the failed read when <paramref name="obj"/> is <see cref="Address.Zero"/>,
+    ///     The name or a failure with the object and the failed read when <paramref name="obj"/> is <see cref="Address.Zero"/>,
     ///     a read fails or the name number is negative.
     /// </returns>
     public Result<string> NameOf(Address obj)
@@ -50,25 +51,20 @@ public sealed class ObjectReader(
 
         var idAddress = obj + _layout.Name;
 
-        if (!_memory.Read<int>(idAddress).TryUnwrap(out int id, out var error))
+        if (!NameMembers.Read(_memory, idAddress).TryUnwrap(out var name, out var error))
         {
             return ObjectError.NameUnreadable(obj, idAddress, _layout.Name, error);
         }
 
-        var numberAddress = idAddress + sizeof(int);
-
-        if (!_memory.Read<int>(numberAddress).TryUnwrap(out int number, out error))
-        {
-            return ObjectError.NameUnreadable(obj, numberAddress, _layout.Name, error);
-        }
+        (int id, int number) = name;
 
         if (number < 0)
         {
             return ObjectError.NegativeNumber(obj, number, _layout.Name);
         }
 
-        return _names.Read(id).TryUnwrap(out string? name, out error)
-            ? name
+        return _names.Read(id).TryUnwrap(out string? text, out error)
+            ? NameMembers.Join(text, number)
             : ObjectError.NameNotFound(obj, id, _layout.Name, error);
     }
 

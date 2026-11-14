@@ -10,11 +10,13 @@ namespace AslHelp.Engines.Measuring.Cli.Unreal3;
 /// <summary>
 ///     Describes the objects that <see cref="UdkMembers.Measure"/> read.
 /// </summary>
-/// <param name="ObjectsByName">The objects of the object array by base name.</param>
+/// <param name="ObjectsByBaseName">
+///     The objects of the object array by base name, the name without its number, or <see langword="null"/> for a name that does not read.
+/// </param>
 /// <param name="ClassClass">The class called Class.</param>
 /// <param name="Reader">The reader with the offsets found.</param>
 internal sealed record UdkMeasuredObjects(
-    ILookup<string?, Address> ObjectsByName,
+    ILookup<string?, Address> ObjectsByBaseName,
     Address ClassClass,
     ObjectReader Reader);
 
@@ -113,7 +115,7 @@ internal sealed class UdkMembers
     private readonly int _indexOffset;
     private readonly IMemoryReader _memory;
     private readonly FlatNameTable _names;
-    private readonly ILookup<string?, Address> _objectsByName;
+    private readonly ILookup<string?, Address> _objectsByBaseName;
     private readonly Dictionary<string, int> _offsets;
     private readonly int _pointerSize;
     private readonly Dictionary<string, string> _unmeasured;
@@ -148,7 +150,7 @@ internal sealed class UdkMembers
         _objects = new ObjectReader(memory, _names, _layout);
 
         // Read every name once, because the readers do not cache and each class lookup would read all objects again.
-        _objectsByName = objects.Pointers.ToLookup(NameOrNull);
+        _objectsByBaseName = objects.Pointers.ToLookup(BaseNameOrNull);
     }
 
     /// <summary>
@@ -191,7 +193,7 @@ internal sealed class UdkMembers
             return error;
         }
 
-        return new UdkMeasuredObjects(members._objectsByName, classClass, members._objects);
+        return new UdkMeasuredObjects(members._objectsByBaseName, classClass, members._objects);
     }
 
     private static IEnumerable<int> OffsetsBy(int step)
@@ -220,13 +222,16 @@ internal sealed class UdkMembers
                 continue;
             }
 
-            ObjectReader reader = new(memory, names.Table, new ObjectLayout(UnknownOffset, at, UnknownOffset));
             HashSet<string> distinct = [with(StringComparer.Ordinal)];
             int named = 0;
 
             foreach (var obj in sample)
             {
-                if (reader.NameOf(obj).TryUnwrap(out string? name))
+                // Count base names and leave out the number, because a count that grows along the array would make each name at a wrong offset distinct.
+                if (memory.Read<int>(obj + at).TryUnwrap(out int id)
+                    && memory.Read<int>(obj + at + sizeof(int)).TryUnwrap(out int number)
+                    && number >= 0
+                    && names.Table.Read(id).TryUnwrap(out string? name))
                 {
                     named++;
                     _ = distinct.Add(name);
@@ -251,7 +256,7 @@ internal sealed class UdkMembers
     /// </returns>
     private Result<Address> FindClassOffset()
     {
-        foreach (var obj in _objectsByName["Class"])
+        foreach (var obj in _objectsByBaseName["Class"])
         {
             int found = UnknownOffset;
 
@@ -528,7 +533,17 @@ internal sealed class UdkMembers
 
     private Address FindClass(Address classClass, string name)
     {
-        return _objectsByName[name].FirstOrDefault(obj => _objects.ClassOf(obj).UnwrapOr(Address.Zero) == classClass);
+        return _objectsByBaseName[name].FirstOrDefault(obj => _objects.ClassOf(obj).UnwrapOr(Address.Zero) == classClass);
+    }
+
+    // Read the base name without the number, because the lookups want base names and a full name allocates a string for each numbered object.
+    private string? BaseNameOrNull(Address obj)
+    {
+        return obj != Address.Zero
+            && _memory.Read<int>(obj + _layout.Name).TryUnwrap(out int id)
+            && _names.Read(id).TryUnwrap(out string? name)
+                ? name
+                : null;
     }
 
     private string? NameOrNull(Address obj)

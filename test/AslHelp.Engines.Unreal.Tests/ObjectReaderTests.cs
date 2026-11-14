@@ -1,5 +1,7 @@
 using AslHelp.Memory;
 using NUnit.Framework;
+using System;
+using System.Buffers.Binary;
 
 namespace AslHelp.Engines.Unreal.Tests;
 
@@ -29,34 +31,35 @@ public sealed class ObjectReaderTests(
     private readonly Address _otherObject = start + 0x5100;
     private readonly Address _outer = start + 0x6000;
 
-    // A number of 0 returns the text of the name id.
+    // A number of 0 returns the text of the name id as is, so the cached string of the table comes back and nothing is allocated.
     [Test]
-    public void NameOf_ObjectWithNumberZero_ReturnsBaseName()
+    public void NameOf_ObjectWithNumberZero_ReturnsCachedBaseName()
     {
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, CoreId);
+        memory.AddObject(_otherObject, layout, CoreId);
+        var reader = CreateReader(memory);
 
-        Assert.That(CreateReader(memory).NameOf(_object).Unwrap(), Is.EqualTo("Core"));
+        string first = reader.NameOf(_object).Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(first, Is.EqualTo("Core"));
+            Assert.That(reader.NameOf(_otherObject).Unwrap(), Is.SameAs(first));
+        }
     }
 
-    // A positive number returns the base name with no suffix for the number.
-    [Test]
-    public void NameOf_ObjectWithNumber_ReturnsBaseNameWithoutSuffix()
+    // A number above 0 adds _ and the number minus 1, because the engine stores the printed number plus 1.
+    [TestCase(1, "Core_0")]
+    [TestCase(5, "Core_4")]
+    [TestCase(1000, "Core_999")]
+    [TestCase(int.MaxValue, "Core_2147483646")]
+    public void NameOf_ObjectWithNumber_ReturnsNameWithSuffix(int number, string expected)
     {
         var memory = MemoryWithNames();
-        memory.AddObject(_object, layout, CoreId, number: 5);
+        memory.AddObject(_object, layout, CoreId, number: number);
 
-        Assert.That(CreateReader(memory).NameOf(_object).Unwrap(), Is.EqualTo("Core"));
-    }
-
-    // The largest number is still not negative, so the base name comes back.
-    [Test]
-    public void NameOf_LargestNumber_ReturnsBaseName()
-    {
-        var memory = MemoryWithNames();
-        memory.AddObject(_object, layout, CoreId, number: int.MaxValue);
-
-        Assert.That(CreateReader(memory).NameOf(_object).Unwrap(), Is.EqualTo("Core"));
+        Assert.That(CreateReader(memory).NameOf(_object).Unwrap(), Is.EqualTo(expected));
     }
 
     // A negative number fails with the number and the name offset even though the name id is valid.
@@ -71,6 +74,20 @@ public sealed class ObjectReaderTests(
             Is.EqualTo(
                 $"The object at {_object} has the name number -1, which is below 0. "
                 + $"Check ObjectLayout.Name (0x{layout.Name:X})."));
+    }
+
+    // A big-endian target stores the id and the number each in that byte order, so the number reads back as -2 and not as the id or a swapped value.
+    [Test]
+    public void NameOf_BigEndianNegativeNumber_FailsWithThatNumber()
+    {
+        byte[] bytes = new byte[layout.Name + (2 * sizeof(int))];
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(layout.Name), CoreId);
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(layout.Name + sizeof(int)), -2);
+
+        FakeMemory memory = new() { Layout = MemoryLayout.BigEndian32 };
+        memory.Add(_object, bytes);
+
+        Assert.That(CreateReader(memory).NameOf(_object).UnwrapErr().Message, Does.Contain("name number -2,"));
     }
 
     // The smallest number reads as signed, so it fails.
@@ -163,15 +180,15 @@ public sealed class ObjectReaderTests(
         }
     }
 
-    // A block that ends right after the name id fails the number read, so the message has the address of the number.
+    // A block that ends right after the name id fails the read of the id and the number, so the message has the address of the id.
     [Test]
-    public void NameOf_NumberOutsideReadableMemory_FailsWithNameOffset()
+    public void NameOf_NumberOutsideReadableMemory_FailsAtNameId()
     {
         var memory = MemoryWithNames();
         memory.Add(_object, new byte[layout.Name + sizeof(int)]);
         memory.WriteInt32(_object + layout.Name, CoreId);
 
-        var address = _object + layout.Name + sizeof(int);
+        var address = _object + layout.Name;
 
         Assert.That(
             CreateReader(memory).NameOf(_object).UnwrapErr().Message,
@@ -187,7 +204,7 @@ public sealed class ObjectReaderTests(
         Assert.That(CreateReader(MemoryWithNames()).NameOf(new Address(ulong.MaxValue)).IsErr, Is.True);
     }
 
-    // The 4 bytes to the number go on the address and not on the offset, so the largest offset does not overflow a 4-byte sum.
+    // Add the offset to the address and not to a 4-byte sum, so the largest offset does not overflow.
     [Test]
     public void NameOf_NameOffsetAtIntLimit_ReturnsBaseName()
     {

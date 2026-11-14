@@ -30,23 +30,7 @@ public sealed class FailedReadTests
         {
             foreach ((string name, var probe) in Probes())
             {
-                for (int warmUp = 0; warmUp < WarmUpCount; warmUp++)
-                {
-                    _ = probe();
-                }
-
-                int failed = 0;
-                long before = GC.GetAllocatedBytesForCurrentThread();
-
-                for (int count = 0; count < ProbeCount; count++)
-                {
-                    failed += probe() ? 1 : 0;
-                }
-
-                long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
-
-                Assert.That(failed, Is.EqualTo(ProbeCount), name);
-                Assert.That(bytes / ProbeCount, Is.LessThan(LargestBytesPerProbe), name);
+                Assert.That(BytesPerProbe(name, probe), Is.LessThan(LargestBytesPerProbe), name);
             }
         }
     }
@@ -143,6 +127,28 @@ public sealed class FailedReadTests
                 .And.EndWith($"Check NameEntryLayout.Name (0x{_entryLayout.Name:X})."));
     }
 
+    private static long BytesPerProbe(string name, Func<bool> probe)
+    {
+        for (int warmUp = 0; warmUp < WarmUpCount; warmUp++)
+        {
+            _ = probe();
+        }
+
+        int failed = 0;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        for (int count = 0; count < ProbeCount; count++)
+        {
+            failed += probe() ? 1 : 0;
+        }
+
+        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.That(failed, Is.EqualTo(ProbeCount), name);
+
+        return bytes / ProbeCount;
+    }
+
     private static (string Name, Func<bool> Probe)[] Probes()
     {
         var memory = MemoryWithNames();
@@ -151,7 +157,13 @@ public sealed class FailedReadTests
         FlatNameTable names = new(memory, _array, _entryLayout);
         var objects = CreateObjects(memory);
         var structs = CreateStructs(memory);
-        FlatObjectArray array = new(memory, _unreadable);
+        PointerObjectArray array = new(memory, _unreadable);
+        IndirectNameTable indirectNames = new(memory, _unreadable, _entryLayout);
+        ChunkedNameTable chunkedNames = new(memory, _unreadable);
+        IndirectObjectArray indirectObjects = new(memory, _unreadable, new IndirectObjectArrayLayout(0, 0x800, 0x804));
+        ObjectItemLayout item = new(0, 0x10);
+        ItemObjectArray itemObjects = new(memory, _unreadable, new ItemObjectArrayLayout(0, 0x8), item);
+        ChunkedObjectArray chunkedObjects = new(memory, _unreadable, new ChunkedObjectArrayLayout(0, 0xC, 0x14, 65536), item);
 
         return
         [
@@ -165,6 +177,11 @@ public sealed class FailedReadTests
             ("ChildrenOf", () => structs.ChildrenOf(_unreadable).First().IsErr),
             ("ReadCount", () => array.ReadCount().IsErr),
             ("Array.Read", () => array.Read(1).First().IsErr),
+            ("IndirectNameTable.Read", () => indirectNames.Read(0).IsErr),
+            ("ChunkedNameTable.Read", () => chunkedNames.Read(0).IsErr),
+            ("IndirectObjectArray.Read", () => indirectObjects.Read(1).First().IsErr),
+            ("ItemObjectArray.Read", () => itemObjects.Read(1).First().IsErr),
+            ("ChunkedObjectArray.Read", () => chunkedObjects.Read(1).First().IsErr),
         ];
     }
 

@@ -25,11 +25,13 @@ public sealed class ObjectReaderTests(
         new(MemoryLayout.X64, new Address(0x7FF6_0000_0000), new ObjectLayout(0x10, 0x18, 0x28)),
     ];
 
+    private readonly Address _block = start + 0x9000;
     private readonly Address _class = start + 0x7000;
     private readonly Address _nameArray = start;
     private readonly Address _object = start + 0x5000;
     private readonly Address _otherObject = start + 0x5100;
     private readonly Address _outer = start + 0x6000;
+    private readonly Address _pool = start + 0x8000;
 
     // A number of 0 returns the text of the name id as is, so the cached string of the table comes back and nothing is allocated.
     [Test]
@@ -232,6 +234,19 @@ public sealed class ObjectReaderTests(
             Is.EqualTo(
                 $"Can't read the name of the object at {_object} with the name id {id}. {tableError} "
                 + $"Check ObjectLayout.Name (0x{layout.Name:X})."));
+    }
+
+    // An id of a chunked pool is a block and an offset, which goes through the table as is.
+    [Test]
+    public void NameOf_ChunkedNameId_ReturnsText()
+    {
+        FakeMemory memory = new() { Layout = memoryLayout };
+        memory.AddNamePool(_pool, Address.Zero, _block);
+        memory.AddPoolEntry(_block + 0x20, wide: false, "Core");
+        memory.AddObject(_object, layout, 0x0001_0010);
+        ObjectReader reader = new(memory, new ChunkedNameTable(memory, _pool), layout);
+
+        Assert.That(reader.NameOf(_object).Unwrap(), Is.EqualTo("Core"));
     }
 
     // A changed name id returns the new name, because the game can reuse the address of a freed object.

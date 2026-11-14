@@ -11,19 +11,19 @@ namespace AslHelp.Engines.Unreal;
 ///     Reads the memory on every call, because the game can free an object and reuse its address.
 /// </remarks>
 /// <param name="memory">The memory to read from.</param>
-/// <param name="names">The table that the name ids of the objects point into.</param>
+/// <param name="names">The table that the name ids of the objects point into, in any storage shape.</param>
 /// <param name="layout">The offsets inside an object.</param>
 /// <exception cref="ArgumentNullException">
 ///     <paramref name="memory"/>, <paramref name="names"/> or <paramref name="layout"/> is <see langword="null"/>.
 /// </exception>
 public sealed class ObjectReader(
     IMemoryReader memory,
-    FlatNameTable names,
+    INameTable names,
     ObjectLayout layout)
 {
     private readonly ObjectLayout _layout = layout ?? throw new ArgumentNullException(nameof(layout));
     private readonly IMemoryReader _memory = memory ?? throw new ArgumentNullException(nameof(memory));
-    private readonly FlatNameTable _names = names ?? throw new ArgumentNullException(nameof(names));
+    private readonly INameTable _names = names ?? throw new ArgumentNullException(nameof(names));
 
     /// <summary>
     ///     Gets the offset of the outer pointer inside an object, for the failure of a caller that finds another outer object.

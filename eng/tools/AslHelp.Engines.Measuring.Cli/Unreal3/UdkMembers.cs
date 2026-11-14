@@ -114,7 +114,7 @@ internal sealed class UdkMembers
 
     private readonly int _indexOffset;
     private readonly IMemoryReader _memory;
-    private readonly FlatNameTable _names;
+    private readonly INameTable _names;
     private readonly ILookup<string?, Address> _objectsByBaseName;
     private readonly Dictionary<string, int> _offsets;
     private readonly int _pointerSize;

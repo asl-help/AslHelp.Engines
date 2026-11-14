@@ -22,11 +22,10 @@ namespace AslHelp.Engines.Unreal;
 public sealed class FlatNameTable(
     IMemoryReader memory,
     Address array,
-    NameEntryLayout layout)
+    NameEntryLayout layout) : INameTable
 {
     // Use NAME_SIZE of the engine source, which is the longest name.
     private const int MaxNameLength = 1024;
-    private const int WideBit = 1;
 
     private readonly Address _array = array;
     private readonly Dictionary<int, string> _cache = [];
@@ -90,28 +89,6 @@ public sealed class FlatNameTable(
             return NameTableError.EntryPointerUnreadable(id, slot, error);
         }
 
-        if (entry == Address.Zero)
-        {
-            return NameTableError.EntryNull(id);
-        }
-
-        var indexAddress = entry + _layout.Index;
-
-        if (!_memory.Read<int>(indexAddress).TryUnwrap(out int index, out error))
-        {
-            return NameTableError.IndexUnreadable(id, entry, indexAddress, _layout.Index, error);
-        }
-
-        if ((index >> 1) != id)
-        {
-            return NameTableError.IndexMismatch(id, entry, index, _layout.Index);
-        }
-
-        var type = (index & WideBit) != 0 ? StringType.Utf16 : StringType.Ascii;
-        var textAddress = entry + _layout.Name;
-
-        return _memory.ReadString(textAddress, type, MaxNameLength).TryUnwrap(out string? text, out error)
-            ? text
-            : NameTableError.TextUnreadable(id, entry, textAddress, _layout.Name, error);
+        return NameEntry.Read(_memory, id, entry, _layout, MaxNameLength);
     }
 }

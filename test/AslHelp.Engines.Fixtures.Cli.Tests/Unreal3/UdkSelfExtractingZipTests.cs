@@ -5,7 +5,7 @@ using System.IO;
 
 namespace AslHelp.Engines.Fixtures.Cli.Tests.Unreal3;
 
-public sealed class UdkInstallTests
+public sealed class UdkSelfExtractingZipTests
 {
     // Set FIXTURES_UDK_INSTALLER to a downloaded UDK installer to check a real one too.
     private const string InstallerVariable = "FIXTURES_UDK_INSTALLER";

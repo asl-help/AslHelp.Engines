@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using System.Threading;
@@ -64,7 +65,7 @@ internal static class ProcessRunner
     ///     The tool exits with a code other than 0. The message has the command line, the code and the kept lines.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
-    /// <exception cref="System.ComponentModel.Win32Exception">The tool cannot be started.</exception>
+    /// <exception cref="Win32Exception">The tool cannot be started.</exception>
     public static async Task RunAsync(ProcessStartInfo info, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(info);
@@ -110,8 +111,11 @@ internal static class ProcessRunner
         catch
         {
             // Kill the tree and wait for the tool to exit, so a folder the tool writes to can be deleted after a cancel or a failed read.
-            process.Kill(entireProcessTree: true);
-            _ = await process.SafeHandle.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+            // Skip the wait after a failed kill, because a tool that didn't end would block it forever.
+            if (TryKillTree(process))
+            {
+                _ = await process.SafeHandle.WaitForExitAsync(CancellationToken.None).ConfigureAwait(false);
+            }
 
             throw;
         }
@@ -119,6 +123,30 @@ internal static class ProcessRunner
         if (status.ExitCode != 0)
         {
             throw new InvalidOperationException(FailureMessage(info, status.ExitCode, tail));
+        }
+    }
+
+    /// <summary>
+    ///     Kills <paramref name="process"/> and every process it started.
+    /// </summary>
+    /// <remarks>
+    ///     Catches a failed kill, because it runs in a catch block and its exception would hide the cancel or the failed read.
+    /// </remarks>
+    /// <param name="process">The started tool.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the kill succeeded, <see langword="false"/> when it failed.
+    /// </returns>
+    private static bool TryKillTree(Process process)
+    {
+        try
+        {
+            process.Kill(entireProcessTree: true);
+
+            return true;
+        }
+        catch (Exception exception) when (exception is AggregateException or InvalidOperationException or Win32Exception)
+        {
+            return false;
         }
     }
 

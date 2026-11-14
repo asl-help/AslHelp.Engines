@@ -50,30 +50,9 @@ internal sealed class ContainerHost : IPlayerHost, IDisposable
         {
             await EnsureImageAsync(cancellationToken).ConfigureAwait(false);
 
-            var parameters = NewContainerParameters(installDirectory, executablePath, arguments);
-            var container = await _client.Containers.CreateContainerAsync(parameters, cancellationToken).ConfigureAwait(false);
-
-            try
-            {
-                _ = await _client.Containers.StartContainerAsync(container.ID, new ContainerStartParameters(), cancellationToken)
-                    .ConfigureAwait(false);
-            }
-            catch
-            {
-                // Remove the container, because a container that never started stays on the machine.
-                ContainerRemoveParameters remove = new() { Force = true };
-                await _client.Containers.RemoveContainerAsync(container.ID, remove, CancellationToken.None).ConfigureAwait(false);
-
-                throw;
-            }
-
-            // Wait after the start, because the wait returns at once for a container that never ran. A container that has
-            // exited stays until DisposeAsync removes it, so the wait still gets its exit code.
-            var exit = _client.Containers.WaitContainerAsync(container.ID, CancellationToken.None);
-
-            return new ContainerRun(_client, container.ID, exit);
+            return await RunAsync(NewContainerParameters(installDirectory, executablePath, arguments), cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception exception) when (exception is DockerApiException or HttpRequestException or IOException or TimeoutException)
+        catch (Exception exception) when (IsDockerFailure(exception))
         {
             throw new InvalidOperationException(SR.FormatDockerFailed(Image, exception.Message), exception);
         }
@@ -134,6 +113,18 @@ internal sealed class ContainerHost : IPlayerHost, IDisposable
     }
 
     /// <summary>
+    ///     Checks whether <paramref name="exception"/> comes from a Docker engine that doesn't run or refuses a request.
+    /// </summary>
+    /// <param name="exception">The exception.</param>
+    /// <returns>
+    ///     <see langword="true"/> if it does.
+    /// </returns>
+    private static bool IsDockerFailure(Exception exception)
+    {
+        return exception is DockerApiException or HttpRequestException or IOException or TimeoutException;
+    }
+
+    /// <summary>
     ///     Pulls <see cref="Image"/> unless this machine has it.
     /// </summary>
     /// <param name="cancellationToken">The token that stops the pull.</param>
@@ -159,15 +150,93 @@ internal sealed class ContainerHost : IPlayerHost, IDisposable
 
         _imageReady = true;
     }
+
+    /// <summary>
+    ///     Creates and starts the container of <paramref name="parameters"/>.
+    /// </summary>
+    /// <param name="parameters">The parameters of the container.</param>
+    /// <param name="cancellationToken">The token that stops the start.</param>
+    /// <returns>
+    ///     The started container.
+    /// </returns>
+    private async Task<IHostedRun> RunAsync(CreateContainerParameters parameters, CancellationToken cancellationToken)
+    {
+        var container = await _client.Containers.CreateContainerAsync(parameters, cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            _ = await _client.Containers.StartContainerAsync(container.ID, new ContainerStartParameters(), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch
+        {
+            // Remove the container, because a container that never started stays on the machine.
+            await TryRemoveAsync(container.ID).ConfigureAwait(false);
+
+            throw;
+        }
+
+        // Wait after the start, because the wait returns at once for a container that never ran. A container that has
+        // exited stays until DisposeAsync removes it, so the wait still gets its exit code.
+        var exit = WaitAsync(container.ID, parameters.Image);
+
+        return new ContainerRun(this, container.ID, exit);
+    }
+
+    /// <summary>
+    ///     Waits for the container <paramref name="containerId"/> to exit.
+    /// </summary>
+    /// <param name="containerId">The ID of the container.</param>
+    /// <param name="image">The image of the container, for messages.</param>
+    /// <returns>
+    ///     The response of the wait, with the exit code.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">The Docker engine stops or loses the container during the wait.</exception>
+    private async Task<ContainerWaitResponse> WaitAsync(string containerId, string image)
+    {
+        try
+        {
+            return await _client.Containers.WaitContainerAsync(containerId, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (IsDockerFailure(exception))
+        {
+            // Wrap the failure the way StartAsync does, because ExitCode and WaitForExitAsync rethrow it to the check of the player.
+            throw new InvalidOperationException(SR.FormatDockerLost(image, exception.Message), exception);
+        }
+    }
+
+    /// <summary>
+    ///     Removes the container <paramref name="containerId"/>, also a running one. Catches a Docker failure of the removal,
+    ///     because its exception would hide the failed start or the timeout or exit of the run.
+    /// </summary>
+    /// <param name="containerId">The ID of the container.</param>
+    /// <returns>
+    ///     A task that completes once the removal is done or has failed.
+    /// </returns>
+    internal async Task TryRemoveAsync(string containerId)
+    {
+        try
+        {
+            ContainerRemoveParameters remove = new() { Force = true };
+            await _client.Containers.RemoveContainerAsync(containerId, remove, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (IsDockerFailure(exception))
+        {
+            // Skip the failed removal, because its exception would hide the failure of the start or of the run.
+        }
+    }
 }
 
 /// <summary>
 ///     Represents a started container, whose exit code is the exit code of the executable.
 /// </summary>
-/// <param name="client">The client of the engine.</param>
+/// <param name="host">The host that started the container.</param>
 /// <param name="containerId">The ID of the container.</param>
 /// <param name="exit">The wait that completes once the container has exited.</param>
-file sealed class ContainerRun(DockerClient client, string containerId, Task<ContainerWaitResponse> exit) : IHostedRun
+file sealed class ContainerRun(
+    ContainerHost host,
+    string containerId,
+    Task<ContainerWaitResponse> exit) : IHostedRun
 {
     /// <inheritdoc/>
     public bool HasExited => exit.IsCompleted;
@@ -184,12 +253,21 @@ file sealed class ContainerRun(DockerClient client, string containerId, Task<Con
     /// <summary>
     ///     Removes the container, also a running one, so the mounted install is free once the call completes.
     /// </summary>
+    /// <remarks>
+    ///     Catches a Docker failure of the removal, because its exception would hide the timeout or the exit of the run.
+    /// </remarks>
     /// <returns>
-    ///     A task that completes once the container is gone.
+    ///     A task that completes once the removal is done or has failed.
     /// </returns>
     public async ValueTask DisposeAsync()
     {
-        ContainerRemoveParameters parameters = new() { Force = true };
-        await client.Containers.RemoveContainerAsync(containerId, parameters, CancellationToken.None).ConfigureAwait(false);
+        // Observe a failure of the wait, because the removal of a running container fails it and no caller awaits it after a timeout.
+        _ = exit.ContinueWith(
+            static wait => wait.Exception,
+            CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+
+        await host.TryRemoveAsync(containerId).ConfigureAwait(false);
     }
 }

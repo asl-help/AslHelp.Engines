@@ -10,13 +10,14 @@ namespace AslHelp.Engines.Fixtures.Cli.Hosting;
 internal interface IHostedRun : IAsyncDisposable
 {
     /// <summary>
-    ///     Gets a value indicating whether the executable has exited.
+    ///     Gets a value indicating whether the executable has exited or the host has lost it.
     /// </summary>
     bool HasExited { get; }
 
     /// <summary>
     ///     Gets the exit code once <see cref="HasExited"/> is <see langword="true"/>.
     /// </summary>
+    /// <exception cref="InvalidOperationException">The host lost the executable before it exited.</exception>
     int ExitCode { get; }
 
     /// <summary>
@@ -26,6 +27,7 @@ internal interface IHostedRun : IAsyncDisposable
     /// <returns>
     ///     A task that completes once the executable has exited.
     /// </returns>
+    /// <exception cref="InvalidOperationException">The host lost the executable before it exited.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     Task WaitForExitAsync(CancellationToken cancellationToken);
 }

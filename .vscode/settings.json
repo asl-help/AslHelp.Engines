@@ -11,4 +11,6 @@
   "files.exclude": {
     "artifacts/": true,
   },
+  "unrealscript.analyzeDocuments": "None",
+  "unrealscript.generation": "3",
 }

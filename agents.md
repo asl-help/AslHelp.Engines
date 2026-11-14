@@ -31,6 +31,7 @@ The tool projects and their tests target `net11.0-windows`, because the players 
 - The player tests of both test projects take the machine-wide lock, so `just test`, `just check` and CI run the test projects 1 at a time. Run the tests while no build runs on the machine.
 - Tests never read the machine's `FIXTURES_DAV_*` variables. A `CommandLine` test passes a store or clears the variables first.
 - A test that needs a real UDK installer or install runs only when `FIXTURES_UDK_INSTALLER` is the path of a downloaded `UDKInstall-<version>.exe` or `FIXTURES_UDK_INSTALL` is the path of an extracted install. The tests change that install. A test that needs a built player runs only when `FIXTURES_UDK_PLAYER` is the path of a player folder.
+- `.vscode/settings.json` turns off the analysis of the UnrealScript extension, because the engine classes like `Actor` are in the UDK install and not in the repo. To get the analysis, add `Development/Src` of a UDK install to the workspace and set `unrealscript.analyzeDocuments` to `OnlyActive` in the workspace file.
 - A file has 1 main type and any number of `file` types. A helper type stays nested only when it needs the private members of its outer type or sits in a member signature, because a `file` type cannot.
 - Commit subjects are lowercase and imperative, with no body and no trailers.
 

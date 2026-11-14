@@ -72,6 +72,12 @@
   <data name="CachePacking" xml:space="preserve">
     <value>Packing {0} into {1}</value>
   </data>
+  <data name="CacheStaleKept" xml:space="preserve">
+    <value>Stale player kept: {0} ({1})</value>
+  </data>
+  <data name="CacheStaleRemoved" xml:space="preserve">
+    <value>Stale player removed: {0}</value>
+  </data>
   <data name="CacheUnpacking" xml:space="preserve">
     <value>Unpacking {0} into {1}</value>
   </data>

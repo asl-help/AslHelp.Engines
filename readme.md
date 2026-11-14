@@ -56,7 +56,7 @@ For each player, the build checks these in order:
 
 1. If `<output>/<toolchain>-<version>-<hash>` already exists, that's the player.
 2. If the store has the player, the build downloads and unpacks it. If unpacking fails, it treats the store copy as missing.
-3. Otherwise it installs the toolchain once, builds all the players that neither the folder nor the store has in 1 pass and checks each one. It writes `manifest.json` into each built folder and moves that folder to `<output>/<toolchain>-<version>-<hash>`. Then it packs the folder into `<output>/<toolchain>-<version>-<hash>.tar.zst`, uploads that to `players/<toolchain>/<version>/<hash>.tar.zst`, uploads the manifest to `<hash>.json` next to it and deletes the archive.
+3. Otherwise it installs the toolchain once, builds all the missing players in 1 pass and checks each one. It moves each player to `<output>/<toolchain>-<version>-<hash>` and uploads its archive, then its manifest. Last it deletes the folders of the same version that have a different hash.
 
 If an upload fails, the build keeps the archive next to the player folder and the next run uploads it again.
 

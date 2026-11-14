@@ -1,6 +1,7 @@
 using AslHelp.Engines.Fixtures.Cli.Formats;
 using AslHelp.Engines.Fixtures.Cli.Transfer;
 using System;
+using System.Buffers;
 using System.IO;
 using System.Linq;
 using System.Text.Encodings.Web;
@@ -36,6 +37,8 @@ internal sealed class PlayerCache(
     private const string ManifestFileName = "manifest.json";
     private const string RemoteFolder = "players";
     private const string VersionInput = "version";
+
+    private static readonly SearchValues<char> _hashChars = SearchValues.Create("0123456789abcdef");
 
     // Escape only what JSON needs, because a person reads the manifest and '\u003E' hides the '>' of a value.
     private static readonly JsonTypeInfo<PlayerKey> _manifestTypeInfo = new JsonSerializerOptions(PlayerKeyContext.Default.Options)
@@ -181,7 +184,8 @@ internal sealed class PlayerCache(
 
     /// <summary>
     ///     Writes the manifest into the folder of a new build, moves that folder to the player folder of
-    ///     <paramref name="key"/> and uploads its archive and then the manifest to the store.
+    ///     <paramref name="key"/>, uploads its archive and then the manifest to the store and deletes the folders of the same
+    ///     toolchain and version under another hash.
     /// </summary>
     /// <remarks>
     ///     The manifest is written before the move, so the player folder that later runs hit never lacks it. It is written
@@ -210,6 +214,8 @@ internal sealed class PlayerCache(
 
         if (store is null)
         {
+            await RemoveStaleSiblingsAsync(key, player, cancellationToken).ConfigureAwait(false);
+
             return player;
         }
 
@@ -222,8 +228,49 @@ internal sealed class PlayerCache(
         Archive.Pack(player, archive);
 
         await UploadAsync(store, key, player, archive, cancellationToken).ConfigureAwait(false);
+        await RemoveStaleSiblingsAsync(key, player, cancellationToken).ConfigureAwait(false);
 
         return player;
+    }
+
+    /// <summary>
+    ///     Deletes the player folders of the same toolchain and version under another hash and writes a step line for each.
+    /// </summary>
+    /// <remarks>
+    ///     Keeps a folder that fails to delete and writes a step line for it, because the new player is in the store already.
+    /// </remarks>
+    /// <param name="key">The key of the stored player.</param>
+    /// <param name="player">The folder of the stored player.</param>
+    /// <param name="cancellationToken">The token that stops the step lines.</param>
+    /// <returns>
+    ///     A task that completes once every stale folder is deleted or kept.
+    /// </returns>
+    private async Task RemoveStaleSiblingsAsync(PlayerKey key, string player, CancellationToken cancellationToken)
+    {
+        string prefix = $"{key.Toolchain}-{key.Version}-";
+
+        foreach (string sibling in Directory.EnumerateDirectories(Path.GetFullPath(outputDirectory), prefix + "*"))
+        {
+            // Skip a name that doesn't end in a hash right after the prefix, because the folders of version 1.0-b start with 1.0- too.
+            if (!IsShortHash(Path.GetFileName(sibling).AsSpan(prefix.Length)) || sibling.Equals(player, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string line;
+
+            try
+            {
+                Directory.Delete(sibling, recursive: true);
+                line = SR.FormatCacheStaleRemoved(sibling);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                line = SR.FormatCacheStaleKept(sibling, exception.Message);
+            }
+
+            await output.WriteLineAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
+        }
     }
 
     /// <summary>
@@ -273,6 +320,18 @@ internal sealed class PlayerCache(
         {
             await JsonSerializer.SerializeAsync(stream, key, _manifestTypeInfo, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    ///     Checks whether <paramref name="value"/> has the form of <see cref="CacheKey.ShortHash"/>.
+    /// </summary>
+    /// <param name="value">The text after the toolchain and the version of a folder name.</param>
+    /// <returns>
+    ///     <see langword="true"/> for 16 lowercase hex chars.
+    /// </returns>
+    private static bool IsShortHash(ReadOnlySpan<char> value)
+    {
+        return value.Length == CacheKey.ShortHashLength && !value.ContainsAnyExcept(_hashChars);
     }
 
     /// <summary>

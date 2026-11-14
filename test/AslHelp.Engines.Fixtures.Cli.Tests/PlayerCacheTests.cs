@@ -231,6 +231,40 @@ public sealed class PlayerCacheTests
         }
     }
 
+    // A stored player replaces the folder of the same version under an older hash, so the measure run finds 1 folder per version.
+    // A longer id with the same start, the build scratch and another version stay.
+    [Test]
+    public async Task StoreAsync_StaleFolderOfSameVersion_DeletesItAndWritesALine()
+    {
+        var key = PlayerCache.KeyOf(new FakeToolchain("player"), "1.0", _project);
+        string output = _folder.NewFolder();
+        string stale = Path.Combine(output, "player-1.0-0123456789abcdef");
+        string[] kept =
+        [
+            Path.Combine(output, "player-1.0-b-0123456789abcdef"),
+            Path.Combine(output, "player-1.0-build"),
+            Path.Combine(output, "player-1.1-0123456789abcdef"),
+        ];
+
+        foreach (string folder in (string[])[stale, .. kept])
+        {
+            TestFolder.WriteBytes(folder, "file.bin", [1]);
+        }
+
+        using StringWriter lines = new();
+        PlayerCache cache = new(null, output, lines, QuietBars());
+
+        string player = await cache.StoreAsync(key, NewInstall(), CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Directory.Exists(stale), Is.False);
+            Assert.That(kept.Where(Directory.Exists), Is.EqualTo(kept));
+            Assert.That(Directory.Exists(player), Is.True);
+            Assert.That(lines.ToString(), Does.Contain($"Stale player removed: {stale}"));
+        }
+    }
+
     // With no store the player folder still gets its manifest.json and nothing is packed next to it.
     [Test]
     public async Task StoreAsync_NoStore_WritesManifestIntoThePlayerFolder()

@@ -1,3 +1,4 @@
+using AslHelp.Engines.Fixtures.Cli.Formats;
 using System;
 using System.Collections.Generic;
 using System.IO;

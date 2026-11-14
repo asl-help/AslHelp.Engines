@@ -45,9 +45,6 @@
   <data name="PartialNotMoved" xml:space="preserve">
     <value>The file is complete at '{0}' but cannot be moved to '{1}'. Close what has either file open and run the build again.</value>
   </data>
-  <data name="PeImportsUnreadable" xml:space="preserve">
-    <value>The file '{0}' is not a PE file with a readable import table. Delete the install folder and run the build again, so the installer is extracted again.</value>
-  </data>
   <data name="RedistEntryDamaged" xml:space="preserve">
     <value>The entry '{0}' of the redist '{1}' is damaged. {2} Delete the install folder and run the build again, so the installer is extracted again.</value>
   </data>
@@ -59,6 +56,9 @@
   </data>
   <data name="RedistRuntimeMissing" xml:space="preserve">
     <value>The redist '{0}' did not give {1}. Delete the install folder and run the build again, so the installer is extracted again.</value>
+  </data>
+  <data name="ReextractInstall" xml:space="preserve">
+    <value>Delete the install folder and build again.</value>
   </data>
   <data name="ReleasesBadSha1" xml:space="preserve">
     <value>{0} has the sha1 '{1}' for version '{2}'. Write it as 40 lowercase hex chars and build the tool again.</value>

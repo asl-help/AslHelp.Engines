@@ -1,3 +1,5 @@
+using AslHelp.Engines.Fixtures.Cli.Formats;
+using AslHelp.Engines.Fixtures.Cli.Transfer;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;

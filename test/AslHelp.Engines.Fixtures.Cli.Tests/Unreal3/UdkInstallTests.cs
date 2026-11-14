@@ -1,3 +1,4 @@
+using AslHelp.Engines.Fixtures.Cli.Formats;
 using NUnit.Framework;
 using System;
 using System.IO;

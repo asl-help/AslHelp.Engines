@@ -1,3 +1,5 @@
+using AslHelp.Engines.Fixtures.Cli.Formats;
+using AslHelp.Engines.Fixtures.Cli.Transfer;
 using System;
 using System.IO;
 using System.Linq;

@@ -1,8 +1,10 @@
 using AslHelp.Engines.Measuring.Cli.Tests.Routes;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.CommandLine;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -17,6 +19,16 @@ public sealed class CommandLineTests
     private const string First = "engine-1.0-0123456789abcdef";
     private const string Second = "engine-2.0-BETA-fedcba9876543210";
     private const string Third = "engine-3.0-00112233445566ff";
+
+    // The group line, then inside its scope the read failure of each of 2 versions, the global without a route and the duration.
+    private static readonly (int EventId, int Scopes)[] _linesOfOneGroup =
+    [
+        (10, 1),
+        (14, 2),
+        (14, 2),
+        (13, 2),
+        (15, 2),
+    ];
 
     // Players, then the start and done lines for each of 3 players, then 2 lines for each of the 2 groups and the report line.
     private static readonly (int EventId, int Scopes)[] _linesOfTwoGroups =
@@ -36,21 +48,26 @@ public sealed class CommandLineTests
         (7, 0),
     ];
 
-    // The group line, then inside its scope the read failure of each of 2 versions, the global without a route and the duration.
-    private static readonly (int EventId, int Scopes)[] _linesOfOneGroup =
+    // Players, then for each of 2 players its start line, the line its measurer logged and its done line, both inside the scope of the player.
+    private static readonly (int EventId, int Scopes)[] _linesOfTwoParallelPlayers =
     [
-        (10, 1),
-        (14, 2),
-        (14, 2),
-        (13, 2),
-        (15, 2),
+        (8, 0),
+        (1, 0),
+        (3, 1),
+        (2, 1),
+        (1, 0),
+        (3, 1),
+        (2, 1),
     ];
 
     private static readonly string[] _globalKeys = ["Global"];
     private static readonly string[] _groupKeys = ["versions", "offsets", "routes"];
+    private static readonly string[] _groupKeysWithShapes = ["versions", "offsets", "shapes", "routes"];
+    private static readonly string[] _keyedGroupKeys = ["key", "versions", "offsets", "routes"];
 
     private static readonly string[] _oddVersions = ["{0}", "バー 1"];
     private static readonly string[] _reportKeys = ["engine", "players", "groups"];
+    private static readonly string[] _rowKeysWithShapes = ["version", "globals", "offsets", "shapes", "unmeasured"];
     private static readonly string[] _sharedVersions = ["1.0", "3.0"];
     private static readonly string[] _soleVersion = ["2.0-BETA"];
     private static readonly string[] _sortedMembers = ["Early", "Late"];
@@ -98,6 +115,172 @@ public sealed class CommandLineTests
             Assert.That(players[0].GetProperty("version").GetString(), Is.EqualTo("1.0"));
             Assert.That(players[1].GetProperty("version").GetString(), Is.EqualTo("2.0-BETA"));
             Assert.That(players[0].TryGetProperty("error", out _), Is.False);
+        }
+    }
+
+    // 2 players at once keep their rows, their lines and their scopes in version order, although the 2nd player finishes first.
+    [Test]
+    public async Task RunAsync_ParallelPlayersFinishOutOfOrder_KeepsVersionOrder()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        using ManualResetEventSlim secondMeasured = new();
+        bool overlapped = false;
+        ScopeLogger logger = new();
+
+        ScriptedMeasurer measurer = new(directory =>
+        {
+            if (directory.EndsWith(First, StringComparison.Ordinal))
+            {
+                overlapped = secondMeasured.Wait(TimeSpan.FromSeconds(30));
+            }
+            else
+            {
+                secondMeasured.Set();
+            }
+
+            return new PlayerMeasurement(
+                new Dictionary<string, IReadOnlyList<uint>>(),
+                new Dictionary<string, int> { ["Type.Member"] = 0x28 },
+                new Dictionary<string, string>(),
+                "file.bin");
+        })
+        {
+            MaxDegreeOfParallelism = 2,
+            Log = static (directory, log) => log.NotFound(Path.GetFileName(directory), "reason"),
+        };
+
+        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [measurer], logger);
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var players = report.RootElement.GetProperty("players");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(overlapped, Is.True);
+            Assert.That(players[0].GetProperty("version").GetString(), Is.EqualTo("1.0"));
+            Assert.That(players[1].GetProperty("version").GetString(), Is.EqualTo("2.0-BETA"));
+            Assert.That(logger.Lines.Take(_linesOfTwoParallelPlayers.Length), Is.EqualTo(_linesOfTwoParallelPlayers));
+            Assert.That(logger.Messages[2], Does.StartWith($"not found: {First}:"));
+            Assert.That(logger.Messages[5], Does.StartWith($"not found: {Second}:"));
+        }
+    }
+
+    // --jobs 1 measures 1 player at a time, also on a measurer that allows more.
+    [Test]
+    public async Task RunAsync_JobsOne_MeasuresOnePlayerAtATime()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        Lock gate = new();
+        int running = 0;
+        int mostRunning = 0;
+
+        ScriptedMeasurer measurer = new(_ =>
+        {
+            lock (gate)
+            {
+                running++;
+                mostRunning = Math.Max(mostRunning, running);
+            }
+
+            Thread.Sleep(50);
+
+            lock (gate)
+            {
+                running--;
+            }
+
+            return new PlayerMeasurement(
+                new Dictionary<string, IReadOnlyList<uint>>(),
+                new Dictionary<string, int>(),
+                new Dictionary<string, string>(),
+                "file.bin");
+        })
+        {
+            MaxDegreeOfParallelism = 2,
+        };
+
+        int code = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report, "-j", "1"],
+            _output,
+            _error,
+            [measurer],
+            NullLogger.Instance);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(mostRunning, Is.EqualTo(1));
+        }
+    }
+
+    // --jobs above the limit of the measurer drops to the limit and logs both values.
+    [Test]
+    public async Task RunAsync_JobsAboveLimit_LogsTheLimit()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        Lock gate = new();
+        int running = 0;
+        int mostRunning = 0;
+
+        ScriptedMeasurer measurer = new(_ =>
+        {
+            lock (gate)
+            {
+                running++;
+                mostRunning = Math.Max(mostRunning, running);
+            }
+
+            Thread.Sleep(50);
+
+            lock (gate)
+            {
+                running--;
+            }
+
+            return new PlayerMeasurement(
+                new Dictionary<string, IReadOnlyList<uint>>(),
+                new Dictionary<string, int>(),
+                new Dictionary<string, string>(),
+                "file.bin");
+        })
+        {
+            MaxDegreeOfParallelism = 1,
+        };
+
+        int code = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report, "-j", "5"],
+            _output,
+            _error,
+            [measurer],
+            new WriterLogger(_output, _error));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(mostRunning, Is.EqualTo(1));
+            Assert.That(_output.ToString(), Does.StartWith($"jobs: 1, requested: 5{Environment.NewLine}"));
+        }
+    }
+
+    // --jobs below 1 fails the parse with its message.
+    [Test]
+    public async Task RunAsync_JobsZero_FailsWithMessage()
+    {
+        int code = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report, "--jobs", "0"],
+            _output,
+            _error,
+            [new FakeMeasurer()],
+            NullLogger.Instance);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Not.Zero);
+            Assert.That(_error.ToString(), Does.Contain(SR.JobsBelowOne));
         }
     }
 
@@ -544,24 +727,227 @@ public sealed class CommandLineTests
 
     // A canceled run writes no report and does not turn the cancellation into a failed row.
     [Test]
-    public async Task RunAsync_MeasurerCanceled_WritesNoReport()
+    public async Task RunAsync_RunCanceled_WritesNoReport()
     {
         _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
         _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        using CancellationTokenSource run = new();
         int measured = 0;
 
-        int code = await RunAsync(new ScriptedMeasurer(_ =>
-        {
-            measured++;
+        int code = await RunAsync(
+            new ScriptedMeasurer(_ =>
+            {
+                measured++;
+                run.Cancel();
 
-            throw new OperationCanceledException();
-        }));
+                throw new OperationCanceledException(run.Token);
+            }),
+            run.Token);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(code, Is.Not.Zero);
             Assert.That(measured, Is.EqualTo(1));
             Assert.That(File.Exists(_report), Is.False);
+        }
+    }
+
+    // A bug in a measurer fails its row with the message and logs the whole exception, on 1 and on several jobs.
+    [TestCase(1)]
+    [TestCase(2)]
+    public async Task RunAsync_MeasurerThrowsBug_LogsTheException(int jobs)
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        KeyNotFoundException bug = new("The bug.");
+        ScopeLogger logger = new();
+
+        ScriptedMeasurer measurer = new(directory => directory.EndsWith(First, StringComparison.Ordinal)
+            ? throw bug
+            : new PlayerMeasurement(
+                new Dictionary<string, IReadOnlyList<uint>>(),
+                new Dictionary<string, int> { ["Type.Member"] = 0x28 },
+                new Dictionary<string, string>(),
+                "file.bin"))
+        {
+            MaxDegreeOfParallelism = jobs,
+        };
+
+        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [measurer], logger);
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var players = report.RootElement.GetProperty("players");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(players[0].GetProperty("error").GetString(), Is.EqualTo("The bug."));
+            Assert.That(players[1].TryGetProperty("error", out _), Is.False);
+            Assert.That(logger.Exceptions.SingleOrDefault(), Is.SameAs(bug));
+            Assert.That(logger.Messages, Does.Contain($"unexpected: {typeof(KeyNotFoundException)}"));
+        }
+    }
+
+    // A player that does not start fails its row with the message and logs no exception, because it is no bug.
+    [Test]
+    public async Task RunAsync_PlayerDoesNotStart_LogsNoException()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        ScopeLogger logger = new();
+
+        ScriptedMeasurer measurer = new(static _ => throw new TimeoutException("The server was not ready."));
+
+        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [measurer], logger);
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(report.RootElement.GetProperty("players")[0].GetProperty("error").GetString(), Is.EqualTo("The server was not ready."));
+            Assert.That(logger.Exceptions, Is.Empty);
+        }
+    }
+
+    // An offset key without a type or a member around its 1st dot fails only its row with the key, because the report splits the key there.
+    [TestCase("NoDot")]
+    [TestCase(".Member")]
+    [TestCase("Type.")]
+    public async Task RunAsync_OffsetKeyMalformed_FailsOnlyThatRow(string key)
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+
+        int code = await RunAsync(new ScriptedMeasurer(directory => new PlayerMeasurement(
+            new Dictionary<string, IReadOnlyList<uint>>(),
+            new Dictionary<string, int> { [directory.EndsWith(First, StringComparison.Ordinal) ? key : "Type.Member"] = 0x28 },
+            new Dictionary<string, string>(),
+            "file.bin")));
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var players = report.RootElement.GetProperty("players");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(players[0].GetProperty("error").GetString(), Is.EqualTo(SR.FormatOffsetKeyMalformed(key)));
+            Assert.That(players[1].GetProperty("offsets").GetProperty("Type").GetProperty("Member").GetString(), Is.EqualTo("0x28"));
+        }
+    }
+
+    // A canceled run with players at once returns only after every started player has ended, also a player that is slow to stop.
+    [Test]
+    public async Task RunAsync_ParallelRunCanceled_WaitsForSlowPlayers()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        using CancellationTokenSource run = new();
+        SlowStopMeasurer measurer = new(run, First);
+
+        int code = await RunAsync(measurer, run.Token);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Not.Zero);
+            Assert.That(measurer.Started, Is.EqualTo(2));
+            Assert.That(measurer.Ended, Is.EqualTo(measurer.Started));
+            Assert.That(File.Exists(_report), Is.False);
+        }
+    }
+
+    // A canceled run with players at once leaves no failed task behind, because the run awaits only the results up to the cancel.
+    [Test]
+    public async Task RunAsync_ParallelRunCanceled_LeavesNoUnobservedFailure()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        List<Exception> unobserved = [];
+
+        void addUnobserved(object? sender, UnobservedTaskExceptionEventArgs args)
+        {
+            lock (unobserved)
+            {
+                unobserved.Add(args.Exception);
+            }
+        }
+
+        TaskScheduler.UnobservedTaskException += addUnobserved;
+
+        try
+        {
+            using CancellationTokenSource run = new();
+            _ = await RunAsync(new SlowStopMeasurer(run, First), run.Token);
+
+            // Collect twice, because the 1st collection only queues the finalizer that reports a failed task.
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+        }
+        finally
+        {
+            TaskScheduler.UnobservedTaskException -= addUnobserved;
+        }
+
+        lock (unobserved)
+        {
+            Assert.That(unobserved, Is.Empty);
+        }
+    }
+
+    // A cancel from inside the measurer, such as a timeout, fails only its row while the run token stays live.
+    [Test]
+    public async Task RunAsync_MeasurerCanceledOnItsOwn_FailsOnlyThatRow()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+
+        int code = await RunAsync(new ScriptedMeasurer(static directory => directory.EndsWith(First, StringComparison.Ordinal)
+            ? throw new OperationCanceledException("The read timed out.")
+            : new PlayerMeasurement(
+                new Dictionary<string, IReadOnlyList<uint>>(),
+                new Dictionary<string, int> { ["Type.Member"] = 0x28 },
+                new Dictionary<string, string>(),
+                "file.bin")));
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var players = report.RootElement.GetProperty("players");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(players[0].GetProperty("error").GetString(), Is.EqualTo("The read timed out."));
+            Assert.That(players[1].TryGetProperty("error", out _), Is.False);
+        }
+    }
+
+    // A cancel from inside the measurer fails only its row also when the players run at once.
+    [Test]
+    public async Task RunAsync_ParallelMeasurerCanceledOnItsOwn_FailsOnlyThatRow()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+
+        ScriptedMeasurer measurer = new(static directory => directory.EndsWith(First, StringComparison.Ordinal)
+            ? throw new OperationCanceledException("The read timed out.")
+            : new PlayerMeasurement(
+                new Dictionary<string, IReadOnlyList<uint>>(),
+                new Dictionary<string, int> { ["Type.Member"] = 0x28 },
+                new Dictionary<string, string>(),
+                "file.bin"))
+        {
+            MaxDegreeOfParallelism = 2,
+        };
+
+        int code = await RunAsync(measurer);
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var players = report.RootElement.GetProperty("players");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(players[0].GetProperty("error").GetString(), Is.EqualTo("The read timed out."));
+            Assert.That(players[1].TryGetProperty("error", out _), Is.False);
         }
     }
 
@@ -750,14 +1136,24 @@ public sealed class CommandLineTests
     {
         _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
         _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+        using CancellationTokenSource run = new();
 
-        int code = await RunAsync(new ScriptedMeasurer(static directory => directory.EndsWith(Second, StringComparison.Ordinal)
-            ? throw new OperationCanceledException()
-            : new PlayerMeasurement(
-                new Dictionary<string, IReadOnlyList<uint>>(),
-                new Dictionary<string, int> { ["Type.Member"] = 0x28 },
-                new Dictionary<string, string>(),
-                "file.bin")));
+        int code = await RunAsync(
+            new ScriptedMeasurer(directory =>
+            {
+                if (directory.EndsWith(Second, StringComparison.Ordinal))
+                {
+                    run.Cancel();
+                    run.Token.ThrowIfCancellationRequested();
+                }
+
+                return new PlayerMeasurement(
+                    new Dictionary<string, IReadOnlyList<uint>>(),
+                    new Dictionary<string, int> { ["Type.Member"] = 0x28 },
+                    new Dictionary<string, string>(),
+                    "file.bin");
+            }),
+            run.Token);
 
         using (Assert.EnterMultipleScope())
         {
@@ -870,9 +1266,234 @@ public sealed class CommandLineTests
         }
     }
 
-    private Task<int> RunAsync(IEngineMeasurer measurer)
+    // The help of the subcommand lists the option the measurer adds and the options every measurer has.
+    [Test]
+    public async Task RunAsync_EngineSubcommandHelp_ListsTheMeasurerOptions()
     {
-        return CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [measurer], new WriterLogger(_output, _error));
+        ScriptedMeasurer measurer = new(static _ => new TextError("The player did not start."))
+        {
+            Options = [new Option<string?>("--extra") { Description = "The extra value." }],
+        };
+
+        int code = await CommandLine.RunAsync(["engine", "--help"], _output, _error, [measurer], new WriterLogger(_output, _error));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(
+                _output.ToString(),
+                Does.Contain("--extra").And.Contain("The extra value.").And.Contain("--targets").And.Contain("<players>"));
+        }
+    }
+
+    // A run without a subcommand prints the help and fails, so a script that leaves out the engine stops.
+    [Test]
+    public async Task RunAsync_NoSubcommand_PrintsHelpAndExitsWith1()
+    {
+        int code = await CommandLine.RunAsync([], _output, _error, [new FakeMeasurer()], new WriterLogger(_output, _error));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(_output.ToString(), Does.Contain("Usage:").And.Contain("Commands:"));
+            Assert.That(_error.ToString(), Is.Empty);
+        }
+    }
+
+    // The measurer picks the players, so a player it drops doesn't get a row and doesn't count.
+    [Test]
+    public async Task RunAsync_SelectPlayersDropsOne_MeasuresOnlyTheRest()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+
+        int code = await RunAsync(new ScriptedMeasurer(static _ => new PlayerMeasurement(
+            new Dictionary<string, IReadOnlyList<uint>>(),
+            new Dictionary<string, int> { ["Type.Member"] = 0x28 },
+            new Dictionary<string, string>(),
+            "file.bin"))
+        {
+            Select = static players => [players[1]],
+        });
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var players = report.RootElement.GetProperty("players");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(players.GetArrayLength(), Is.EqualTo(1));
+            Assert.That(players[0].GetProperty("version").GetString(), Is.EqualTo("2.0-BETA"));
+            Assert.That(_output.ToString(), Does.Contain("players: 1").And.Contain("[2.0-BETA] (1/1)"));
+        }
+    }
+
+    // A filter that drops every player fails like a folder without players, because an empty report reads like a run with nothing to find.
+    [Test]
+    public async Task RunAsync_SelectPlayersDropsAll_FailsAsNoPlayers()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+
+        int code = await RunAsync(new ScriptedMeasurer(static _ => new TextError("The player did not start."))
+        {
+            Select = static _ => [],
+        });
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(_error.ToString(), Does.Contain(_folder.Root));
+            Assert.That(File.Exists(_report), Is.False);
+        }
+    }
+
+    // A group with a key has it as its 1st JSON key and in its own log line, so a person sees which build the group is for.
+    [Test]
+    public async Task RunAsync_GroupKey_WritesKeyFirstAndLogsIt()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Third));
+        ScopeLogger logger = new();
+
+        int code = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report],
+            _output,
+            _error,
+            [
+                new ScriptedMeasurer(static _ => new PlayerMeasurement(
+                    new Dictionary<string, IReadOnlyList<uint>>(),
+                    new Dictionary<string, int> { ["Type.Member"] = 0x28 },
+                    new Dictionary<string, string>(),
+                    "file.bin"))
+                {
+                    Key = "win-x64-shipping",
+                },
+            ],
+            logger);
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var group = report.RootElement.GetProperty("groups")[0];
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(group.EnumerateObject().Select(static property => property.Name), Is.EqualTo(_keyedGroupKeys));
+            Assert.That(group.GetProperty("key").GetString(), Is.EqualTo("win-x64-shipping"));
+            Assert.That(logger.Messages, Does.Contain("[win-x64-shipping: 1.0, 3.0]"));
+            Assert.That(logger.Lines.Select(static line => line.EventId), Does.Contain(16).And.Not.Contain(10));
+        }
+    }
+
+    // Shapes come after the offsets in a row and in a group. A measurement without shapes leaves the key out of both.
+    [Test]
+    public async Task RunAsync_Shapes_WritesThemInRowAndGroup()
+    {
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, First));
+        _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Second));
+
+        int code = await RunAsync(new ScriptedMeasurer(static directory =>
+        {
+            PlayerMeasurement measurement = new(
+                new Dictionary<string, IReadOnlyList<uint>>(),
+                new Dictionary<string, int> { ["Type.Member"] = 0x28 },
+                new Dictionary<string, string>(),
+                "file.bin");
+
+            return directory.EndsWith(First, StringComparison.Ordinal)
+                ? measurement with { Shapes = new Dictionary<string, string> { ["Type"] = "first" } }
+                : measurement;
+        }));
+
+        using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
+        var players = report.RootElement.GetProperty("players");
+        var groups = report.RootElement.GetProperty("groups");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, _error.ToString());
+            Assert.That(players[0].EnumerateObject().Select(static property => property.Name), Is.EqualTo(_rowKeysWithShapes));
+            Assert.That(players[0].GetProperty("shapes").GetProperty("Type").GetString(), Is.EqualTo("first"));
+            Assert.That(players[1].TryGetProperty("shapes", out _), Is.False);
+            Assert.That(groups.GetArrayLength(), Is.EqualTo(2));
+            Assert.That(groups[0].EnumerateObject().Select(static property => property.Name), Is.EqualTo(_groupKeysWithShapes));
+            Assert.That(groups[1].TryGetProperty("shapes", out _), Is.False);
+        }
+    }
+
+    private Task<int> RunAsync(IEngineMeasurer measurer, CancellationToken cancellationToken = default)
+    {
+        return CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report],
+            _output,
+            _error,
+            [measurer],
+            new WriterLogger(_output, _error),
+            cancellationToken);
+    }
+}
+
+// Waits in every player until the run stops, then takes a while to end, because a real player stops its process first.
+// The player of the canceling folder cancels the run once every player has started.
+file sealed class SlowStopMeasurer(CancellationTokenSource run, string canceling) : IEngineMeasurer
+{
+    private readonly TaskCompletionSource _allStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _ended;
+    private int _started;
+
+    public string Name => "engine";
+
+    public IReadOnlyList<Option> Options => [];
+
+    public int MaxDegreeOfParallelism => 2;
+
+    public int Ended => Volatile.Read(ref _ended);
+
+    public int Started => Volatile.Read(ref _started);
+
+    public Result LoadTargets(string? path)
+    {
+        return Result.Ok();
+    }
+
+    public IReadOnlyList<PlayerFolder> SelectPlayers(IReadOnlyList<PlayerFolder> players, ParseResult parseResult, ILogger logger)
+    {
+        return players;
+    }
+
+    public string? GroupOf(string version)
+    {
+        return null;
+    }
+
+    public bool IsNeeded(string type, string member)
+    {
+        return true;
+    }
+
+    public async Task<Result<PlayerMeasurement>> MeasureAsync(PlayerFolder player, ILogger logger, CancellationToken cancellationToken)
+    {
+        if (Interlocked.Increment(ref _started) == MaxDegreeOfParallelism)
+        {
+            _allStarted.SetResult();
+        }
+
+        try
+        {
+            if (player.Directory.EndsWith(canceling, StringComparison.Ordinal))
+            {
+                await _allStarted.Task.ConfigureAwait(false);
+                await run.CancelAsync().ConfigureAwait(false);
+            }
+
+            await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+
+            return new TextError("The delay ended without a cancel.");
+        }
+        finally
+        {
+            await Task.Delay(500, CancellationToken.None).ConfigureAwait(false);
+            _ = Interlocked.Increment(ref _ended);
+        }
     }
 }
 
@@ -881,7 +1502,11 @@ file sealed class ScopeLogger : ILogger
 {
     private readonly LoggerExternalScopeProvider _scopes = new();
 
+    public List<Exception> Exceptions { get; } = [];
+
     public List<(int EventId, int Scopes)> Lines { get; } = [];
+
+    public List<string> Messages { get; } = [];
 
     public IDisposable? BeginScope<TState>(TState state)
         where TState : notnull
@@ -900,21 +1525,11 @@ file sealed class ScopeLogger : ILogger
         _scopes.ForEachScope(static (_, count) => count.Value++, scopes);
 
         Lines.Add((eventId.Id, scopes.Value));
-    }
-}
+        Messages.Add(formatter(state, exception));
 
-file sealed class ScriptedMeasurer(
-    Func<string, Result<PlayerMeasurement>> measure) : IEngineMeasurer
-{
-    public string Name => "engine";
-
-    public Result LoadTargets(string? path)
-    {
-        return Result.Ok();
-    }
-
-    public Task<Result<PlayerMeasurement>> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
-    {
-        return Task.FromResult(measure(playerDirectory));
+        if (exception is not null)
+        {
+            Exceptions.Add(exception);
+        }
     }
 }

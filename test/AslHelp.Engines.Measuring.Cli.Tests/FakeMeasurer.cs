@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.CommandLine;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +12,10 @@ namespace AslHelp.Engines.Measuring.Cli.Tests;
 internal sealed class FakeMeasurer(params string[] failing) : IEngineMeasurer
 {
     public string Name => "engine";
+
+    public IReadOnlyList<Option> Options => [];
+
+    public int MaxDegreeOfParallelism => 1;
 
     public int Measured { get; private set; }
 
@@ -25,11 +30,26 @@ internal sealed class FakeMeasurer(params string[] failing) : IEngineMeasurer
             : Result.Ok();
     }
 
-    public Task<Result<PlayerMeasurement>> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
+    public IReadOnlyList<PlayerFolder> SelectPlayers(IReadOnlyList<PlayerFolder> players, ParseResult parseResult, ILogger logger)
+    {
+        return players;
+    }
+
+    public string? GroupOf(string version)
+    {
+        return null;
+    }
+
+    public bool IsNeeded(string type, string member)
+    {
+        return true;
+    }
+
+    public Task<Result<PlayerMeasurement>> MeasureAsync(PlayerFolder player, ILogger logger, CancellationToken cancellationToken)
     {
         Measured++;
 
-        if (Array.Exists(failing, playerDirectory.EndsWith))
+        if (Array.Exists(failing, player.Directory.EndsWith))
         {
             return Task.FromResult<Result<PlayerMeasurement>>(new TextError("The player did not start."));
         }
@@ -38,6 +58,6 @@ internal sealed class FakeMeasurer(params string[] failing) : IEngineMeasurer
             new Dictionary<string, IReadOnlyList<uint>> { ["Global"] = [0x100, 0x200] },
             new Dictionary<string, int> { ["Type.Member"] = 40 },
             new Dictionary<string, string> { ["Type.Other"] = "Not found." },
-            Path.Combine(playerDirectory, "missing.exe")));
+            Path.Combine(player.Directory, "missing.exe")));
     }
 }

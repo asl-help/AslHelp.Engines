@@ -11,7 +11,7 @@ just check
 just fixtures <arguments>
 just legendary <arguments>
 just fixtures-all <toolchain> <folder>
-just measure <engine> <players> --output <file> [--targets <file>]
+just measure <engine> <players> --output <file> [--targets <file>] [--jobs <n>]
 ```
 
 `just check` runs the encoding check, the format check, the build and the tests, the same as CI. Run it before every commit. If `just check` doesn't find the runtime, set `DOTNET_ROOT` to the .NET install, like `C:\Program Files\dotnet`.

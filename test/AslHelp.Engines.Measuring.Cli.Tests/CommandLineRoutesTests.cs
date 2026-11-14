@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.CommandLine;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -166,22 +167,5 @@ public sealed class CommandLineRoutesTests
         CodeBuilder.WritePe(path, builder.Build());
 
         return path;
-    }
-}
-
-// Returns the measurement that the test builds for each player folder.
-file sealed class ScriptedMeasurer(
-    Func<string, PlayerMeasurement> measure) : IEngineMeasurer
-{
-    public string Name => "engine";
-
-    public Result LoadTargets(string? path)
-    {
-        return Result.Ok();
-    }
-
-    public Task<Result<PlayerMeasurement>> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<Result<PlayerMeasurement>>(measure(playerDirectory));
     }
 }

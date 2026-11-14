@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="EngineDescription" xml:space="preserve">
-    <value>The engine of the players.</value>
+    <value>Measures the players of {0}.</value>
   </data>
   <data name="ExecutableMachineUnsupported" xml:space="preserve">
     <value>'{0}' is not an x86 or x64 executable.</value>
@@ -21,17 +21,29 @@
   <data name="ExecutableNotPe" xml:space="preserve">
     <value>'{0}' is not a PE file.</value>
   </data>
+  <data name="JobsBelowOne" xml:space="preserve">
+    <value>--jobs has to be 1 or more.</value>
+  </data>
+  <data name="JobsDescription" xml:space="preserve">
+    <value>The most players to measure at once. Default is the limit of the engine.</value>
+  </data>
+  <data name="OffsetKeyMalformed" xml:space="preserve">
+    <value>Offset '{0}' is not of the form Type.Member.</value>
+  </data>
   <data name="OutputDescription" xml:space="preserve">
     <value>The file for the report.</value>
   </data>
   <data name="PlayersDescription" xml:space="preserve">
     <value>The folder with the players that the fixtures command line built.</value>
   </data>
+  <data name="PlayersSameVersion" xml:space="preserve">
+    <value>Version {0} has more than 1 player folder: {1}. Keep 1 of them.</value>
+  </data>
   <data name="RootDescription" xml:space="preserve">
-    <value>Runs the fixture players of an engine and writes a report.</value>
+    <value>Measures the fixture players of an engine and writes a report.</value>
   </data>
   <data name="TargetsDescription" xml:space="preserve">
-    <value>The file with the globals to find. Replaces the list built into the command.</value>
+    <value>The file with the values to find. Replaces the list built into the command.</value>
   </data>
   <data name="UncoveredNoCandidate" xml:space="preserve">
     <value>No signature of the group reaches 1 RVA of the global.</value>

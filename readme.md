@@ -167,15 +167,16 @@ A player's key comes from the player id, the manifest sha1, the image tag, the p
 ## Measuring
 
 ```
-just measure <engine> <players> --output <file> [--targets <file>]
+just measure <engine> <players> --output <file> [--targets <file>] [--jobs <n>]
 ```
 
 | Argument | Value |
 |---|---|
 | `<engine>` | The engine of the players, such as `unreal3`. |
-| `<players>` | The folder with the `<engine>-<version>-<hash>` players that `just fixtures build` made. |
+| `<players>` | The folder with the `<engine>-<version>-<hash>` players from `just fixtures build`. Keep 1 folder per version. |
 | `--output` | The file for the JSON report. |
-| `--targets` | The file with the globals to find. It replaces the list built into the command, so a change needs no rebuild. |
+| `--jobs`, `-j` | How many players to measure at once, 1 or more. The default is the engine's limit, which is 1 for `unreal3`. A higher value gets lowered to the limit with a warning. Lower it if you run short on memory. |
+| `--targets` | The file with the values to find. It replaces the built-in list, so you can change it without a rebuild. |
 
 The command runs each player on the current machine in version order until its fixture game is ready, reads the player's memory and writes 1 row per player into the report. It logs each step to the console with the time and the level, with the steps of a player indented under its start line. Errors go to stderr.
 
@@ -193,7 +194,7 @@ The command runs each player on the current machine in version order until its f
 2026-11-06 14:21:20 info: measure[15]     => routes (0.8 s)
 ```
 
-A player that fails gets its error in its row and the run goes on, so the command exits with 1 at the end. The error lists each step that failed down to the memory read. The command deletes the log of each player afterward. A canceled run writes no report. A bad targets file fails before the 1st player starts.
+If a player fails, its row gets the error and the run keeps going, but the command exits with 1 at the end. The error lists each step that failed, down to the memory read. A bug in the measurer fails the row the same way and logs the whole exception. The command deletes each player's log afterward. If you cancel a run, it doesn't write a report. A bad targets file fails before the 1st player starts.
 
 A row has the version and 3 maps:
 
@@ -223,9 +224,9 @@ A failed row has `error` and none of the maps. Numbers are hex strings:
 }
 ```
 
-The report has a `groups` list after `players`. A group has its `versions` and their `offsets` in the same form as a row. 2 versions share a group when they have the same types, members and values, even with another version between them. The comparison ignores the globals. A member in `unmeasured` is missing from `offsets`, so its row stays apart from rows that have that member.
+After `players`, the report has a `groups` list. Each group has its `versions` and their `offsets` in the same form as a row. 2 versions end up in the same group when they have the same types, members and values, even if another version sits between them. The comparison skips the globals and any offsets the engine doesn't need. The `offsets` of a group leave those out too. A member in `unmeasured` is missing from `offsets`, so its row stays apart from rows that do have that member.
 
-A failed row and a row with empty `offsets` do not join a group. Every other row is in exactly 1 group, so a version with its own offsets forms a group of 1. The groups are in order of their 1st version and the versions of a group are in the order of the run. The command logs 1 line per group after the last player.
+Failed rows and rows with empty `offsets` and empty `globals` don't join a group. Every other row is in exactly 1 group, so a version whose offsets don't match any other version gets a group of its own. Groups are sorted by their 1st version and the versions in a group keep the order of the run. After the last player, the command logs 1 line per group.
 
 ```json
 "groups": [

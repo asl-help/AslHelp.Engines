@@ -35,6 +35,12 @@ internal sealed class MeasureConsoleFormatter() : ConsoleFormatter(FormatterName
             string.Create(
                 CultureInfo.InvariantCulture,
                 $"{time} {Tag(logEntry.LogLevel)}: {logEntry.Category}[{logEntry.EventId.Id}] {indent}{message}"));
+
+        // Write the whole exception below the line, because a bug needs its stack and its inner exceptions.
+        if (logEntry.Exception is { } exception)
+        {
+            textWriter.WriteLine(exception.ToString());
+        }
     }
 
     private static string Tag(LogLevel level)

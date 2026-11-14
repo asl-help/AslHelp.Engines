@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using NUnit.Framework;
+using System.Collections.Generic;
+using System.CommandLine;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -40,7 +42,7 @@ public sealed class CommandLineFailureTests
     {
         const string Message = "Can't read '{0}' at {address} フ {{x}}.";
 
-        int code = await RunAsync(new FailingMeasurer(measureError: Message));
+        int code = await RunAsync(new ScriptedMeasurer(static _ => new TextError(Message)));
 
         using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
 
@@ -58,7 +60,7 @@ public sealed class CommandLineFailureTests
     {
         const string Message = "'{0}' is not valid at {path}.";
 
-        int code = await RunAsync(new FailingMeasurer(targetsError: Message));
+        int code = await RunAsync(new ScriptedMeasurer(static _ => new TextError("not measured")) { TargetsError = Message });
 
         using (Assert.EnterMultipleScope())
         {
@@ -71,7 +73,7 @@ public sealed class CommandLineFailureTests
     [Test]
     public async Task RunAsync_FailedResultWithEmptyMessage_FailsTheRow()
     {
-        int code = await RunAsync(new FailingMeasurer(measureError: string.Empty));
+        int code = await RunAsync(new ScriptedMeasurer(static _ => new TextError(string.Empty)));
 
         using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
         var root = report.RootElement;
@@ -87,22 +89,5 @@ public sealed class CommandLineFailureTests
     private Task<int> RunAsync(IEngineMeasurer measurer)
     {
         return CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [measurer], new WriterLogger(_output, _error));
-    }
-}
-
-file sealed class FailingMeasurer(
-    string? targetsError = null,
-    string? measureError = null) : IEngineMeasurer
-{
-    public string Name => "engine";
-
-    public Result LoadTargets(string? path)
-    {
-        return targetsError is null ? Result.Ok() : new TextError(targetsError);
-    }
-
-    public Task<Result<PlayerMeasurement>> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
-    {
-        return Task.FromResult<Result<PlayerMeasurement>>(new TextError(measureError!));
     }
 }

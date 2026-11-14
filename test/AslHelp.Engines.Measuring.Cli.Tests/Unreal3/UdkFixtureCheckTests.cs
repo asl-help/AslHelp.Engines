@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 
 namespace AslHelp.Engines.Measuring.Cli.Tests.Unreal3;
 
@@ -225,7 +226,14 @@ public sealed class UdkFixtureCheckTests(
         using StringWriter output = new();
         using StringWriter error = new();
 
-        _ = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", new WriterLogger(output, error)).Unwrap();
+        _ = UdkMeasurement.Measure(
+            _image.Memory,
+            FakeImage.Base,
+            _image.Sections,
+            _targets,
+            "file.bin",
+            new WriterLogger(output, error),
+            CancellationToken.None).Unwrap();
 
         string[] lines = output.ToString().Split(Environment.NewLine);
 
@@ -245,7 +253,14 @@ public sealed class UdkFixtureCheckTests(
 
         _image.Memory.WriteInt32(_image.FixtureInstance + FixtureValueOffset(), 0);
 
-        var result = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", new WriterLogger(output, error));
+        var result = UdkMeasurement.Measure(
+            _image.Memory,
+            FakeImage.Base,
+            _image.Sections,
+            _targets,
+            "file.bin",
+            new WriterLogger(output, error),
+            CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -263,7 +278,14 @@ public sealed class UdkFixtureCheckTests(
         _image.Memory.WriteInt32(_image.FixtureInstance + FixtureValueOffset(), 0);
 
         Assert.That(
-            UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, "file.bin", NullLogger.Instance).UnwrapErr().Message,
+            UdkMeasurement.Measure(
+                _image.Memory,
+                FakeImage.Base,
+                _image.Sections,
+                targets,
+                "file.bin",
+                NullLogger.Instance,
+                CancellationToken.None).UnwrapErr().Message,
             Is.EqualTo(UdkSR.FormatFixtureValueWrong(UdkFixtureCheck.ExpectedValue, 0)));
     }
 
@@ -313,7 +335,14 @@ public sealed class UdkFixtureCheckTests(
 
     private Result<PlayerMeasurement> Measure()
     {
-        return UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", NullLogger.Instance);
+        return UdkMeasurement.Measure(
+            _image.Memory,
+            FakeImage.Base,
+            _image.Sections,
+            _targets,
+            "file.bin",
+            NullLogger.Instance,
+            CancellationToken.None);
     }
 
     private string MeasureError()
@@ -326,7 +355,14 @@ public sealed class UdkFixtureCheckTests(
         using StringWriter output = new();
         using StringWriter error = new();
 
-        _ = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", new WriterLogger(output, error)).Unwrap();
+        _ = UdkMeasurement.Measure(
+            _image.Memory,
+            FakeImage.Base,
+            _image.Sections,
+            _targets,
+            "file.bin",
+            new WriterLogger(output, error),
+            CancellationToken.None).Unwrap();
 
         return output.ToString();
     }

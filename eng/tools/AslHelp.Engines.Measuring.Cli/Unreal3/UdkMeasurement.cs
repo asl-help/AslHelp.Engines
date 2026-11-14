@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace AslHelp.Engines.Measuring.Cli.Unreal3;
 
@@ -21,6 +22,7 @@ internal static class UdkMeasurement
     /// <param name="targets">The targets by global, with exactly 1 name array and 1 object array.</param>
     /// <param name="executablePath">The file of the executable of the player.</param>
     /// <param name="logger">The logger for the steps of the measurement.</param>
+    /// <param name="cancellationToken">The token that stops the measurement before the next phase or target.</param>
     /// <returns>
     ///     The globals and the offsets found and the reason for each global or member that was not found
     ///     or a failure when an array, the name, class or outer offset or a class of the super chain was not found,
@@ -32,7 +34,8 @@ internal static class UdkMeasurement
         IReadOnlyList<UdkSection> sections,
         IReadOnlyDictionary<string, UdkTarget> targets,
         string executablePath,
-        ILogger logger)
+        ILogger logger,
+        CancellationToken cancellationToken)
     {
         var firstNames = targets.Values.OfType<UdkNameArrayTarget>().Single().FirstNames;
 
@@ -43,6 +46,7 @@ internal static class UdkMeasurement
 
         string nameRvas = FormatRvas(names.Rvas);
         logger.NameArrayFound(nameRvas);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (!UdkArrays.FindObjects(memory, moduleBase, sections, names.Rvas).TryUnwrap(out var objects, out error))
         {
@@ -51,6 +55,7 @@ internal static class UdkMeasurement
 
         string objectRvas = FormatRvas(objects.Rvas);
         logger.ObjectArrayFound(objects.Pointers.Count, objectRvas);
+        cancellationToken.ThrowIfCancellationRequested();
 
         Dictionary<string, int> offsets = [];
         Dictionary<string, string> unmeasured = [];
@@ -61,6 +66,7 @@ internal static class UdkMeasurement
         }
 
         logger.OffsetsFound(offsets.Count);
+        cancellationToken.ThrowIfCancellationRequested();
 
         if (UdkFixtureCheck.Run(memory, measured, offsets, logger).TryUnwrapErr(out error))
         {
@@ -72,6 +78,8 @@ internal static class UdkMeasurement
 
         foreach ((string global, var target) in targets)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             switch (target)
             {
                 case UdkNameArrayTarget:

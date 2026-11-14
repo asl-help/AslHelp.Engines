@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace AslHelp.Engines.Measuring.Cli.Tests.Unreal3;
 
@@ -136,12 +137,26 @@ public sealed class UdkFailureTests(
     public void Measure_NoSections_FailsNameArrayNotFound()
     {
         Assert.That(
-            UdkMeasurement.Measure(_image.Memory, FakeImage.Base, [], _targets, "file.bin", NullLogger.Instance).UnwrapErr().Message,
+            UdkMeasurement.Measure(
+                _image.Memory,
+                FakeImage.Base,
+                [],
+                _targets,
+                "file.bin",
+                NullLogger.Instance,
+                CancellationToken.None).UnwrapErr().Message,
             Is.EqualTo(UdkSR.FormatNameArrayNotFound(FirstNames[0], FirstNames[1])));
     }
 
     private Result<PlayerMeasurement> Measure()
     {
-        return UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", NullLogger.Instance);
+        return UdkMeasurement.Measure(
+            _image.Memory,
+            FakeImage.Base,
+            _image.Sections,
+            _targets,
+            "file.bin",
+            NullLogger.Instance,
+            CancellationToken.None);
     }
 }

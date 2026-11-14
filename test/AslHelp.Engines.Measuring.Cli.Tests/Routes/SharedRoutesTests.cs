@@ -371,7 +371,7 @@ public sealed class SharedRoutesTests
 
     private static string Json(IReadOnlyDictionary<string, GlobalRoutes> routes)
     {
-        VersionGroup group = new(["a"], new Dictionary<string, IReadOnlyDictionary<string, string>>(), routes);
+        VersionGroup group = new(null, ["a"], new Dictionary<string, IReadOnlyDictionary<string, string>>(), null, routes);
 
         return JsonSerializer.Serialize(new MeasureReport("engine", [], [group]), MeasureReportContext.Default.MeasureReport);
     }

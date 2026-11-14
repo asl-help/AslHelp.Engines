@@ -97,4 +97,13 @@ internal static partial class MeasureLog
 
     [LoggerMessage(EventId = 15, Level = LogLevel.Information, Message = "routes ({Seconds:F1} s)")]
     public static partial void RoutesDone(this ILogger logger, double seconds);
+
+    [LoggerMessage(EventId = 16, Level = LogLevel.Information, Message = "[{Key}: {Versions}]")]
+    public static partial void KeyedGroup(this ILogger logger, string key, string versions);
+
+    [LoggerMessage(EventId = 17, Level = LogLevel.Error, Message = "unexpected: {Type}")]
+    public static partial void Unexpected(this ILogger logger, Exception exception, string type);
+
+    [LoggerMessage(EventId = 18, Level = LogLevel.Warning, Message = "jobs: {Jobs}, requested: {Requested}")]
+    public static partial void JobsLowered(this ILogger logger, int jobs, int requested);
 }

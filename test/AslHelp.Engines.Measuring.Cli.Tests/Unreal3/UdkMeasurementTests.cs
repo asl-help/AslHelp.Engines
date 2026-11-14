@@ -7,6 +7,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace AslHelp.Engines.Measuring.Cli.Tests.Unreal3;
 
@@ -146,7 +147,14 @@ public sealed class UdkMeasurementTests(
         Dictionary<string, UdkTarget> targets = new() { [Names] = new UdkNameArrayTarget(firstNames), [Objects] = new UdkObjectArrayTarget() };
 
         Assert.That(
-            UdkMeasurement.Measure(image.Memory, FakeImage.Base, image.Sections, targets, "file.bin", NullLogger.Instance).UnwrapErr().Message,
+            UdkMeasurement.Measure(
+                image.Memory,
+                FakeImage.Base,
+                image.Sections,
+                targets,
+                "file.bin",
+                NullLogger.Instance,
+                CancellationToken.None).UnwrapErr().Message,
             Is.EqualTo(UdkSR.FormatNameArrayNotFound(firstNames[0], firstNames[1])));
     }
 
@@ -239,6 +247,22 @@ public sealed class UdkMeasurementTests(
         }
     }
 
+    // A canceled token stops the measurement, so Ctrl+C doesn't wait for the searches.
+    [Test]
+    public void Measure_CanceledToken_ThrowsOperationCanceledException()
+    {
+        Assert.That(
+            () => UdkMeasurement.Measure(
+                _image.Memory,
+                FakeImage.Base,
+                _image.Sections,
+                _targets,
+                "file.bin",
+                NullLogger.Instance,
+                new CancellationToken(canceled: true)),
+            Throws.InstanceOf<System.OperationCanceledException>());
+    }
+
     // 1337 goes to the log with the address it came from, so a run shows which object passed.
     [Test]
     public void Measure_FixtureValueRight_LogsIt()
@@ -246,7 +270,14 @@ public sealed class UdkMeasurementTests(
         using StringWriter output = new();
         using StringWriter error = new();
 
-        _ = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", new WriterLogger(output, error)).Unwrap();
+        _ = UdkMeasurement.Measure(
+            _image.Memory,
+            FakeImage.Base,
+            _image.Sections,
+            _targets,
+            "file.bin",
+            new WriterLogger(output, error),
+            CancellationToken.None).Unwrap();
 
         Assert.That(output.ToString(), Does.Contain($"FixtureData.IntValue: 1337 at {_image.FixtureInstance}"));
     }
@@ -425,7 +456,14 @@ public sealed class UdkMeasurementTests(
     {
         var targets = WithoutSlots();
 
-        var measurement = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, "file.bin", NullLogger.Instance).Unwrap();
+        var measurement = UdkMeasurement.Measure(
+            _image.Memory,
+            FakeImage.Base,
+            _image.Sections,
+            targets,
+            "file.bin",
+            NullLogger.Instance,
+            CancellationToken.None).Unwrap();
 
         string[] expected = [Names, Objects];
 
@@ -848,7 +886,14 @@ public sealed class UdkMeasurementTests(
         var targets = WithoutSlots();
         targets[World] = new UdkObjectSlotTarget("World", "theworld");
 
-        var measurement = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, "file.bin", NullLogger.Instance).Unwrap();
+        var measurement = UdkMeasurement.Measure(
+            _image.Memory,
+            FakeImage.Base,
+            _image.Sections,
+            targets,
+            "file.bin",
+            NullLogger.Instance,
+            CancellationToken.None).Unwrap();
 
         Assert.That(measurement.Unmeasured[World], Is.EqualTo(UdkSR.FormatUnmeasuredSlot("World")));
     }
@@ -860,7 +905,14 @@ public sealed class UdkMeasurementTests(
         var world = _image.Memory.ReadPointer(FakeImage.Base + _image.WorldSlotRva).Unwrap();
         _image.Memory.WriteInt32(world + layout.Name + sizeof(int), 1);
 
-        var measurement = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, _targets, "file.bin", NullLogger.Instance).Unwrap();
+        var measurement = UdkMeasurement.Measure(
+            _image.Memory,
+            FakeImage.Base,
+            _image.Sections,
+            _targets,
+            "file.bin",
+            NullLogger.Instance,
+            CancellationToken.None).Unwrap();
 
         Assert.That(measurement.Unmeasured[World], Is.EqualTo(UdkSR.FormatUnmeasuredSlot("World")));
     }
@@ -872,14 +924,28 @@ public sealed class UdkMeasurementTests(
         var targets = WithoutSlots();
         targets[Engine] = new UdkObjectSlotTarget("Missing");
 
-        var measurement = UdkMeasurement.Measure(_image.Memory, FakeImage.Base, _image.Sections, targets, "file.bin", NullLogger.Instance).Unwrap();
+        var measurement = UdkMeasurement.Measure(
+            _image.Memory,
+            FakeImage.Base,
+            _image.Sections,
+            targets,
+            "file.bin",
+            NullLogger.Instance,
+            CancellationToken.None).Unwrap();
 
         Assert.That(measurement.Unmeasured[Engine], Is.EqualTo(UdkSR.FormatUnmeasuredSlot("Missing")));
     }
 
     private static Result<PlayerMeasurement> Measure(FakeImage image)
     {
-        return UdkMeasurement.Measure(image.Memory, FakeImage.Base, image.Sections, _targets, "file.bin", NullLogger.Instance);
+        return UdkMeasurement.Measure(
+            image.Memory,
+            FakeImage.Base,
+            image.Sections,
+            _targets,
+            "file.bin",
+            NullLogger.Instance,
+            CancellationToken.None);
     }
 
     private static uint[] Rvas(params uint[] rvas)

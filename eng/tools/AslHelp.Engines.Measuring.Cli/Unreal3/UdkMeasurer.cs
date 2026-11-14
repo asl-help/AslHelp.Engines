@@ -5,6 +5,7 @@ using AslHelp.Memory.Remote;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
+using System.CommandLine;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -20,6 +21,15 @@ internal sealed class UdkMeasurer : IEngineMeasurer
 {
     /// <inheritdoc/>
     public string Name => "unreal3";
+
+    /// <inheritdoc/>
+    public IReadOnlyList<Option> Options => [];
+
+    /// <inheritdoc/>
+    /// <remarks>
+    ///     Measures 1 player at a time, because each player runs a server under the machine-wide lock.
+    /// </remarks>
+    public int MaxDegreeOfParallelism => 1;
 
     /// <summary>
     ///     Gets the globals to find, which <see cref="LoadTargets"/> sets.
@@ -42,26 +52,44 @@ internal sealed class UdkMeasurer : IEngineMeasurer
     }
 
     /// <inheritdoc/>
-    public async Task<Result<PlayerMeasurement>> MeasureAsync(string playerDirectory, ILogger logger, CancellationToken cancellationToken)
+    public IReadOnlyList<PlayerFolder> SelectPlayers(IReadOnlyList<PlayerFolder> players, ParseResult parseResult, ILogger logger)
+    {
+        return players;
+    }
+
+    /// <inheritdoc/>
+    public string? GroupOf(string version)
+    {
+        return null;
+    }
+
+    /// <inheritdoc/>
+    public bool IsNeeded(string type, string member)
+    {
+        return true;
+    }
+
+    /// <inheritdoc/>
+    public async Task<Result<PlayerMeasurement>> MeasureAsync(PlayerFolder player, ILogger logger, CancellationToken cancellationToken)
     {
         long started = Stopwatch.GetTimestamp();
 
-        using var player = await UdkPlayer.StartAsync(playerDirectory, cancellationToken).ConfigureAwait(false);
-        using RemoteProcessMemory memory = new(player.Process);
+        using var server = await UdkPlayer.StartAsync(player.Directory, cancellationToken).ConfigureAwait(false);
+        using RemoteProcessMemory memory = new(server.Process);
 
         var startup = Stopwatch.GetElapsedTime(started);
         logger.ServerReady(startup.TotalSeconds);
 
-        var measurement = Measure(memory, playerDirectory, logger);
+        var measurement = Measure(memory, player.Directory, logger, cancellationToken);
 
         // Fail the row, because the members of a server that dies during the searches end up in unmeasured with the wrong reason.
         // Put the exit first, because a dead server does not have a module and its sections read as zeros, which fail the search.
-        return player.Process.HasExited
-            ? UdkPlayerError.PlayerExitedDuringMeasurement(player.Process.ExitCode, measurement.Error)
+        return server.Process.HasExited
+            ? UdkPlayerError.PlayerExitedDuringMeasurement(server.Process.ExitCode, measurement.Error)
             : measurement;
     }
 
-    private Result<PlayerMeasurement> Measure(RemoteProcessMemory memory, string playerDirectory, ILogger logger)
+    private Result<PlayerMeasurement> Measure(RemoteProcessMemory memory, string playerDirectory, ILogger logger, CancellationToken cancellationToken)
     {
         if (!memory.GetModule(UdkInstall.ExecutableName).TryUnwrap(out var module, out var moduleError))
         {
@@ -79,6 +107,6 @@ internal sealed class UdkMeasurer : IEngineMeasurer
         int sectionBytes = sections.Sum(static section => section.Bytes.Length);
         logger.SectionsRead(sections.Count, sectionBytes);
 
-        return UdkMeasurement.Measure(memory, moduleBase, sections, Targets, executablePath, logger);
+        return UdkMeasurement.Measure(memory, moduleBase, sections, Targets, executablePath, logger, cancellationToken);
     }
 }

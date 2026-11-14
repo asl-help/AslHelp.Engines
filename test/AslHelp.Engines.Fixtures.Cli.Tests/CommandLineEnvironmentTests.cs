@@ -1,7 +1,6 @@
 using AslHelp.Engines.Fixtures.Cli.Transfer;
 using NUnit.Framework;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -14,8 +13,7 @@ public sealed class CommandLineEnvironmentTests
 
     private static readonly string[] _variables = [DavStore.UrlVariable, DavStore.UserVariable, DavStore.TokenVariable];
 
-    private readonly Dictionary<string, string?> _saved = [];
-
+    private EnvironmentVariableScope _environment = null!;
     private TestFolder _folder = null!;
     private string _output = null!;
     private string _projects = null!;
@@ -23,10 +21,11 @@ public sealed class CommandLineEnvironmentTests
     [SetUp]
     public void SetUp()
     {
+        _environment = new EnvironmentVariableScope(_variables);
+
         // Clear the variables, because a machine can have the real ones set and no test may reach the real store.
         foreach (string variable in _variables)
         {
-            _saved[variable] = Environment.GetEnvironmentVariable(variable);
             Environment.SetEnvironmentVariable(variable, null);
         }
 
@@ -40,11 +39,7 @@ public sealed class CommandLineEnvironmentTests
     [TearDown]
     public void TearDown()
     {
-        foreach ((string variable, string? value) in _saved)
-        {
-            Environment.SetEnvironmentVariable(variable, value);
-        }
-
+        _environment.Dispose();
         _folder.Delete();
     }
 

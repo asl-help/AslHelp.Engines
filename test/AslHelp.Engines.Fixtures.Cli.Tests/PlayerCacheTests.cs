@@ -392,10 +392,36 @@ public sealed class PlayerCacheTests
         }
     }
 
-    // A store copy that is cut short fails with players/<toolchain>/<version>/<hash>.tar.zst and the word store in the message,
-    // keeps the reason of the failed unpack as the cause, deletes the download and doesn't send any other request to the store.
+    // An archive beside the player folder is left from a failed upload, so a hit uploads it and the manifest and deletes it.
     [Test]
-    public async Task TryRestoreAsync_StoreArchiveCutShort_ThrowsWithStorePathAndDeletesDownload()
+    public async Task TryRestoreAsync_LocalFolderWithLeftoverArchive_UploadsItAndDeletesIt()
+    {
+        var key = PlayerCache.KeyOf(new FakeToolchain("player"), "1.0", _project);
+        string output = _folder.NewFolder();
+        FakeCacheStore failing = new() { FailingCall = $"Upload {RemotePath(key, ".tar.zst")}" };
+        PlayerCache firstRun = new(failing, output, TextWriter.Null, QuietBars());
+        _ = await Assert.ThrowsAsync<IOException>(() => firstRun.StoreAsync(key, NewInstall(), CancellationToken.None));
+
+        FakeCacheStore store = new();
+        PlayerCache cache = new(store, output, TextWriter.Null, QuietBars());
+
+        string? player = await cache.TryRestoreAsync(key, CancellationToken.None);
+
+        string[] calls = [$"Upload {RemotePath(key, ".tar.zst")}", $"Upload {RemotePath(key, ".json")}"];
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(player, Is.EqualTo(PlayerPath(output, key)));
+            Assert.That(store.Calls, Is.EqualTo(calls));
+            Assert.That(store.Files[RemotePath(key, ".json")], Is.EqualTo(await File.ReadAllBytesAsync(Path.Combine(player!, "manifest.json"))));
+            Assert.That(File.Exists(player + ".tar.zst"), Is.False);
+        }
+    }
+
+    // A store copy that is cut short counts as a miss with a line that has players/<toolchain>/<version>/<hash>.tar.zst in it,
+    // so the build makes the player again. It deletes the download and doesn't send any other request to the store.
+    [Test]
+    public async Task TryRestoreAsync_StoreArchiveCutShort_MissesWithLineAndDeletesDownload()
     {
         var key = PlayerCache.KeyOf(new FakeToolchain("player"), "1.0", _project);
         string remote = RemotePath(key, ".tar.zst");
@@ -410,16 +436,17 @@ public sealed class PlayerCacheTests
         string output = _folder.NewFolder();
         string player = PlayerPath(output, key);
         string archive = player + ".tar.zst";
-        PlayerCache cache = new(store, output, TextWriter.Null, QuietBars());
+        using StringWriter lines = new();
+        PlayerCache cache = new(store, output, lines, QuietBars());
 
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => cache.TryRestoreAsync(key, CancellationToken.None));
+        string? restored = await cache.TryRestoreAsync(key, CancellationToken.None);
 
         string[] calls = [$"Download {remote}"];
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(exception.Message, Does.Contain(remote).And.Contain("store"));
-            Assert.That(exception.InnerException, Is.TypeOf<EndOfStreamException>());
+            Assert.That(restored, Is.Null);
+            Assert.That(lines.ToString(), Does.Contain($"Store copy damaged: {remote} ("));
             Assert.That(File.Exists(archive), Is.False);
             Assert.That(Directory.Exists(player), Is.False);
             Assert.That(Directory.Exists(player + ".partial"), Is.False);
@@ -428,9 +455,38 @@ public sealed class PlayerCacheTests
         }
     }
 
-    // A download that another process keeps open without delete share stays on disk and the message still has the store path in it.
+    // An unpack that fails for a reason other than a damaged archive deletes the download too, because it takes tens of GB.
     [Test]
-    public async Task TryRestoreAsync_StoreArchiveCutShortAndDownloadLocked_ThrowsWithStorePath()
+    public async Task TryRestoreAsync_UnpackFailsWithIOException_DeletesDownloadAndThrows()
+    {
+        var key = PlayerCache.KeyOf(new FakeToolchain("player"), "1.0", _project);
+        string remote = RemotePath(key, ".tar.zst");
+
+        string packed = Path.Combine(_folder.NewFolder(), "file.tar.zst");
+        Archive.Pack(_project, packed);
+
+        FakeCacheStore store = new();
+        store.Files[remote] = await File.ReadAllBytesAsync(packed);
+
+        string output = _folder.NewFolder();
+        string player = PlayerPath(output, key);
+        PlayerCache cache = new(store, output, TextWriter.Null, QuietBars());
+
+        // Put a file where the unpack creates its temp folder, so the unpack fails before any entry.
+        await File.WriteAllBytesAsync(player + ".partial", [1]);
+
+        _ = await Assert.ThrowsAsync<IOException>(() => cache.TryRestoreAsync(key, CancellationToken.None));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(File.Exists(player + ".tar.zst"), Is.False);
+            Assert.That(Directory.Exists(player), Is.False);
+        }
+    }
+
+    // A download that another process keeps open without delete share stays on disk and the store copy still counts as a miss.
+    [Test]
+    public async Task TryRestoreAsync_StoreArchiveCutShortAndDownloadLocked_Misses()
     {
         var key = PlayerCache.KeyOf(new FakeToolchain("player"), "1.0", _project);
         string remote = RemotePath(key, ".tar.zst");
@@ -446,11 +502,11 @@ public sealed class PlayerCacheTests
         string archive = PlayerPath(output, key) + ".tar.zst";
         PlayerCache cache = new(store, output, TextWriter.Null, QuietBars());
 
-        var exception = await Assert.ThrowsAsync<InvalidDataException>(() => cache.TryRestoreAsync(key, CancellationToken.None));
+        string? restored = await cache.TryRestoreAsync(key, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(exception.Message, Does.Contain(remote));
+            Assert.That(restored, Is.Null);
             Assert.That(File.Exists(archive), Is.True);
         }
     }

@@ -279,9 +279,9 @@ public sealed class CommandLineEdgeCaseTests
         }
     }
 
-    // The next run after a failed upload finds the folder, doesn't upload it again and builds only the other player.
+    // The next run after a failed upload finds the folder, uploads its leftover archive and builds only the other player.
     [Test]
-    public async Task RunAsync_BuildAfterFailedUpload_FindsThe1stAndBuildsThe2nd()
+    public async Task RunAsync_BuildAfterFailedUpload_UploadsThe1stAndBuildsThe2nd()
     {
         using StringWriter firstOutput = new();
         using StringWriter secondOutput = new();
@@ -297,6 +297,8 @@ public sealed class CommandLineEdgeCaseTests
         _store = new();
         string[] storeCalls =
         [
+            $"Upload {RemotePath(rerun, "1.0-a")}",
+            $"Upload {RemotePath(rerun, "1.0-a", ".json")}",
             $"Download {RemotePath(rerun, "1.0-b")}",
             $"Upload {RemotePath(rerun, "1.0-b")}",
             $"Upload {RemotePath(rerun, "1.0-b", ".json")}",
@@ -308,12 +310,12 @@ public sealed class CommandLineEdgeCaseTests
         {
             Assert.That(code, Is.Zero);
             Assert.That(_store.Calls, Is.EqualTo(storeCalls));
-            Assert.That(File.Exists(first + ".tar.zst"), Is.True);
+            Assert.That(File.Exists(first + ".tar.zst"), Is.False);
             Assert.That(LastLines(secondOutput, 2), Is.EqualTo([first, second]));
         }
     }
 
-    // After a failed upload the readme's way to build again is to delete the folder, so the old archive can't stop the new pack.
+    // A folder deleted after a failed upload builds again, because the old archive beside it doesn't stop the new pack.
     [Test]
     public async Task RunAsync_BuildAfterFailedUploadAndDeletedFolder_ReplacesTheOldArchive()
     {
@@ -344,9 +346,9 @@ public sealed class CommandLineEdgeCaseTests
         }
     }
 
-    // A damaged 2nd archive stops the run before the install with the path of that archive and the 1st restored player stays.
+    // A damaged 2nd archive counts as a miss, so the run builds only the 2nd player and the 1st restored player stays.
     [Test]
-    public async Task RunAsync_BuildDamaged2ndArchive_KeepsThe1stAndSkipsTheInstall()
+    public async Task RunAsync_BuildDamaged2ndArchive_KeepsThe1stAndBuildsThe2nd()
     {
         using StringWriter output = new();
         using StringWriter error = new();
@@ -359,12 +361,11 @@ public sealed class CommandLineEdgeCaseTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(code, Is.EqualTo(1));
-            Assert.That(error.ToString(), Does.Contain(RemotePath(toolchain, "1.0-b")));
+            Assert.That(code, Is.Zero);
+            Assert.That(output.ToString(), Does.Contain($"Store copy damaged: {RemotePath(toolchain, "1.0-b")} ("));
             Assert.That(ReadFile(PlayerPath(toolchain, "1.0-a")), Is.EqualTo("stored"));
-            Assert.That(Directory.Exists(PlayerPath(toolchain, "1.0-b")), Is.False);
-            Assert.That(toolchain.Calls, Is.Empty);
-            Assert.That(Lines(output), Has.None.EqualTo(PlayerPath(toolchain, "1.0-a")));
+            Assert.That(Directory.Exists(PlayerPath(toolchain, "1.0-b")), Is.True);
+            Assert.That(toolchain.Calls, Has.Some.StartsWith("InstallAsync 1.0-b "));
         }
     }
 

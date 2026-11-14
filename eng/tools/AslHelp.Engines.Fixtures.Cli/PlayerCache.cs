@@ -94,25 +94,34 @@ internal sealed class PlayerCache(
     ///     Gets the player of <paramref name="key"/> from the output folder or downloads and unpacks it from the store.
     /// </summary>
     /// <remarks>
-    ///     An existing player folder sends no request. A hit needs the folder or the archive alone and never reads a manifest.
+    ///     An existing player folder sends no request, unless the archive of a failed upload sits beside it. That archive and the
+    ///     manifest go up then. A hit needs the folder or the archive alone and never reads a manifest.
+    ///     A store copy that is damaged, cut short or has a refused entry counts as a miss with a step line.
+    ///     The downloaded copy is deleted.
     /// </remarks>
     /// <param name="key">The key of the player.</param>
     /// <param name="cancellationToken">The token that stops the download.</param>
     /// <returns>
-    ///     The full path of the player folder or <see langword="null"/> when neither the output folder nor the store has the player.
+    ///     The full path of the player folder or <see langword="null"/> when neither the output folder nor the store has a
+    ///     good copy of the player.
     /// </returns>
-    /// <exception cref="IOException">The download or the unpack failed.</exception>
-    /// <exception cref="InvalidDataException">
-    ///     The archive in the store cannot be unpacked, because it is damaged, cut short or has a refused entry.
-    ///     The downloaded copy is deleted and the message has the store path in it.
+    /// <exception cref="IOException">
+    ///     The download, the unpack or the upload of a leftover archive failed. A failed unpack deletes the downloaded copy.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public async Task<string?> TryRestoreAsync(PlayerKey key, CancellationToken cancellationToken)
     {
         string player = PlayerPath(key);
+        string archive = ArchivePath(key);
 
         if (Directory.Exists(player))
         {
+            // Upload an archive beside the player, because it stays there only after a failed upload of an earlier run.
+            if (store is not null && File.Exists(archive))
+            {
+                await UploadAsync(store, key, player, archive, cancellationToken).ConfigureAwait(false);
+            }
+
             return player;
         }
 
@@ -122,7 +131,6 @@ internal sealed class PlayerCache(
         }
 
         string remote = RemotePath(key, ArchiveExtension);
-        string archive = ArchivePath(key);
 
         await output.WriteLineAsync(SR.FormatCacheDownloading(remote).AsMemory(), cancellationToken).ConfigureAwait(false);
 
@@ -146,12 +154,23 @@ internal sealed class PlayerCache(
         }
         catch (InvalidDataException exception)
         {
-            // Delete the download quietly, so a failed delete does not hide the store path and the disk gets its space back.
+            // Delete the download quietly, so a failed delete does not stop the rebuild and the disk gets its space back.
             TempPaths.DeleteFileQuietly(archive);
 
-            // Put the store path in the message, because a fresh download that fails to unpack means the store copy is bad.
-            // Keep the reason of the failed unpack as the cause and not the archive message, whose fix points at the deleted download.
-            throw new InvalidDataException(SR.FormatStoreCopyDamaged(remote), exception.InnerException ?? exception);
+            // Treat the damaged store copy as a miss, because a fresh download that fails to unpack means the store copy is bad
+            // and the upload after the rebuild replaces it. Print the reason of the failed unpack and not the archive message,
+            // whose fix points at the deleted download.
+            string reason = (exception.InnerException ?? exception).Message;
+            await output.WriteLineAsync(SR.FormatCacheDamaged(remote, reason).AsMemory(), cancellationToken).ConfigureAwait(false);
+
+            return null;
+        }
+        catch
+        {
+            // Delete the download on any other failure too, because it takes tens of GB and the next run downloads it again.
+            TempPaths.DeleteFileQuietly(archive);
+
+            throw;
         }
 
         // Delete quietly, because the player is complete and a scanner that has the archive open must not fail the run.
@@ -167,7 +186,8 @@ internal sealed class PlayerCache(
     /// <remarks>
     ///     The manifest is written before the move, so the player folder that later runs hit never lacks it. It is written
     ///     before the pack too, so the archive has it. The archive goes up first, so a manifest in the store always has
-    ///     its archive. The archive is deleted only after both uploads, so a failed upload keeps it for an upload by hand.
+    ///     its archive. The archive is deleted only after both uploads, so a failed upload keeps it for the next run, which uploads it
+    ///     on its hit of the player folder.
     /// </remarks>
     /// <param name="key">The key of the player.</param>
     /// <param name="playerDirectory">The checked folder of the player from <see cref="IToolchain.BuildAsync"/>.</param>
@@ -188,8 +208,6 @@ internal sealed class PlayerCache(
         await output.WriteLineAsync(SR.FormatCacheMoving(playerDirectory, player).AsMemory(), cancellationToken).ConfigureAwait(false);
         Directory.Move(playerDirectory, player);
 
-        string manifest = Path.Combine(player, ManifestFileName);
-
         if (store is null)
         {
             return player;
@@ -199,11 +217,31 @@ internal sealed class PlayerCache(
         cancellationToken.ThrowIfCancellationRequested();
 
         string archive = ArchivePath(key);
-        string remoteArchive = RemotePath(key, ArchiveExtension);
-        string remoteManifest = RemotePath(key, ManifestExtension);
 
         await output.WriteLineAsync(SR.FormatCachePacking(player, archive).AsMemory(), cancellationToken).ConfigureAwait(false);
         Archive.Pack(player, archive);
+
+        await UploadAsync(store, key, player, archive, cancellationToken).ConfigureAwait(false);
+
+        return player;
+    }
+
+    /// <summary>
+    ///     Uploads the archive of <paramref name="key"/> and then its manifest to the store and deletes the archive.
+    /// </summary>
+    /// <param name="store">The store.</param>
+    /// <param name="key">The key of the player.</param>
+    /// <param name="player">The player folder with the manifest.</param>
+    /// <param name="archive">The packed player.</param>
+    /// <param name="cancellationToken">The token that stops the upload.</param>
+    /// <returns>
+    ///     A task that completes once the store has both files.
+    /// </returns>
+    private async Task UploadAsync(ICacheStore store, PlayerKey key, string player, string archive, CancellationToken cancellationToken)
+    {
+        string manifest = Path.Combine(player, ManifestFileName);
+        string remoteArchive = RemotePath(key, ArchiveExtension);
+        string remoteManifest = RemotePath(key, ManifestExtension);
 
         await output.WriteLineAsync(SR.FormatCacheUploading(archive, remoteArchive).AsMemory(), cancellationToken).ConfigureAwait(false);
         await bars.ShowAsync(remoteArchive, progress => store.UploadAsync(archive, remoteArchive, progress, cancellationToken)).ConfigureAwait(false);
@@ -214,8 +252,6 @@ internal sealed class PlayerCache(
 
         // Delete quietly, because the player is complete and a scanner that has the archive open must not fail the run.
         TempPaths.DeleteFileQuietly(archive);
-
-        return player;
     }
 
     /// <summary>

@@ -57,6 +57,9 @@
   <data name="CabinetNoSignature" xml:space="preserve">
     <value>The cabinet does not start with MSCF.</value>
   </data>
+  <data name="CacheDamaged" xml:space="preserve">
+    <value>Store copy damaged: {0} ({1})</value>
+  </data>
   <data name="CacheDownloading" xml:space="preserve">
     <value>Downloading {0}</value>
   </data>
@@ -206,9 +209,6 @@
   </data>
   <data name="SeekOriginInvalid" xml:space="preserve">
     <value>Pass Begin, Current or End.</value>
-  </data>
-  <data name="StoreCopyDamaged" xml:space="preserve">
-    <value>The store copy '{0}' cannot be unpacked. Delete it from the store and build the player again.</value>
   </data>
   <data name="StorePathInvalid" xml:space="preserve">
     <value>The path '{0}' is not a relative '/' separated path. Pass a path like 'players/abc.tar.zst' with no empty, '.' or '..' segment.</value>

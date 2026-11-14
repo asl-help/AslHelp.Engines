@@ -473,30 +473,33 @@ public sealed class CommandLineTests
         }
     }
 
-    // A damaged archive in the store fails with the store path, deletes the download and leaves no player folder behind.
+    // A damaged archive in the store counts as a miss with a line that has the store path, so the run builds the player
+    // again and its upload replaces the damaged copy.
     [Test]
-    public async Task RunAsync_BuildDamagedArchive_FailsAndLeavesNoPlayerFolder()
+    public async Task RunAsync_BuildDamagedArchive_RebuildsAndReplacesTheStoreCopy()
     {
         using StringWriter output = new();
         using StringWriter error = new();
         FakeToolchain toolchain = new("player");
         FakeCacheStore store = new();
-        store.Files[RemotePath(toolchain)] = Encoding.ASCII.GetBytes("not a zstd frame");
+        byte[] damaged = Encoding.ASCII.GetBytes("not a zstd frame");
+        store.Files[RemotePath(toolchain)] = damaged;
         string player = PlayerPath(toolchain);
 
         int code = await RunBuildAsync(output, error, toolchain, store);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(code, Is.EqualTo(1));
-            Assert.That(error.ToString(), Does.Contain(RemotePath(toolchain)));
+            Assert.That(code, Is.Zero);
+            Assert.That(output.ToString(), Does.Contain($"Store copy damaged: {RemotePath(toolchain)} ("));
+            Assert.That(Directory.Exists(player), Is.True);
             Assert.That(File.Exists(player + ".tar.zst"), Is.False);
-            Assert.That(Directory.Exists(player), Is.False);
-            Assert.That(toolchain.Calls, Is.Empty);
+            Assert.That(store.Files[RemotePath(toolchain)], Is.Not.EqualTo(damaged));
+            Assert.That(toolchain.Calls, Is.Not.Empty);
         }
     }
 
-    // A failed upload keeps the player and its archive, so the archive can be uploaded by hand.
+    // A failed upload keeps the player and its archive, so the next run uploads the archive.
     [Test]
     public async Task RunAsync_BuildUploadFails_FailsAndKeepsPlayerAndArchive()
     {

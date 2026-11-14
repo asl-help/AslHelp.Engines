@@ -54,13 +54,11 @@ The manifest lists every input of the key, so you can see why 2 keys are differe
 
 For each player, the build checks these in order:
 
-1. If `<output>/<toolchain>-<version>-<hash>` exists, it is the player. Nothing is sent over the network.
-2. If the store has `players/<toolchain>/<version>/<hash>.tar.zst`, the build downloads it to `<output>/<toolchain>-<version>-<hash>.tar.zst`, unpacks it into `<output>/<toolchain>-<version>-<hash>` and deletes the archive. It doesn't rebuild the player.
+1. If `<output>/<toolchain>-<version>-<hash>` already exists, that's the player.
+2. If the store has the player, the build downloads and unpacks it. If unpacking fails, it treats the store copy as missing.
 3. Otherwise it installs the toolchain once, builds all the players that neither the folder nor the store has in 1 pass and checks each one. It writes `manifest.json` into each built folder and moves that folder to `<output>/<toolchain>-<version>-<hash>`. Then it packs the folder into `<output>/<toolchain>-<version>-<hash>.tar.zst`, uploads that to `players/<toolchain>/<version>/<hash>.tar.zst`, uploads the manifest to `<hash>.json` next to it and deletes the archive.
 
-The archive goes up before the manifest, so a manifest in the store always has its archive. A failed upload keeps the player folder and the archive. The next run finds the folder and does not upload again, so upload the archive and the manifest by hand or delete the folder to build again.
-
-A damaged or cut short `players/<toolchain>/<version>/<hash>.tar.zst` fails the build with that path. The build deletes its download. Delete the file from the store and build again, so the next run builds and uploads the player.
+If an upload fails, the build keeps the archive next to the player folder and the next run uploads it again.
 
 ### Unreal Engine 3
 

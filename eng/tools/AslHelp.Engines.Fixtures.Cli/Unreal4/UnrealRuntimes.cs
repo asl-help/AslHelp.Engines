@@ -104,14 +104,7 @@ internal static class UnrealRuntimes
 
             File.Copy(source, partialPath, overwrite: true);
 
-            try
-            {
-                File.Move(partialPath, target, overwrite: true);
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                throw new IOException(SR.FormatPartialNotMoved(partialPath, target), exception);
-            }
+            TempPaths.MovePartial(partialPath, target);
         }
     }
 

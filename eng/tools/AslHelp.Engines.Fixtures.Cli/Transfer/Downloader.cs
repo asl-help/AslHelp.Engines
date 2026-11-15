@@ -94,7 +94,10 @@ internal sealed class Downloader : IDisposable
     /// <exception cref="HttpRequestException">
     ///     The server returned a status other than 200, a 206 that starts at the partial length or a 416 to a resume.
     /// </exception>
-    /// <exception cref="IOException">The connection dropped or the file cannot be written. The partial file is kept for the next run.</exception>
+    /// <exception cref="IOException">
+    ///     The connection dropped, the file cannot be written or the complete partial file cannot replace
+    ///     <paramref name="destinationFile"/>. The partial file is kept for the next run.
+    /// </exception>
     /// <exception cref="InvalidDataException">The file does not have the pinned hash. The partial file is deleted.</exception>
     /// <exception cref="TimeoutException">
     ///     Connecting took longer than <see cref="HttpHandlers.ConnectLimit"/>, the response headers took longer than
@@ -249,9 +252,8 @@ internal sealed class Downloader : IDisposable
                 }
                 case HttpStatusCode.RequestedRangeNotSatisfiable when offset > 0:
                 {
-                    // Verify the partial file as complete, because a server returns 416 for a range that starts at the end of the file.
-                    progress?.Report(new TransferProgress(offset, offset));
-
+                    // Return the hash of the partial file, because a server returns 416 for a range that starts at the end of
+                    // the file. The hash differs from the pin here, so the caller deletes the partial file.
                     return Convert.ToHexStringLower(hasher.GetHashAndReset());
                 }
                 default:
@@ -420,6 +422,7 @@ internal sealed class Downloader : IDisposable
     /// <param name="url">The URL of the file, for the message.</param>
     /// <param name="hash">The pinned hash.</param>
     /// <param name="actualHex">The hash of <paramref name="partialFile"/> as lowercase hex chars.</param>
+    /// <exception cref="IOException">The move failed. The partial file is kept, so the next run moves it without a request.</exception>
     /// <exception cref="InvalidDataException">The hashes differ. The partial file is deleted, so the next run starts fresh.</exception>
     private static void Complete(string partialFile, string destinationFile, Uri url, PinnedHash hash, string actualHex)
     {
@@ -430,7 +433,7 @@ internal sealed class Downloader : IDisposable
             throw new InvalidDataException(SR.FormatDownloadHashMismatch(url, PinnedHash.Algorithm, actualHex, hash.Hex));
         }
 
-        File.Move(partialFile, destinationFile, overwrite: true);
+        TempPaths.MovePartial(partialFile, destinationFile);
     }
 
     /// <summary>

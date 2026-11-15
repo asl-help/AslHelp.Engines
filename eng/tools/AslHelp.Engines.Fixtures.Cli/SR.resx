@@ -147,6 +147,9 @@
   <data name="DownloadHashMismatch" xml:space="preserve">
     <value>The file from '{0}' has {1} hash {2} but {3} is pinned. Check the URL and the pinned hash, then run again.</value>
   </data>
+  <data name="DownloadNotReplaced" xml:space="preserve">
+    <value>The download cannot replace '{0}'. Close what has the file open and run again.</value>
+  </data>
   <data name="DownloadResumeFix" xml:space="preserve">
     <value>Check the network and run again, which resumes from the {0} bytes so far.</value>
   </data>

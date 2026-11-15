@@ -132,14 +132,7 @@ internal static class UdkProject
             string partialPath = iniPath + TempPaths.PartialSuffix;
             File.WriteAllLines(partialPath, lines);
 
-            try
-            {
-                File.Move(partialPath, iniPath, overwrite: true);
-            }
-            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-            {
-                throw new IOException(SR.FormatPartialNotMoved(partialPath, iniPath), exception);
-            }
+            TempPaths.MovePartial(partialPath, iniPath);
         }
 
         File.Delete(Path.Combine(installDirectory, EngineConfigPath));

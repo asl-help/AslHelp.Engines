@@ -174,7 +174,7 @@ public sealed class DavStoreEdgeCaseTests
         Assert.That(Directory.GetFileSystemEntries(_folder.Root), Is.Empty);
     }
 
-    // A destination another process has open makes the move fail, so the partial file is deleted and the old file stays.
+    // A destination another process has open fails the move with its path, so the partial file is deleted and the old file stays.
     [Test]
     [Platform("Win")]
     public async Task TryDownloadAsync_DestinationLocked_ThrowsAndDeletesPartial()
@@ -188,7 +188,7 @@ public sealed class DavStoreEdgeCaseTests
         {
             await Assert.ThatAsync(
                 () => store.TryDownloadAsync("a/f.tar.zst", destination, null, CancellationToken.None),
-                Throws.InstanceOf<IOException>().Or.InstanceOf<UnauthorizedAccessException>());
+                Throws.TypeOf<IOException>().With.Message.Contains(destination));
         }
 
         string[] expected = [destination];

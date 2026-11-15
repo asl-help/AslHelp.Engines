@@ -216,6 +216,27 @@ public sealed class DownloaderTests
         }
     }
 
+    // A destination that another process has open fails the move with both paths and keeps the complete partial.
+    [Test]
+    [Platform("Win")]
+    public async Task DownloadAsync_CompletePartialWithOpenDestination_ThrowsIOExceptionWithBothPathsAndKeepsPartial()
+    {
+        await File.WriteAllBytesAsync(_partial, _abc);
+        await File.WriteAllBytesAsync(_destination, "old"u8.ToArray());
+        var downloader = NewDownloader(_ => throw new HttpRequestException("offline"));
+
+        // Share the read, because the download hashes an existing destination before it moves the partial over it.
+        await using (FileStream open = new(_destination, FileMode.Open, FileAccess.Read, FileShare.Read))
+        {
+            var exception = await Assert.ThrowsAsync<IOException>(
+                () => downloader.DownloadAsync(new Uri(Url), _destination, PinnedHash.Sha1(AbcSha1), null, CancellationToken.None));
+
+            Assert.That(exception!.Message, Does.Contain(_partial).And.Contain(_destination));
+        }
+
+        Assert.That(await File.ReadAllBytesAsync(_partial), Is.EqualTo(_abc));
+    }
+
     // 416 with a wrong partial deletes it, so the next run starts fresh.
     [Test]
     public async Task DownloadAsync_Status416WithWrongPartial_DeletesPartialAndThrowsInvalidDataException()

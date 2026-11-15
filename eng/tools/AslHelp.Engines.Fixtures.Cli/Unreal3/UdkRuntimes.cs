@@ -221,14 +221,7 @@ internal static class UdkRuntimes
 
                 File.Copy(Path.Combine(tempDirectory, runtime), partialPath, overwrite: true);
 
-                try
-                {
-                    File.Move(partialPath, runtimePath, overwrite: true);
-                }
-                catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-                {
-                    throw new IOException(SR.FormatPartialNotMoved(partialPath, runtimePath), exception);
-                }
+                TempPaths.MovePartial(partialPath, runtimePath);
             }
         }
         finally

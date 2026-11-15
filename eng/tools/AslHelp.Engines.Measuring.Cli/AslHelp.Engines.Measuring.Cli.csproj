@@ -22,5 +22,6 @@
   </ItemGroup>
 
   <Import Project="$(FixturesPath)/unreal3/measure.props" />
+  <Import Project="$(FixturesPath)/unreal4/measure.props" />
 
 </Project>

@@ -190,6 +190,30 @@ internal sealed class CodeBuilder(
     }
 
     /// <summary>
+    ///     Adds a near call of an RVA.
+    /// </summary>
+    /// <param name="target">The RVA.</param>
+    /// <returns>
+    ///     This builder.
+    /// </returns>
+    public CodeBuilder CallTo(uint target)
+    {
+        return Raw(0xE8).Relative(target);
+    }
+
+    /// <summary>
+    ///     Adds <c>mov ecx, target</c> with the absolute address of an RVA as the immediate, for x86.
+    /// </summary>
+    /// <param name="target">The RVA.</param>
+    /// <returns>
+    ///     This builder.
+    /// </returns>
+    public CodeBuilder MovEcxAddress(uint target)
+    {
+        return Raw(0xB9).Absolute(target);
+    }
+
+    /// <summary>
     ///     Adds <c>mov eax, [ecx + 0x1A8]</c> for x86.
     /// </summary>
     /// <returns>

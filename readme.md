@@ -1,6 +1,6 @@
 # AslHelp.Engines
 
-AslHelp.Engines has the libraries that read game engines from memory and the tools that test them. `fixtures` builds a small game with a real engine version, called a fixture player, with known values in its memory. `measure` runs those players and writes a report.
+This repo has the libraries that read game engines from memory and the tools we use to test them. `fixtures` builds a small game on a real engine version with known values in its memory. We call that a fixture player. `measure` reads those players and writes a report.
 
 ## Libraries
 
@@ -172,13 +172,13 @@ just measure <engine> <players> --output <file> [--targets <file>] [--jobs <n>]
 
 | Argument | Value |
 |---|---|
-| `<engine>` | The engine of the players, such as `unreal3`. |
+| `<engine>` | The engine's subcommand, `unreal3` or `unreal4`. `just measure <engine> --help` lists its options. |
 | `<players>` | The folder with the `<engine>-<version>-<hash>` players from `just fixtures build`. Keep 1 folder per version. |
 | `--output` | The file for the JSON report. |
-| `--jobs`, `-j` | How many players to measure at once and how many executables in a group to decode and search at once, 1 or more. The default is the engine's limit, which is 1 for `unreal3`. A higher value gets lowered to the limit with a warning. Lower it if you run short on memory. |
+| `--jobs`, `-j` | How many players to measure at once and how many executables in a group to decode and search at once, 1 or more. The default is the engine's limit, which is 4 for `unreal4` and 1 for `unreal3`. A higher value gets lowered to the limit with a warning. Lower it if you run short on memory. |
 | `--targets` | The file with the values to find. It replaces the built-in list, so you can change it without a rebuild. |
 
-The command runs each player on the current machine in version order until its fixture game is ready, reads the player's memory and writes 1 row per player into the report. It logs each step to the console with the time and the level, with the steps of a player indented under its start line. Errors go to stderr.
+`unreal3` runs each player on your machine in version order until its fixture game is ready. Then it reads the player's memory and writes 1 row per player into the report. `unreal4` only reads files, see [Unreal Engine 4 and 5 targets](#unreal-engine-4-and-5-targets). Versions sort naturally, so 4.9 comes before 4.10. The command logs each step to the console with the time and the level and indents a player's steps under its start line. Errors go to stderr.
 
 ```
 2026-11-06 14:03:12 info: measure[8] players: 26 in 'E:\players'
@@ -296,6 +296,56 @@ A route covers a version when every match in that version's image reaches the sa
 | `objectArray` | | The array whose objects contain their own position. The file needs exactly 1 of this type. |
 | `objectSlot` | `class`, `object` | Every static that points at an object of `class` or of a class deriving from it. `object` is optional and is the name of the object in the name array. |
 
-The measurement reads the sections of `UDK.exe` without code from the running player and finds the 2 arrays in them by their contents. The classes `Class`, `State`, `Struct`, `Field` and `Object` then lead to the offsets because their names and super chain are the same in every build. The properties of `Object` contain the offsets found so far, which gives the offsets of the property members. A row fails when the name array, the object array, the name, class or outer offset or a class of that chain is not found or when 2 arrays with different data fit and neither is the longer one. It also fails when a first name or the object array does not read. Every other member goes to `unmeasured`.
+The measurer finds the 2 arrays by their contents in the data of the running `UDK.exe`. From there it uses the classes `Class`, `State`, `Struct`, `Field` and `Object` to find the offsets, because their names and super chain are the same in every build. The row fails if it doesn't find an array or the name, class or outer offset. Any other member it doesn't find goes to `unmeasured`.
 
-The measurement then reads `IntValue` of the spawned `FixtureData` object through the offsets it found and the row fails when the value is not 1337. The row also fails when the class, the object or the field is not found or when `UStruct.Children`, `UField.Next` or `UProperty.Offset` is in `unmeasured`, because the check needs them. A `--targets` file does not turn the check off, because the class belongs to the fixture game.
+Last, it reads `IntValue` of the spawned `FixtureData` object with the offsets it found. If the value isn't 1337, the row fails.
+
+### Unreal Engine 4 and 5 targets
+
+`just measure unreal4` reads the PDB and the executable of each player without starting anything, so it takes a few seconds per player. It measures up to 4 players at once but still logs each player's lines together and in version order. A player folder looks like `unreal4-<version>-win-<x64|x86>-<shipping|development>-<hash>`, with the build in `Fixture/Binaries/<Win64|Win32>/`.
+
+| Option | Value |
+|---|---|
+| `--arch` | `x64` or `x86`. The default is both. |
+| `--config` | `shipping` or `development`. The default is both. |
+
+- The PDB and the executable have to come from the same link. If they don't match, the row fails with both GUIDs and ages.
+- Types and members outside their range get left out of the row, so `unmeasured` stays empty.
+- If a type or member is inside its range but the PDB doesn't have it, the row fails. A type only shows up in a PDB when a fixture compile unit has the full type and uses it, so add it to `eng/fixtures/unreal4/Source/Fixture/FixtureTypes.cpp`.
+- If 2 layouts of a type disagree on a reported value, the row fails with both values.
+- Groups don't mix architectures or configurations and each group starts with `key`. `shapes` has the layout of the types that changed across versions.
+- Only the offsets that the libraries in `src/` read decide a group. The size of a game type like `ACharacter` can be different inside a group, so each row keeps its own.
+
+```json
+"groups": [
+  {
+    "key": "win-x64-shipping",
+    "versions": [
+      "4.19.2-win-x64-shipping"
+    ],
+    "offsets": {
+      "UObjectBase": {
+        "ClassPrivate": "0x10",
+        "NamePrivate": "0x18"
+      }
+    },
+    "shapes": {
+      "FField": "uproperty",
+      "FNameEntry": "indirect",
+      "FUObjectArray": "flat"
+    },
+    "routes": {}
+  }
+]
+```
+
+`eng/fixtures/unreal4/targets.json` lists what to report. Every target can have `from` and `until`. They're minor versions like `4.25` and include both ends. The command reads every range once before the 1st player, so a bad range fails the run early.
+
+| `$type` | Keys | Finds |
+|---|---|---|
+| `global` | `constructedType`, `constructedFrom`, `constructedUntil` | The public symbol with the target's name. Versions from `constructedFrom` to `constructedUntil` don't have that public, so for those the measurer takes the static that calls to the `constructedType` constructor pass as `this`. The constructed range sits inside `from` and `until`. If you give `constructedType` without both ends, it takes the static on every version of the target. |
+| `functionStatic` | `function` | The 1st address outside the code that the function reads and that doesn't have a public symbol. |
+| `constant` | | The value of the compile-time constant whose C++ name is the target, like `Scope::Value`. The PDB lists a `static constexpr` member as a constant symbol and a value of a class as a value of an enum in that class. The report lists it as `Value` under `Scope` next to the offsets, so a layout `Scope` can't also have a member `Value`. Constants always decide the groups. |
+| `layout` | `members` | The size as `sizeof` and each member of the type with the target's name. A member can have its own `from` and `until`. `oldName` with `oldNameUntil` is the member's name in the PDBs up to that minor. A member decides the groups unless it has `"needed": false`. The size only decides them with `"sizeNeeded": true` on the type. With empty `members`, only the size gets reported. No member can be called `sizeof`. |
+
+`ObjectFlags` and `PropertyFlags` aren't needed and `FUObjectItem` is the only type whose size is needed, because the engine library doesn't read the flags or any other size. The ranges, old names and constructors of the other targets follow the engine's renames and moves, like `NamePoolData` replacing `NameTable` at 4.23.

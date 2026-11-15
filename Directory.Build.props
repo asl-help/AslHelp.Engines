@@ -10,6 +10,7 @@
     <TestPath>$(RootPath)/test</TestPath>
 
     <ArtifactsPath>$(RootPath)/artifacts</ArtifactsPath>
+    <_PackageProps>$(MSBuildProjectDirectory)/$(MSBuildProjectName).Package.props</_PackageProps>
   </PropertyGroup>
 
   <!-- Shared properties. -->
@@ -34,9 +35,29 @@
     <InternalsVisibleTo Include="$(MSBuildProjectName).Tests" />
   </ItemGroup>
 
+  <!-- Packaging. -->
+  <PropertyGroup Condition="Exists('$(_PackageProps)')">
+    <IsPackable>true</IsPackable>
+
+    <Authors>ero</Authors>
+    <RepositoryUrl>https://github.com/asl-help/AslHelp.Engines</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
+    <PackageReleaseNotes>$(RepositoryUrl)/blob/main/changelog.md</PackageReleaseNotes>
+
+    <PackageLicenseExpression>0BSD</PackageLicenseExpression>
+    <PackageReadmeFile>readme.md</PackageReadmeFile>
+
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+  </PropertyGroup>
+
   <!-- CI. -->
   <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
     <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
   </PropertyGroup>
+
+  <Import Condition="Exists('$(_PackageProps)')" Project="$(_PackageProps)" />
 
 </Project>

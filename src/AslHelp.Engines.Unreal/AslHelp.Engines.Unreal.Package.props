@@ -1,0 +1,12 @@
+<Project>
+
+  <PropertyGroup>
+    <Description>Unreal Engine reads for asl-help: names, objects, structs and properties of Unreal Engine 3, 4 and 5 games.</Description>
+    <PackageTags>unreal-engine memory reflection</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(RootPath)/readme.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

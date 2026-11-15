@@ -1,10 +1,16 @@
 # AslHelp.Engines
 
+[![AslHelp.Engines.Unreal on NuGet](https://img.shields.io/nuget/vpre/AslHelp.Engines.Unreal?label=AslHelp.Engines.Unreal)](https://www.nuget.org/packages/AslHelp.Engines.Unreal)
+
 This repo contains the libraries that read game engines from memory and the tools we use to test them. `fixtures` builds a small game on a real engine version with known values in its memory. We call that a fixture player. `measure` reads those players and writes a report.
 
 ## Libraries
 
-`AslHelp.Engines.Unreal` reads names, objects, structs and properties from Unreal Engine 3, 4 and 5 games. You pick the storage shape and pass in its layouts. For properties you use `ObjectPropertyReader` up to 4.24 and `FieldPropertyReader` from 4.25 on. The readers return `Result<T>` and the name tables aren't thread-safe. The library isn't on NuGet because its API isn't stable.
+`AslHelp.Engines.Unreal` reads names, objects, structs and properties from Unreal Engine 3, 4 and 5 games. You pick the storage shape and pass in its layouts. For properties you use `ObjectPropertyReader` up to 4.24 and `FieldPropertyReader` from 4.25 on. The readers return `Result<T>` and the name tables aren't thread-safe.
+
+```
+dotnet add package AslHelp.Engines.Unreal
+```
 
 ## Fixture players
 

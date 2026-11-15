@@ -36,6 +36,7 @@
   <ItemGroup>
     <GlobalPackageReference Include="Meziantou.Polyfill" Version="1.0.173" />
     <GlobalPackageReference Include="Microsoft.CodeAnalysis.ResxSourceGenerator" Version="5.0.0-1.25277.114" />
+    <GlobalPackageReference Include="MinVer" Version="8.0.0" />
   </ItemGroup>
 
   <PropertyGroup>

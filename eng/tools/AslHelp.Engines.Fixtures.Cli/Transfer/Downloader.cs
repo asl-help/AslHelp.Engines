@@ -252,9 +252,8 @@ internal sealed class Downloader : IDisposable
                 }
                 case HttpStatusCode.RequestedRangeNotSatisfiable when offset > 0:
                 {
-                    // Verify the partial file as complete, because a server returns 416 for a range that starts at the end of the file.
-                    progress?.Report(new TransferProgress(offset, offset));
-
+                    // Return the hash of the partial file, because a server returns 416 for a range that starts at the end of
+                    // the file. The hash differs from the pin here, so the caller deletes the partial file.
                     return Convert.ToHexStringLower(hasher.GetHashAndReset());
                 }
                 default:

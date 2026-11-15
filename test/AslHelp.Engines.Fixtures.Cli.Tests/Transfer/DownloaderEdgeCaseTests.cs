@@ -79,13 +79,13 @@ public sealed class DownloaderEdgeCaseTests
         Assert.That(_handler.Requests, Is.Empty);
     }
 
-    // A 416 that finishes the file from the partial still reports the final total.
+    // A partial that already has the pinned hash sends no request but still reports the final total.
     [Test]
-    public async Task DownloadAsync_Status416WithCompletePartial_ReportsFinalTotal()
+    public async Task DownloadAsync_CompletePartial_ReportsFinalTotal()
     {
         await File.WriteAllBytesAsync(_partial, _abc);
         RecordingProgress progress = new();
-        var downloader = NewDownloader(_ => Status(HttpStatusCode.RequestedRangeNotSatisfiable));
+        var downloader = NewDownloader(_ => throw new HttpRequestException("offline"));
 
         await downloader.DownloadAsync(new Uri(Url), _destination, PinnedHash.Sha1(AbcSha1), progress, CancellationToken.None);
 

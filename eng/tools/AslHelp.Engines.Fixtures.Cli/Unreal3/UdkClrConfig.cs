@@ -79,13 +79,6 @@ internal static class UdkClrConfig
         string partialPath = path + TempPaths.PartialSuffix;
         config.Save(partialPath);
 
-        try
-        {
-            File.Move(partialPath, path, overwrite: true);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-        {
-            throw new IOException(SR.FormatPartialNotMoved(partialPath, path), exception);
-        }
+        TempPaths.MovePartial(partialPath, path);
     }
 }

@@ -258,7 +258,10 @@ internal sealed class DavStore : ICacheStore
     /// </exception>
     /// <exception cref="ArgumentNullException"><paramref name="path"/> or <paramref name="destinationFile"/> is <see langword="null"/>.</exception>
     /// <exception cref="HttpRequestException">The server rejected the credentials or returned another status.</exception>
-    /// <exception cref="IOException">The connection dropped, the file cannot be written or another download has the partial file open.</exception>
+    /// <exception cref="IOException">
+    ///     The connection dropped, the file cannot be written, another download has the partial file open or the download
+    ///     cannot replace <paramref name="destinationFile"/>. The partial file is deleted unless another download has it open.
+    /// </exception>
     /// <exception cref="TimeoutException">
     ///     Connecting took longer than <see cref="HttpHandlers.ConnectLimit"/>, the response headers took longer than
     ///     <see cref="TransferTimer.StallLimit"/> or a body read moved no bytes for <see cref="TransferTimer.StallLimit"/>.
@@ -308,7 +311,14 @@ internal sealed class DavStore : ICacheStore
                 await WriteBodyAsync(response, file, path, progress, timer, cancellationToken).ConfigureAwait(false);
             }
 
-            File.Move(partialFile, destinationFile, overwrite: true);
+            try
+            {
+                File.Move(partialFile, destinationFile, overwrite: true);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                throw new IOException(SR.FormatDownloadNotReplaced(destinationFile), exception);
+            }
         }
         catch
         {

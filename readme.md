@@ -1,5 +1,6 @@
 # AslHelp.Engines
 
+[![AslHelp.Engines on NuGet](https://img.shields.io/nuget/vpre/AslHelp.Engines?label=AslHelp.Engines)](https://www.nuget.org/packages/AslHelp.Engines)
 [![AslHelp.Engines.Unreal on NuGet](https://img.shields.io/nuget/vpre/AslHelp.Engines.Unreal?label=AslHelp.Engines.Unreal)](https://www.nuget.org/packages/AslHelp.Engines.Unreal)
 
 This repo contains the libraries that read game engines from memory and the tools we use to test them. `fixtures` builds a small game on a real engine version with known values in its memory. We call that a fixture player. `measure` reads those players and writes a report.
@@ -8,7 +9,17 @@ This repo contains the libraries that read game engines from memory and the tool
 
 `AslHelp.Engines.Unreal` reads names, objects, structs and properties from Unreal Engine 3, 4 and 5 games. You pick the storage shape and pass in its layouts. For properties you use `ObjectPropertyReader` up to 4.24 and `FieldPropertyReader` from 4.25 on. The readers return `Result<T>` and the name tables aren't thread-safe.
 
+`AslHelp.Engines` is what the engine libraries share. `MemberChain<THop>` lets a script write a path of members through `dynamic`, like `root.Player.Health`. Each name goes to the engine's `IMemberResolver<THop>`, which returns the hop for it or throws if the type can't have that member. The resolver also creates the watcher, so it can type the watcher after the member at the end:
+
+```cs
+dynamic root = new MemberChain<Hop>(resolver, rootHop);
+IWatcherSource health = root.Player.Health;
+
+var watcher = health.CreateWatcher(ticks);
 ```
+
+```
+dotnet add package AslHelp.Engines
 dotnet add package AslHelp.Engines.Unreal
 ```
 

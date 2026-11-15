@@ -51,6 +51,38 @@ public sealed class MeasureConsoleFormatterTests
         Assert.That(Write(level, null), Does.Contain($" {tag}: category"));
     }
 
+    // An entry with an exception writes the whole exception below the line, with its stack and its inner exception.
+    [Test]
+    public void Write_Exception_WritesItBelowTheLine()
+    {
+        var exception = Thrown();
+        using StringWriter writer = new();
+        LogEntry<string> entry = new(LogLevel.Error, "category", new EventId(7), "text", exception, static (state, _) => state);
+
+        new MeasureConsoleFormatter().Write(entry, null, writer);
+
+        string[] lines = writer.ToString().Split(Environment.NewLine);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(lines[0], Does.EndWith("category[7] text"));
+            Assert.That(string.Join(Environment.NewLine, lines[1..]), Does.StartWith(exception.ToString()));
+            Assert.That(exception.ToString(), Does.Contain(nameof(Thrown)).And.Contain("The inner."));
+        }
+    }
+
+    private static InvalidOperationException Thrown()
+    {
+        try
+        {
+            throw new InvalidOperationException("The outer.", new ArgumentException("The inner."));
+        }
+        catch (InvalidOperationException exception)
+        {
+            return exception;
+        }
+    }
+
     private static string Write(LogLevel level, IExternalScopeProvider? scopes)
     {
         using StringWriter writer = new();

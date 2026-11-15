@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.Tracing;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -10,15 +11,19 @@ using System.Threading;
 
 namespace AslHelp.Engines.Measuring.Cli.Tests.Routes;
 
+// Runs alone, because the worker counter listens to the Parallel events of the whole process.
+[NonParallelizable]
 public sealed class SharedRoutesTests
 {
     private const string Global = "Global";
     private const uint GlobalA = 0x2000;
     private const uint GlobalB = 0x3000;
     private const uint Other = 0x4000;
+    private const int PaddingBytes = 0x8_0000;
 
     private static readonly string[] _a = ["a"];
     private static readonly string[] _aAndB = ["a", "b"];
+    private static readonly string[] _aAndC = ["a", "c"];
     private static readonly string[] _b = ["b"];
     private static readonly string[] _bAndA = ["b", "a"];
     private static readonly string[] _c = ["c"];
@@ -88,9 +93,9 @@ public sealed class SharedRoutesTests
         }
     }
 
-    // A match that reaches an RVA outside the list of the version leaves the version uncovered.
+    // A match that reaches an RVA outside the list of b refuses the only candidate of a too, because a reader of b would read the wrong value.
     [Test]
-    public void Find_RvaReachedNotInVersionList_IsNotCovered()
+    public void Find_RvaReachedNotInVersionList_RefusesTheCandidate()
     {
         var found = Find(
             Version("a", new CodeBuilder(false).MovEcx(GlobalA), GlobalA),
@@ -98,8 +103,52 @@ public sealed class SharedRoutesTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(found[Global].Routes.Single().Versions, Is.EqualTo(_a));
-            Assert.That(found[Global].Uncovered!.Keys, Is.EqualTo(_b));
+            Assert.That(found[Global].Routes, Is.Empty);
+            Assert.That(found[Global].Uncovered!.Keys, Is.EqualTo(_aAndB));
+        }
+    }
+
+    // A match in a version without the global refuses the candidate, because that version does not have a right address to reach.
+    [Test]
+    public void Find_MatchInVersionWithoutTheGlobal_RefusesTheCandidate()
+    {
+        const string Second = "Second";
+        string first = Write("a", new CodeBuilder(false).MovEcx(GlobalA).Ret());
+        string second = Write("b", new CodeBuilder(false).MovEcx(Other).Ret());
+
+        var found = Find(
+            new RouteVersion("a", first, Globals(GlobalA)),
+            new RouteVersion("b", second, new Dictionary<string, IReadOnlyList<uint>> { [Second] = [Other] }));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(found[Global].Routes, Is.Empty);
+            Assert.That(found[Global].Uncovered!["a"], Is.EqualTo(SR.UncoveredNoCandidate));
+            Assert.That(found[Second].Routes, Is.Empty);
+            Assert.That(found[Second].Uncovered!["b"], Is.EqualTo(SR.UncoveredNoCandidate));
+        }
+    }
+
+    // The route of b also matches in a, which an earlier route covers. The match is fine, because it reaches the global of a.
+    [Test]
+    public void Find_MatchInCoveredVersionAtItsGlobal_KeepsTheCandidate()
+    {
+        var found = Find(
+            Version("a", new CodeBuilder(false).MovEcx(GlobalA).Nops(1).MovEax(GlobalA), GlobalA),
+            Version("b", new CodeBuilder(false).MovEcx(GlobalB), GlobalB),
+            Version("c", new CodeBuilder(false).MovEax(GlobalA), GlobalA));
+
+        var routes = found[Global].Routes;
+
+        Assert.That(routes, Has.Count.EqualTo(2));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(routes[0].Forward, Is.EqualTo("A1 ????????"));
+            Assert.That(routes[0].Versions, Is.EqualTo(_aAndC));
+            Assert.That(routes[1].Forward, Is.EqualTo("8B 0D ????????"));
+            Assert.That(routes[1].Versions, Is.EqualTo(_b));
+            Assert.That(found[Global].Uncovered, Is.Null);
         }
     }
 
@@ -281,6 +330,7 @@ public sealed class SharedRoutesTests
                 Version("a", new CodeBuilder(false).MovEcx(GlobalA), GlobalA),
                 new RouteVersion("b", missing, Globals(GlobalB)),
             ],
+            2,
             logger,
             CancellationToken.None);
 
@@ -356,12 +406,39 @@ public sealed class SharedRoutesTests
         source.Cancel();
         var version = Version("a", new CodeBuilder(false).MovEcx(GlobalA), GlobalA);
 
-        Assert.That(() => SharedRoutes.Find([version], NullLogger.Instance, source.Token), Throws.InstanceOf<OperationCanceledException>());
+        Assert.That(() => SharedRoutes.Find([version], 2, NullLogger.Instance, source.Token), Throws.InstanceOf<OperationCanceledException>());
+    }
+
+    // Counts the workers of each parallel step, because a step without the limit starts more workers as long as items are left.
+    [Test]
+    public void Find_OneJob_RunsOneWorkerPerStep()
+    {
+        // Pad the code, because a scan of a few bytes ends before a 2nd worker of a step without the limit starts. Give e
+        // another global and no load, because the conflict check then scans a version that the search of the route left uncached.
+        var padded = new CodeBuilder(false).Nops(PaddingBytes).Ret();
+        RouteVersion[] versions =
+        [
+            Version("a", new CodeBuilder(false).Nops(PaddingBytes).MovEcx(GlobalA).Ret(), GlobalA),
+            Version("b", new CodeBuilder(false).Nops(PaddingBytes).MovEcx(GlobalB).Ret(), GlobalB),
+            Version("c", new CodeBuilder(false).Nops(PaddingBytes).MovEcx(GlobalA).Ret(), GlobalA),
+            Version("d", new CodeBuilder(false).Nops(PaddingBytes).MovEcx(GlobalB).Ret(), GlobalB),
+            new RouteVersion("e", Write("e", padded), new Dictionary<string, IReadOnlyList<uint>> { ["Y"] = [GlobalA] }),
+        ];
+
+        using ParallelWorkers workers = new();
+        var found = SharedRoutes.Find(versions, 1, NullLogger.Instance, CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(found[Global].Routes.Single().Versions, Has.Count.EqualTo(4));
+            Assert.That(workers.Steps, Is.GreaterThanOrEqualTo(3));
+            Assert.That(workers.MostAtOnce, Is.EqualTo(1));
+        }
     }
 
     private static IReadOnlyDictionary<string, GlobalRoutes> Find(params RouteVersion[] versions)
     {
-        return SharedRoutes.Find(versions, NullLogger.Instance, CancellationToken.None);
+        return SharedRoutes.Find(versions, 2, NullLogger.Instance, CancellationToken.None);
     }
 
     private static Dictionary<string, IReadOnlyList<uint>> Globals(params uint[] rvas)
@@ -371,7 +448,7 @@ public sealed class SharedRoutesTests
 
     private static string Json(IReadOnlyDictionary<string, GlobalRoutes> routes)
     {
-        VersionGroup group = new(["a"], new Dictionary<string, IReadOnlyDictionary<string, string>>(), routes);
+        VersionGroup group = new(null, ["a"], new Dictionary<string, IReadOnlyDictionary<string, string>>(), null, routes);
 
         return JsonSerializer.Serialize(new MeasureReport("engine", [], [group]), MeasureReportContext.Default.MeasureReport);
     }
@@ -387,5 +464,69 @@ public sealed class SharedRoutesTests
         CodeBuilder.WritePe(path, builder.Build());
 
         return path;
+    }
+}
+
+// Counts the parallel steps and the most workers of 1 step at once, from the fork and join events of Parallel.
+file sealed class ParallelWorkers : EventListener
+{
+    private const string SourceName = "System.Threading.Tasks.Parallel.EventSource";
+
+    private readonly Lock _lock = new();
+    private int _mostAtOnce;
+    private readonly Dictionary<int, int> _workers = [];
+
+    public int MostAtOnce
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _mostAtOnce;
+            }
+        }
+    }
+
+    public int Steps
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _workers.Count;
+            }
+        }
+    }
+
+    protected override void OnEventSourceCreated(EventSource eventSource)
+    {
+        if (eventSource.Name == SourceName)
+        {
+            EnableEvents(eventSource, EventLevel.Verbose, EventKeywords.All);
+        }
+    }
+
+    protected override void OnEventWritten(EventWrittenEventArgs eventData)
+    {
+        int change = eventData.EventName switch
+        {
+            "ParallelFork" => 1,
+            "ParallelJoin" => -1,
+            _ => 0,
+        };
+
+        if (change == 0)
+        {
+            return;
+        }
+
+        int step = (int)eventData.Payload![eventData.PayloadNames!.IndexOf("ForkJoinContextID")]!;
+
+        lock (_lock)
+        {
+            int atOnce = _workers.GetValueOrDefault(step) + change;
+            _workers[step] = atOnce;
+            _mostAtOnce = Math.Max(_mostAtOnce, atOnce);
+        }
     }
 }

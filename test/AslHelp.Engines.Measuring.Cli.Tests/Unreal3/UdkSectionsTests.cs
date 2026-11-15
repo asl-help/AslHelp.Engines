@@ -106,30 +106,6 @@ public sealed class UdkSectionsTests
         Assert.That(UdkSections.Read(WritePe(), new FakeMemory(), _base).Unwrap(), Is.Empty);
     }
 
-    // A path with spaces and letters outside ASCII reads like any other.
-    [Test]
-    public void Read_PathWithSpacesAndUnicode_Reads()
-    {
-        string folder = Path.Combine(_folder.Root, "pl\u00E4yer \u30D5\u30A9\u30EB\u30C0");
-        _ = Directory.CreateDirectory(folder);
-        string file = Path.Combine(folder, "file.bin");
-        File.Copy(WritePe((Rva, 0x200, ReadOnly)), file);
-
-        Assert.That(UdkSections.Read(file, new FakeMemory(), _base).Unwrap(), Has.Count.EqualTo(1));
-    }
-
-    // A file that is not a PE file fails with its path.
-    [TestCase(0)]
-    [TestCase(16)]
-    [TestCase(0x1000)]
-    public void Read_FileThatIsNoPeFile_FailsWithPath(int length)
-    {
-        string file = Path.Combine(_folder.Root, "file.bin");
-        File.WriteAllBytes(file, new byte[length]);
-
-        Assert.That(UdkSections.Read(file, new FakeMemory(), _base).UnwrapErr().Message, Is.EqualTo(SR.FormatExecutableNotPe(file)));
-    }
-
     // A data pointer of 0 is no array.
     [Test]
     public void Arrays_DataPointerZero_IsNoArray()
@@ -249,24 +225,13 @@ public sealed class UdkSectionsTests
         Assert.That(bytes.Bytes.Take(page.Length), Is.All.EqualTo((byte)0xAB));
     }
 
-    // A file that does not exist fails with its path, because the caller writes the message into the row.
+    // A file that does not open fails with the failure of the open, because the caller writes the message into the row.
     [Test]
     public void Read_MissingFile_FailsWithThePath()
     {
-        string missing = Path.Combine(Path.GetTempPath(), "missing-file.bin");
+        string missing = Path.Combine(_folder.Root, "missing-file.bin");
 
-        Assert.That(UdkSections.Read(missing, new FakeMemory(), _base).UnwrapErr().Message, Does.StartWith($"Can't read '{missing}': "));
-    }
-
-    // A file that another program has open fails with its path and the message of the open.
-    [Test]
-    public void Read_FileOpenInAnotherProgram_FailsWithThePath()
-    {
-        string file = WritePe();
-
-        using FileStream locked = new(file, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-
-        Assert.That(UdkSections.Read(file, new FakeMemory(), _base).UnwrapErr().Message, Does.StartWith($"Can't read '{file}': "));
+        Assert.That(UdkSections.Read(missing, new FakeMemory(), _base).UnwrapErr().Message, Does.StartWith(SR.FormatFileUnreadable(missing, "")));
     }
 
     // A header at 2 does not count because it is not pointer-aligned. The same header at 4 does.

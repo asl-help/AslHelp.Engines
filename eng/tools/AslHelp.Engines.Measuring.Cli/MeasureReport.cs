@@ -1,6 +1,7 @@
 using AslHelp.Engines.Measuring.Cli.Routes;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.Json.Serialization;
 
@@ -28,7 +29,35 @@ internal sealed record PlayerMeasurement(
     IReadOnlyDictionary<string, IReadOnlyList<uint>> Globals,
     IReadOnlyDictionary<string, int> Offsets,
     IReadOnlyDictionary<string, string> Unmeasured,
-    string ExecutablePath);
+    string ExecutablePath)
+{
+    /// <summary>
+    ///     Gets the layout that the build uses for each type with several layouts across versions, by type.
+    /// </summary>
+    public IReadOnlyDictionary<string, string> Shapes { get; init; } = ReadOnlyDictionary<string, string>.Empty;
+
+    /// <summary>
+    ///     Finds the 1st key of <see cref="Offsets"/> without a type before its 1st dot or a member after it,
+    ///     because the report splits each key at its 1st dot.
+    /// </summary>
+    /// <returns>
+    ///     The key or <see langword="null"/> if every key has the form <c>Type.Member</c>.
+    /// </returns>
+    public string? FindMalformedOffsetKey()
+    {
+        foreach (string key in Offsets.Keys)
+        {
+            int dot = key.IndexOf('.', StringComparison.Ordinal);
+
+            if (dot <= 0 || dot == key.Length - 1)
+            {
+                return key;
+            }
+        }
+
+        return null;
+    }
+}
 
 /// <summary>
 ///     Describes the result of 1 player.
@@ -37,12 +66,16 @@ internal sealed record PlayerMeasurement(
 /// <param name="Error">The failure or <see langword="null"/> if the player was measured.</param>
 /// <param name="Globals">The RVAs of each global in hex or <see langword="null"/> if the player failed.</param>
 /// <param name="Offsets">The offset of each member in hex, by type and member, or <see langword="null"/> if the player failed.</param>
+/// <param name="Shapes">
+///     The layout of each type with several layouts or <see langword="null"/> if the player failed or the engine doesn't list any.
+/// </param>
 /// <param name="Unmeasured">The reason for each value that was not found or <see langword="null"/> if the player failed.</param>
 internal sealed record PlayerRow(
     string Version,
     string? Error,
     IReadOnlyDictionary<string, IReadOnlyList<string>>? Globals,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>>? Offsets,
+    IReadOnlyDictionary<string, string>? Shapes,
     IReadOnlyDictionary<string, string>? Unmeasured)
 {
     /// <summary>
@@ -55,14 +88,14 @@ internal sealed record PlayerRow(
     /// </returns>
     public static PlayerRow Failed(string version, string error)
     {
-        return new PlayerRow(version, error, null, null, null);
+        return new PlayerRow(version, error, null, null, null, null);
     }
 
     /// <summary>
     ///     Creates the row of a player that was measured.
     /// </summary>
     /// <param name="version">The version of the engine.</param>
-    /// <param name="measurement">The values found.</param>
+    /// <param name="measurement">The values found, with every offset key of the form <c>Type.Member</c>.</param>
     /// <returns>
     ///     The row with the values, with the types sorted by name and the members of each type sorted by offset.
     /// </returns>
@@ -85,7 +118,9 @@ internal sealed record PlayerRow(
                     StringComparer.Ordinal),
                 StringComparer.Ordinal);
 
-        return new PlayerRow(version, null, globals, offsets, measurement.Unmeasured);
+        var shapes = measurement.Shapes.Count > 0 ? measurement.Shapes : null;
+
+        return new PlayerRow(version, null, globals, offsets, shapes, measurement.Unmeasured);
     }
 
     private static string ToHex(long value)
@@ -95,14 +130,18 @@ internal sealed record PlayerRow(
 }
 
 /// <summary>
-///     Describes the versions whose players have the same offsets.
+///     Describes the versions whose players have the same needed offsets.
 /// </summary>
+/// <param name="Key">The key of the versions that can share the group or <see langword="null"/> if the measurer doesn't use keys.</param>
 /// <param name="Versions">The versions in the order of the run.</param>
-/// <param name="Offsets">The offset of each member in hex, by type and member.</param>
+/// <param name="Offsets">The needed offset of each member of the 1st version in hex, by type and member.</param>
+/// <param name="Shapes">The layout of each type with several layouts or <see langword="null"/> if the engine doesn't list any.</param>
 /// <param name="Routes">The signature routes that the versions share, by global.</param>
 internal sealed record VersionGroup(
+    string? Key,
     List<string> Versions,
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> Offsets,
+    IReadOnlyDictionary<string, string>? Shapes,
     IReadOnlyDictionary<string, GlobalRoutes> Routes);
 
 /// <summary>

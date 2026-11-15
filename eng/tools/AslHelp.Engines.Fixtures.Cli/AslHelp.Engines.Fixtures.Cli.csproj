@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <AssemblyName>fixtures</AssemblyName>
     <OutputType>Exe</OutputType>
     <TargetFramework>net11.0-windows</TargetFramework>
-    <AssemblyName>fixtures</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>

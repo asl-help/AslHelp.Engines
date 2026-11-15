@@ -2,6 +2,7 @@ using AslHelp.Engines.Fixtures;
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 
@@ -17,6 +18,7 @@ internal sealed record PlayerFolder(
     string Version)
 {
     private static readonly SearchValues<char> _hashChars = SearchValues.Create("0123456789abcdef");
+    private static readonly StringComparer _versionOrder = StringComparer.Create(CultureInfo.InvariantCulture, CompareOptions.NumericOrdering);
 
     /// <summary>
     ///     Finds the <c>&lt;engine&gt;-&lt;version&gt;-&lt;hash&gt;</c> folders in <paramref name="directory"/>.
@@ -24,7 +26,7 @@ internal sealed record PlayerFolder(
     /// <param name="directory">The folder with the players.</param>
     /// <param name="engine">The name of the engine.</param>
     /// <returns>
-    ///     The player folders in ordinal order of their versions.
+    ///     The player folders in natural order of their versions, with 4.9 before 4.10.
     /// </returns>
     /// <exception cref="DirectoryNotFoundException"><paramref name="directory"/> does not exist.</exception>
     public static IReadOnlyList<PlayerFolder> Find(string directory, string engine)
@@ -34,7 +36,8 @@ internal sealed record PlayerFolder(
             .. System.IO.Directory.EnumerateDirectories(Path.GetFullPath(directory))
                 .Select(folder => TryParse(folder, engine))
                 .OfType<PlayerFolder>()
-                .OrderBy(static player => player.Version, StringComparer.Ordinal),
+                .OrderBy(static player => player.Version, _versionOrder)
+                .ThenBy(static player => player.Version, StringComparer.Ordinal),
         ];
     }
 

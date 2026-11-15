@@ -1,0 +1,7 @@
+<Project>
+
+  <ItemGroup>
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)/targets.json" LogicalName="Unreal4/targets.json" />
+  </ItemGroup>
+
+</Project>

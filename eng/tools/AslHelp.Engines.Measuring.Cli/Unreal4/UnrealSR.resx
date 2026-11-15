@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ArchDescription" xml:space="preserve">
+    <value>Measures only the players of this architecture, such as x64.</value>
+  </data>
+  <data name="ConfigDescription" xml:space="preserve">
+    <value>Measures only the players of this build configuration, such as shipping.</value>
+  </data>
+  <data name="ConstantOutOfRange" xml:space="preserve">
+    <value>Constant {0} is {1}, past the 32 bits of a report value.</value>
+  </data>
+  <data name="ConstructedStaticAmbiguous" xml:space="preserve">
+    <value>Calls of the {0} constructor pass 2 statics: 0x{1} and 0x{2}.</value>
+  </data>
+  <data name="ConstructedStaticNotFound" xml:space="preserve">
+    <value>No call of the {0} constructor at RVA 0x{1} passes a static.</value>
+  </data>
+  <data name="ExecutableNotFound" xml:space="preserve">
+    <value>The executable '{0}' does not exist.</value>
+  </data>
+  <data name="FunctionStaticNotFound" xml:space="preserve">
+    <value>{0} at RVA 0x{1} doesn't read a static without a public symbol.</value>
+  </data>
+  <data name="LayoutsDiffer" xml:space="preserve">
+    <value>{0}.{1} differs between the layouts of the PDB: {2}.</value>
+  </data>
+  <data name="MemberNotFound" xml:space="preserve">
+    <value>{0} doesn't have a member {1} in the PDB.</value>
+  </data>
+  <data name="PdbNotFound" xml:space="preserve">
+    <value>The PDB '{0}' does not exist.</value>
+  </data>
+  <data name="PlayerIdInvalid" xml:space="preserve">
+    <value>'{0}' is not a player id such as 4.19.2-win-x64-shipping.</value>
+  </data>
+  <data name="ShapeInvalid" xml:space="preserve">
+    <value>{0} isn't a shape.</value>
+  </data>
+  <data name="ShapeNotListed" xml:space="preserve">
+    <value>{0} doesn't have a shape for {1}, the table starts at {2}.</value>
+  </data>
+  <data name="TargetsBadRange" xml:space="preserve">
+    <value>'{0}': the target '{1}' has a bad range, from '{2}' until '{3}'.</value>
+  </data>
+  <data name="TargetsConstantUnscoped" xml:space="preserve">
+    <value>'{0}': the constant '{1}' needs a scope, such as Type::Value.</value>
+  </data>
+  <data name="TargetsConstructedOutside" xml:space="preserve">
+    <value>'{0}': the target '{1}' is constructed from '{2}' until '{3}', outside its range from '{4}' until '{5}'.</value>
+  </data>
+  <data name="TargetsMemberReserved" xml:space="preserve">
+    <value>'{0}': the member '{1}' is called sizeof, which the report keeps for the size.</value>
+  </data>
+  <data name="TargetsReportKeyTaken" xml:space="preserve">
+    <value>'{0}': the constant '{1}' has the report key {2} of a layout member.</value>
+  </data>
+</root>

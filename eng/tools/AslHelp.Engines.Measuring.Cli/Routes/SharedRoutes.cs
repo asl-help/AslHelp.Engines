@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace AslHelp.Engines.Measuring.Cli.Routes;
 
@@ -12,9 +13,10 @@ namespace AslHelp.Engines.Measuring.Cli.Routes;
 internal static class SharedRoutes
 {
     /// <summary>
-    ///     Reads the executable of each version once and searches the routes of each global.
+    ///     Maps the executable of each version once and searches the routes of each global.
     /// </summary>
     /// <param name="versions">The versions.</param>
+    /// <param name="maxDegreeOfParallelism">The number of executables to map, decode and search at once, the same as the players of the run.</param>
     /// <param name="logger">The logger for an executable that fails to read.</param>
     /// <param name="cancellationToken">The token that stops the search.</param>
     /// <returns>
@@ -23,50 +25,80 @@ internal static class SharedRoutes
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public static IReadOnlyDictionary<string, GlobalRoutes> Find(
         IReadOnlyList<RouteVersion> versions,
+        int maxDegreeOfParallelism,
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        List<VersionCode> readable = [];
-        Dictionary<string, string> unreadable = [with(StringComparer.Ordinal)];
+        var codes = new VersionCode?[versions.Count];
+        var failures = new string?[versions.Count];
 
-        foreach (var version in versions)
+        try
         {
-            // Check here too, because a version without a site never gets to the check of a candidate.
-            cancellationToken.ThrowIfCancellationRequested();
+            // Cancel the reads too, because a version without a site never reaches the check of a candidate.
+            // Bound the reads and the searches like the players, because the decode of 1 executable takes memory in its size
+            // and each search takes 1 core.
+            ParallelOptions options = new() { CancellationToken = cancellationToken, MaxDegreeOfParallelism = maxDegreeOfParallelism };
 
-            if (version.Globals.Count == 0)
+            Parallel.For(0, versions.Count, options, index =>
             {
-                continue;
+                var version = versions[index];
+
+                if (version.Globals.Count == 0)
+                {
+                    return;
+                }
+
+                if (VersionCode.Read(version).TryUnwrap(out var code, out var error))
+                {
+                    codes[index] = code;
+                }
+                else
+                {
+                    failures[index] = error.Message;
+                }
+            });
+
+            List<VersionCode> readable = [];
+            Dictionary<string, string> unreadable = [with(StringComparer.Ordinal)];
+
+            for (int index = 0; index < versions.Count; index++)
+            {
+                if (codes[index] is { } code)
+                {
+                    readable.Add(code);
+                }
+                else if (failures[index] is { } failure)
+                {
+                    unreadable[versions[index].Version] = failure;
+                    logger.ExecutableNotRead(versions[index].Version, failure);
+                }
             }
 
-            try
+            Dictionary<string, GlobalRoutes> routes = [with(StringComparer.Ordinal)];
+
+            foreach (string global in versions.SelectMany(static version => version.Globals.Keys).Distinct(StringComparer.Ordinal))
             {
-                readable.Add(new VersionCode(version, CodeImage.Read(version.ExecutablePath)));
+                routes[global] = new GlobalSearch(global, readable, options).Run(versions, unreadable);
             }
-            catch (Exception exception) when (exception is not OperationCanceledException)
+
+            return routes;
+        }
+        finally
+        {
+            foreach (var code in codes)
             {
-                // Keep going, because PEReader throws several types for a corrupt file and the other versions can still share a route.
-                unreadable[version.Version] = exception.Message;
-                logger.ExecutableNotRead(version.Version, exception.Message);
+                code?.Dispose();
             }
         }
-
-        Dictionary<string, GlobalRoutes> routes = [with(StringComparer.Ordinal)];
-
-        foreach (string global in versions.SelectMany(static version => version.Globals.Keys).Distinct(StringComparer.Ordinal))
-        {
-            routes[global] = new GlobalSearch(global, readable, cancellationToken).Run(versions, unreadable);
-        }
-
-        return routes;
     }
 }
 
 // Searches the routes of 1 global, 1 route per round, until no candidate covers a version that is left.
+// Refuses a candidate that reaches another address in any readable version of the group, because a reader of that version would read the wrong value.
 file sealed class GlobalSearch(
     string global,
     List<VersionCode> readable,
-    CancellationToken cancellationToken)
+    ParallelOptions options)
 {
     private readonly List<VersionCode> _remaining = readable.FindAll(code => code.Version.Globals.ContainsKey(global));
     private readonly List<SiteWindow> _windows = [.. readable.SelectMany(code => code.WindowsOf(global))];
@@ -145,19 +177,9 @@ file sealed class GlobalSearch(
                     continue;
                 }
 
-                cancellationToken.ThrowIfCancellationRequested();
+                var reached = Reach(entry.Candidate, entry.Versions);
 
-                Dictionary<VersionCode, uint> reached = [];
-
-                foreach (var code in entry.Versions)
-                {
-                    if (code.TryReach(global, entry.Candidate, out uint rva))
-                    {
-                        reached[code] = rva;
-                    }
-                }
-
-                if (reached.Count > 0 && (best is null || best.IsWorseThan(entry.Candidate, reached.Count)))
+                if (reached.Count > 0 && (best is null || best.IsWorseThan(entry.Candidate, reached.Count)) && !ConflictsInGroup(entry.Candidate))
                 {
                     best = new Picked(entry.Candidate, reached);
 
@@ -172,16 +194,51 @@ file sealed class GlobalSearch(
         if (best is not null)
         {
             // Search the other versions for the candidate, because linear decoding can miss 1 load of a version with other sites.
-            foreach (var code in _remaining)
+            var reached = best.Reached;
+
+            foreach ((var code, uint rva) in Reach(best.Candidate, _remaining.FindAll(other => !reached.ContainsKey(other))))
             {
-                if (!best.Reached.ContainsKey(code) && code.TryReach(global, best.Candidate, out uint rva))
-                {
-                    best.Reached[code] = rva;
-                }
+                reached[code] = rva;
             }
         }
 
         return best;
+    }
+
+    // Searches the versions at once up to the job limit, because each search scans a whole file and a candidate can have dozens of versions.
+    // Hands each version to 1 thread, because the cache of a version is not thread-safe. Adds the results in version order,
+    // so the pick stays the same.
+    private Dictionary<VersionCode, uint> Reach(RouteCandidate candidate, List<VersionCode> codes)
+    {
+        var rvas = new uint?[codes.Count];
+
+        Parallel.For(0, codes.Count, options, index => rvas[index] = codes[index].TryReach(global, candidate, out uint rva) ? rva : null);
+
+        Dictionary<VersionCode, uint> reached = [];
+
+        for (int index = 0; index < codes.Count; index++)
+        {
+            if (rvas[index] is { } rva)
+            {
+                reached[codes[index]] = rva;
+            }
+        }
+
+        return reached;
+    }
+
+    // Searches every readable version of the group, also the covered ones and the ones without the global, because the group shares its routes.
+    // The search results stay in the cache of each version, so a later round or the next global reuses them.
+    private bool ConflictsInGroup(RouteCandidate candidate)
+    {
+        // Stop at the 1st conflict, because 1 is enough to refuse the candidate.
+        return !Parallel.For(0, readable.Count, options, (index, state) =>
+        {
+            if (readable[index].Conflicts(global, candidate))
+            {
+                state.Stop();
+            }
+        }).IsCompleted;
     }
 
     private Dictionary<RouteCandidate, CandidateVersions>.ValueCollection CandidatesOfSites(int instructions)
@@ -273,13 +330,14 @@ file sealed record Picked(
 }
 
 // Keeps the code of 1 version with its sites and the result of each search, because a search scans the whole file.
-file sealed class VersionCode
+// Owns the mapped image, so the search disposes it after the last global.
+file sealed class VersionCode : IDisposable
 {
     private readonly CodeImage _image;
-    private readonly Dictionary<RouteCandidate, uint?> _reached = [];
+    private readonly Dictionary<RouteCandidate, ScanResult> _results = [];
     private readonly ILookup<ulong, SiteWindow> _sites;
 
-    public VersionCode(RouteVersion version, CodeImage image)
+    private VersionCode(RouteVersion version, CodeImage image)
     {
         Version = version;
         _image = image;
@@ -290,6 +348,30 @@ file sealed class VersionCode
 
     public RouteVersion Version { get; }
 
+    public static Result<VersionCode> Read(RouteVersion version)
+    {
+        if (!CodeImage.Read(version.ExecutablePath).TryUnwrap(out var image, out var error))
+        {
+            return error;
+        }
+
+        try
+        {
+            return new VersionCode(version, image);
+        }
+        catch
+        {
+            image.Dispose();
+
+            throw;
+        }
+    }
+
+    public void Dispose()
+    {
+        _image.Dispose();
+    }
+
     public IEnumerable<SiteWindow> WindowsOf(string global)
     {
         return Version.Globals.TryGetValue(global, out var rvas) ? rvas.SelectMany(rva => _sites[_image.ImageBase + rva]) : [];
@@ -297,14 +379,33 @@ file sealed class VersionCode
 
     public bool TryReach(string global, RouteCandidate candidate, out uint rva)
     {
-        if (!_reached.TryGetValue(candidate, out uint? reached))
+        var result = Scan(candidate);
+        rva = result.Rva.GetValueOrDefault();
+
+        return result.Rva.HasValue && IsOf(global, rva);
+    }
+
+    // Counts a match that reaches an RVA of the global as no conflict, because the route then covers this version too.
+    public bool Conflicts(string global, RouteCandidate candidate)
+    {
+        var result = Scan(candidate);
+
+        return result.Matched && !(result.Rva is { } rva && IsOf(global, rva));
+    }
+
+    private bool IsOf(string global, uint rva)
+    {
+        return Version.Globals.TryGetValue(global, out var rvas) && rvas.Contains(rva);
+    }
+
+    private ScanResult Scan(RouteCandidate candidate)
+    {
+        if (!_results.TryGetValue(candidate, out var result))
         {
-            reached = new SignatureScan(candidate).Search(_image);
-            _reached[candidate] = reached;
+            result = new SignatureScan(candidate).Search(_image);
+            _results[candidate] = result;
         }
 
-        rva = reached.GetValueOrDefault();
-
-        return reached.HasValue && Version.Globals[global].Contains(rva);
+        return result;
     }
 }

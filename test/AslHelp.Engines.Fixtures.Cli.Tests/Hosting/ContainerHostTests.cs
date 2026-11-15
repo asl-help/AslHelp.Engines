@@ -43,7 +43,7 @@ public sealed class ContainerHostTests
             Assert.That(parameters.Image, Is.EqualTo(ContainerHost.Image));
             Assert.That(parameters.HostConfig?.Binds?[0], Is.EqualTo($@"{install}:C:\player"));
             Assert.That(parameters.WorkingDir, Is.EqualTo(@"C:\player\Binaries\Win32"));
-            Assert.That(string.Join('|', parameters.Cmd), Is.EqualTo(@"C:\player\Binaries\Win32\Game.exe|server|map?x=1|-flag"));
+            Assert.That(string.Join('|', parameters.Cmd ?? []), Is.EqualTo(@"C:\player\Binaries\Win32\Game.exe|server|map?x=1|-flag"));
         }
     }
 
@@ -246,7 +246,7 @@ public sealed class ContainerHostTests
     {
         var parameters = ContainerHost.NewContainerParameters(_folder.NewFolder(), "Game.exe", "");
 
-        Assert.That(string.Join('|', parameters.Cmd), Is.EqualTo(@"C:\player\Game.exe"));
+        Assert.That(string.Join('|', parameters.Cmd ?? []), Is.EqualTo(@"C:\player\Game.exe"));
     }
 
     // An image on the machine is found and a missing one isn't, each with 1 request that pulls nothing.

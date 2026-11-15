@@ -18,7 +18,7 @@ public sealed class SignatureScanEdgeTests
         RouteCandidate candidate = new("68 ????????", 1, 1, 5);
         var image = new CodeBuilder(false).Raw(0x68).Absolute(0x2068).Nops(4).Build();
 
-        Assert.That(new SignatureScan(candidate).Search(image), Is.Null);
+        Assert.That(new SignatureScan(candidate).Search(image).Rva, Is.Null);
     }
 
     // 2 sections that reach 2 RVAs fail like 2 matches in 1 section.
@@ -31,7 +31,7 @@ public sealed class SignatureScanEdgeTests
             CodeBuilder.ImageSize,
             [new CodeBuilder(false).MovEcx(Global).Section(), new CodeBuilder(false, rva: 0x5000).MovEcx(Other).Section()]);
 
-        Assert.That(new SignatureScan(_load).Search(image), Is.Null);
+        Assert.That(new SignatureScan(_load).Search(image).Rva, Is.Null);
     }
 
     // A section shorter than the pattern does not stop the search of the next section.
@@ -44,7 +44,7 @@ public sealed class SignatureScanEdgeTests
             CodeBuilder.ImageSize,
             [new CodeBuilder(false).Nops(2).Section(), new CodeBuilder(false, rva: 0x5000).MovEcx(Global).Section()]);
 
-        Assert.That(new SignatureScan(_load).Search(image), Is.EqualTo(Global));
+        Assert.That(new SignatureScan(_load).Search(image).Rva, Is.EqualTo(Global));
     }
 
     // An x64 match resolves against its own section, so the same RVA from 2 sections has 2 different displacements.
@@ -58,7 +58,7 @@ public sealed class SignatureScanEdgeTests
             CodeBuilder.ImageSize,
             [new CodeBuilder(true).MovRax(Global).Section(), new CodeBuilder(true, rva: 0x5000).MovRax(Global).Section()]);
 
-        Assert.That(new SignatureScan(candidate).Search(image), Is.EqualTo(Global));
+        Assert.That(new SignatureScan(candidate).Search(image).Rva, Is.EqualTo(Global));
     }
 
     // A match without an address operand fails the version, before or after a match that reaches the global.
@@ -69,7 +69,7 @@ public sealed class SignatureScanEdgeTests
         CodeBuilder builder = new(false);
         _ = goodFirst ? builder.MovEcx(Global).Raw(0x8B, 0xC1).Nops(4) : builder.Raw(0x8B, 0xC1).Nops(4).MovEcx(Global);
 
-        Assert.That(new SignatureScan(_anyRegister).Search(builder.Build()), Is.Null);
+        Assert.That(new SignatureScan(_anyRegister).Search(builder.Build()).Rva, Is.Null);
     }
 
     // An x86 address below the image base doesn't have an RVA, so it must not wrap around to a large one.
@@ -78,7 +78,7 @@ public sealed class SignatureScanEdgeTests
     {
         var image = new CodeBuilder(false).Raw(0x8B, 0x0D, 0x10, 0x00, 0x00, 0x00).Build();
 
-        Assert.That(new SignatureScan(_load).Search(image), Is.Null);
+        Assert.That(new SignatureScan(_load).Search(image).Rva, Is.Null);
     }
 
     // An x64 displacement can resolve below the image base and doesn't have an RVA either.
@@ -88,7 +88,7 @@ public sealed class SignatureScanEdgeTests
         RouteCandidate candidate = new("48 8B 05 ????????", 3, 1, 7);
         var image = new CodeBuilder(true, 0x0001_4000_0000).Raw(0x48, 0x8B, 0x05, 0x00, 0x00, 0x00, 0x80).Build();
 
-        Assert.That(new SignatureScan(candidate).Search(image), Is.Null);
+        Assert.That(new SignatureScan(candidate).Search(image).Rva, Is.Null);
     }
 
     // The offset picks the operand when an instruction has 2 addresses.
@@ -99,7 +99,7 @@ public sealed class SignatureScanEdgeTests
         RouteCandidate candidate = new("C7 05 ???????? ????????", offset, 1, 10);
         var image = new CodeBuilder(false).Raw(0xC7, 0x05).Absolute(Global).Absolute(Other).Build();
 
-        Assert.That(new SignatureScan(candidate).Search(image), Is.EqualTo(expected));
+        Assert.That(new SignatureScan(candidate).Search(image).Rva, Is.EqualTo(expected));
     }
 
     // An x64 operand with an immediate after it fails here as well as in the site search, because the read step reaches the wrong address.
@@ -109,7 +109,7 @@ public sealed class SignatureScanEdgeTests
         RouteCandidate candidate = new("83 3D ???????? 00", 2, 1, 7);
         var image = new CodeBuilder(true).Raw(0x83, 0x3D).Relative(Global, trailing: 1).Raw(0x00).Build();
 
-        Assert.That(new SignatureScan(candidate).Search(image), Is.Null);
+        Assert.That(new SignatureScan(candidate).Search(image).Rva, Is.Null);
     }
 
     // An image without code doesn't have a match, whether its section is missing or empty.
@@ -121,8 +121,8 @@ public sealed class SignatureScanEdgeTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(new SignatureScan(_load).Search(noSection), Is.Null);
-            Assert.That(new SignatureScan(_load).Search(emptySection), Is.Null);
+            Assert.That(new SignatureScan(_load).Search(noSection).Rva, Is.Null);
+            Assert.That(new SignatureScan(_load).Search(emptySection).Rva, Is.Null);
         }
     }
 
@@ -132,6 +132,6 @@ public sealed class SignatureScanEdgeTests
     {
         var image = new CodeBuilder(false).Nops(16 * 1024 * 1024).MovEcx(Global).Build();
 
-        Assert.That(new SignatureScan(_load).Search(image), Is.EqualTo(Global));
+        Assert.That(new SignatureScan(_load).Search(image).Rva, Is.EqualTo(Global));
     }
 }

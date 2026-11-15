@@ -6,6 +6,51 @@ namespace AslHelp.Engines.Measuring.Cli.Tests;
 
 public sealed class PlayerFolderTests
 {
+    private const string Hash = "0123456789abcdef";
+
+    // The list the fixtures tool pins for dated versions, in the order of their releases.
+    private static readonly string[] _datedVersions =
+    [
+        "2009-11-BETA",
+        "2010-06-BETA",
+        "2010-07-BETA",
+        "2010-08-BETA",
+        "2010-09",
+        "2010-10-BETA",
+        "2010-11-BETA",
+        "2010-12-BETA",
+        "2011-01-BETA",
+        "2011-02-BETA",
+        "2011-03-BETA",
+        "2011-03-BETA2",
+        "2011-05-BETA",
+        "2011-07-BETA",
+        "2011-10-BETA",
+        "2011-11-BETA",
+        "2011-12-BETA",
+        "2012-01-BETA",
+        "2012-02-BETA",
+        "2012-05-BETA",
+        "2012-07-BETA2",
+        "2012-11-BETA",
+        "2013-02-BETA",
+        "2013-02-BETA2",
+        "2013-07",
+        "2014-02",
+        "2015-02",
+    ];
+
+    private static readonly string[] _naturalVersions =
+    [
+        "4.2.8-win-x64-shipping",
+        "4.9.2-win-x64-shipping",
+        "4.10.4-win-x64-shipping",
+        "4.19.2-win-x64-development",
+        "4.19.2-win-x64-shipping",
+        "5.0.3-win-x64-shipping",
+        "5.8.1-win-x64-shipping",
+    ];
+
     private TestFolder _folder = null!;
 
     [SetUp]
@@ -58,5 +103,46 @@ public sealed class PlayerFolderTests
         var found = PlayerFolder.Find(relative, "engine");
 
         Assert.That(found[0].Directory, Is.EqualTo(Path.Combine(_folder.Root, "engine-1.0-0123456789abcdef")));
+    }
+
+    // A minor past 9 comes after 9, because ordinal text puts 4.10 before 4.2 and the report lists neighboring versions.
+    [Test]
+    public void Find_MinorsPastNine_OrdersNaturally()
+    {
+        CreatePlayers(_naturalVersions);
+
+        var found = PlayerFolder.Find(_folder.Root, "engine");
+
+        Assert.That(found.Select(static player => player.Version), Is.EqualTo(_naturalVersions));
+    }
+
+    // Dated versions keep their order, because their reports compare byte for byte with the earlier runs.
+    [Test]
+    public void Find_DatedVersions_KeepsTheOrdinalOrder()
+    {
+        CreatePlayers(_datedVersions);
+
+        var found = PlayerFolder.Find(_folder.Root, "engine");
+
+        Assert.That(found.Select(static player => player.Version), Is.EqualTo(_datedVersions));
+    }
+
+    // A version with dashes stays whole, because only the last part of the folder is the hash.
+    [Test]
+    public void Find_VersionWithDashes_KeepsTheWholeId()
+    {
+        CreatePlayers("4.19.2-win-x64-shipping");
+
+        var found = PlayerFolder.Find(_folder.Root, "engine");
+
+        Assert.That(found[0].Version, Is.EqualTo("4.19.2-win-x64-shipping"));
+    }
+
+    private void CreatePlayers(params string[] versions)
+    {
+        foreach (string version in versions.Reverse())
+        {
+            _ = Directory.CreateDirectory(Path.Combine(_folder.Root, $"engine-{version}-{Hash}"));
+        }
     }
 }

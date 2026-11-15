@@ -3,6 +3,7 @@ using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection.PortableExecutable;
 
 namespace AslHelp.Engines.Measuring.Cli.Tests.Routes;
@@ -189,6 +190,30 @@ internal sealed class CodeBuilder(
     }
 
     /// <summary>
+    ///     Adds a near call of an RVA.
+    /// </summary>
+    /// <param name="target">The RVA.</param>
+    /// <returns>
+    ///     This builder.
+    /// </returns>
+    public CodeBuilder CallTo(uint target)
+    {
+        return Raw(0xE8).Relative(target);
+    }
+
+    /// <summary>
+    ///     Adds <c>mov ecx, target</c> with the absolute address of an RVA as the immediate, for x86.
+    /// </summary>
+    /// <param name="target">The RVA.</param>
+    /// <returns>
+    ///     This builder.
+    /// </returns>
+    public CodeBuilder MovEcxAddress(uint target)
+    {
+        return Raw(0xB9).Absolute(target);
+    }
+
+    /// <summary>
     ///     Adds <c>mov eax, [ecx + 0x1A8]</c> for x86.
     /// </summary>
     /// <returns>
@@ -202,12 +227,13 @@ internal sealed class CodeBuilder(
     /// <summary>
     ///     Creates the image with the bytes as its only section.
     /// </summary>
+    /// <param name="data">The headers and the sections without code of the image.</param>
     /// <returns>
     ///     The image.
     /// </returns>
-    public CodeImage Build()
+    public CodeImage Build(params IReadOnlyList<CodeSection> data)
     {
-        return new CodeImage(is64Bit, imageBase, ImageSize, [Section()]);
+        return new CodeImage(is64Bit, imageBase, ImageSize, [Section()], data);
     }
 
     /// <summary>
@@ -218,11 +244,12 @@ internal sealed class CodeBuilder(
     /// </returns>
     public CodeSection Section()
     {
-        return new CodeSection(rva, [.. _bytes]);
+        return new CodeSection(rva, _bytes.ToArray());
     }
 
     /// <summary>
-    ///     Writes <paramref name="image"/> as a PE file.
+    ///     Writes <paramref name="image"/> as a PE file, with <see cref="CodeImage.Sections"/> as code and the parts of
+    ///     <see cref="CodeImage.Data"/> above RVA 0 as sections without code.
     /// </summary>
     /// <param name="path">The file.</param>
     /// <param name="image">The image.</param>
@@ -231,18 +258,20 @@ internal sealed class CodeBuilder(
     {
         const int CoffAt = 0x44;
         const int FileAlignment = 0x200;
+        const SectionCharacteristics Executable = SectionCharacteristics.MemRead | SectionCharacteristics.MemExecute;
+
+        List<(CodeSection Section, SectionCharacteristics Characteristics)> sections =
+        [
+            .. image.Sections.Select(static section => (section, Executable)),
+            .. image.Data.Where(static part => part.Rva != 0).Select(static part => (part, SectionCharacteristics.MemRead)),
+        ];
 
         int optionalSize = image.Is64Bit ? 0xF0 : 0xE0;
         int optionalAt = CoffAt + 20;
         int sectionsAt = optionalAt + optionalSize;
-        int headersSize = (sectionsAt + (image.Sections.Count * 40) + FileAlignment - 1) & -FileAlignment;
+        int headersSize = (sectionsAt + (sections.Count * 40) + FileAlignment - 1) & -FileAlignment;
 
-        int fileSize = headersSize;
-
-        foreach (var section in image.Sections)
-        {
-            fileSize += section.Bytes.Length;
-        }
+        int fileSize = headersSize + sections.Sum(static entry => entry.Section.Bytes.Length);
 
         byte[] file = new byte[fileSize];
         file[0] = (byte)'M';
@@ -253,7 +282,7 @@ internal sealed class CodeBuilder(
 
         var written = machine ?? (image.Is64Bit ? Machine.Amd64 : Machine.I386);
         BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(CoffAt), (ushort)written);
-        BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(CoffAt + 2), (ushort)image.Sections.Count);
+        BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(CoffAt + 2), (ushort)sections.Count);
         BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(CoffAt + 16), (ushort)optionalSize);
 
         BinaryPrimitives.WriteUInt16LittleEndian(file.AsSpan(optionalAt), (ushort)(image.Is64Bit ? 0x20B : 0x10B));
@@ -274,17 +303,16 @@ internal sealed class CodeBuilder(
 
         int rawAt = headersSize;
 
-        for (int index = 0; index < image.Sections.Count; index++)
+        for (int index = 0; index < sections.Count; index++)
         {
-            var section = image.Sections[index];
+            (var section, var characteristics) = sections[index];
             int at = sectionsAt + (index * 40);
             BinaryPrimitives.WriteInt32LittleEndian(file.AsSpan(at + 8), section.Bytes.Length);
             BinaryPrimitives.WriteUInt32LittleEndian(file.AsSpan(at + 12), section.Rva);
             BinaryPrimitives.WriteInt32LittleEndian(file.AsSpan(at + 16), section.Bytes.Length);
             BinaryPrimitives.WriteInt32LittleEndian(file.AsSpan(at + 20), rawAt);
-            const SectionCharacteristics Executable = SectionCharacteristics.MemRead | SectionCharacteristics.MemExecute;
-            BinaryPrimitives.WriteUInt32LittleEndian(file.AsSpan(at + 36), (uint)Executable);
-            section.Bytes.CopyTo(file, rawAt);
+            BinaryPrimitives.WriteUInt32LittleEndian(file.AsSpan(at + 36), (uint)characteristics);
+            section.Bytes.Span.CopyTo(file.AsSpan(rawAt));
             rawAt += section.Bytes.Length;
         }
 

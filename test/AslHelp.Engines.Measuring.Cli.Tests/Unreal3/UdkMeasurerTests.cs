@@ -131,7 +131,7 @@ public sealed class UdkMeasurerTests
         UdkMeasurer measurer = new();
         measurer.LoadTargets(null).Unwrap();
 
-        var measurement = await measurer.MeasureAsync(player!, NullLogger.Instance, CancellationToken.None);
+        var measurement = await measurer.MeasureAsync(new PlayerFolder(player!, "x"), NullLogger.Instance, CancellationToken.None);
 
         Assert.That(measurement.Unwrap().Globals.Keys, Is.EquivalentTo(_globals));
     }

@@ -29,7 +29,7 @@ internal static class InstructionSites
 
         foreach (var section in image.Sections)
         {
-            ByteArrayCodeReader reader = new(section.Bytes);
+            using MemoryCodeReader reader = new(section.Bytes);
             ulong sectionAddress = image.ImageBase + section.Rva;
             var decoder = Decoder.Create(image.Is64Bit ? 64 : 32, reader, sectionAddress);
 
@@ -127,7 +127,7 @@ internal static class InstructionSites
     /// </returns>
     private static SiteWindow ReadWindow(CodeImage image, CodeSection section, int from, int site, ulong address, int operandAt)
     {
-        ByteArrayCodeReader reader = new(section.Bytes, from, section.Bytes.Length - from);
+        using MemoryCodeReader reader = new(section.Bytes[from..]);
         var decoder = Decoder.Create(image.Is64Bit ? 64 : 32, reader, image.ImageBase + section.Rva + (uint)from);
 
         List<int> starts = [];
@@ -150,10 +150,10 @@ internal static class InstructionSites
             if (starts.Count == site
                 && offsets.DisplacementSize != 0
                 && length + offsets.DisplacementOffset == operandAt
-                && (section.Bytes[from + operandAt - 1] & ModRmFormMask) == ModRmFormOfAddress)
+                && (section.Bytes.Span[from + operandAt - 1] & ModRmFormMask) == ModRmFormOfAddress)
             {
                 // Step over a SIB byte, because [address] also encodes as ModRM, SIB, displacement and only the opcode comes right before the ModRM.
-                registerAt = section.Bytes[from + operandAt - 2] == (byte)instruction.OpCode.OpCode ? operandAt - 1 : operandAt - 2;
+                registerAt = section.Bytes.Span[from + operandAt - 2] == (byte)instruction.OpCode.OpCode ? operandAt - 1 : operandAt - 2;
             }
 
             if (IsAddressDisplacement(instruction, offsets, image))
@@ -170,7 +170,7 @@ internal static class InstructionSites
             length += instruction.Length;
         }
 
-        byte[] bytes = section.Bytes.AsSpan(from, length).ToArray();
+        byte[] bytes = section.Bytes.Span.Slice(from, length).ToArray();
         int[] operands = new int[length];
 
         for (int mask = 0; mask < masks.Count; mask++)

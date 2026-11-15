@@ -121,7 +121,7 @@ public sealed class InstructionSitesEdgeTests
         }
 
         var image = builder.MovEcx(Global).Ret().Build();
-        byte[] expected = [.. image.Sections[0].Bytes[(12 * 3)..]];
+        byte[] expected = image.Sections[0].Bytes[(12 * 3)..].ToArray();
 
         var window = InstructionSites.Find(image, _wanted).Single();
 

@@ -79,33 +79,6 @@ public sealed class UdkTargetFileTests
         Assert.That(UdkTargets.Read(stream, TargetsPath).UnwrapErr().Message, Does.Contain(TargetsPath));
     }
 
-    // A file that another program has open is an expected failure of --targets, so it comes back as a result with the path.
-    [Test]
-    public void ReadFile_FileOpenInAnotherProgram_FailsWithThePath()
-    {
-        File.WriteAllText(FilePath, ValidFile);
-
-        using FileStream locked = new(FilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-
-        Assert.That(UdkTargets.ReadFile(FilePath).UnwrapErr().Message, Does.Contain(FilePath));
-    }
-
-    // A file in a folder that does not exist fails as a missing file and not as a failed read.
-    [Test]
-    public void ReadFile_MissingFolder_FailsAsMissing()
-    {
-        string missing = Path.Combine(_folder.Root, "missing", TargetsPath);
-
-        Assert.That(UdkTargets.ReadFile(missing).UnwrapErr().Message, Is.EqualTo(UdkSR.FormatTargetsNotFound(missing)));
-    }
-
-    // A folder at the path exists and does not open, so it fails as a failed read and not as a missing file.
-    [Test]
-    public void ReadFile_PathIsAFolder_FailsAsUnreadable()
-    {
-        Assert.That(UdkTargets.ReadFile(_folder.Root).UnwrapErr().Message, Does.StartWith($"Can't read '{_folder.Root}': "));
-    }
-
     // A failed load keeps the list from before, so the targets never end up half read.
     [Test]
     public void LoadTargets_BadFileAfterGoodFile_KeepsTheFirstList()

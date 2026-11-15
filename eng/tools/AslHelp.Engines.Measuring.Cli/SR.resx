@@ -13,25 +13,130 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="EngineDescription" xml:space="preserve">
-    <value>The engine of the players.</value>
+    <value>Measures the players of {0}.</value>
+  </data>
+  <data name="ExecutableCodeViewInvalid" xml:space="preserve">
+    <value>'{0}' has a bad CodeView debug entry: {1}</value>
   </data>
   <data name="ExecutableMachineUnsupported" xml:space="preserve">
     <value>'{0}' is not an x86 or x64 executable.</value>
   </data>
+  <data name="ExecutableNoCodeView" xml:space="preserve">
+    <value>'{0}' doesn't have a CodeView debug entry.</value>
+  </data>
   <data name="ExecutableNotPe" xml:space="preserve">
     <value>'{0}' is not a PE file.</value>
+  </data>
+  <data name="FileUnreadable" xml:space="preserve">
+    <value>Can't read '{0}': {1}</value>
+  </data>
+  <data name="JobsBelowOne" xml:space="preserve">
+    <value>--jobs has to be 1 or more.</value>
+  </data>
+  <data name="JobsDescription" xml:space="preserve">
+    <value>The most players to measure at once and the most executables of a group to decode and search at once. Default is the limit of the engine.</value>
+  </data>
+  <data name="OffsetKeyMalformed" xml:space="preserve">
+    <value>Offset '{0}' is not of the form Type.Member.</value>
   </data>
   <data name="OutputDescription" xml:space="preserve">
     <value>The file for the report.</value>
   </data>
+  <data name="PdbBaseClassCycle" xml:space="preserve">
+    <value>Base class '{0}' derives from itself.</value>
+  </data>
+  <data name="PdbBaseClassIncomplete" xml:space="preserve">
+    <value>Base class '{0}' doesn't have a complete record.</value>
+  </data>
+  <data name="PdbBaseClassNotClass" xml:space="preserve">
+    <value>Base class record of kind {0} isn't a class.</value>
+  </data>
+  <data name="PdbConstantAmbiguous" xml:space="preserve">
+    <value>Constant '{0}' has 2 values: {1} and {2}.</value>
+  </data>
+  <data name="PdbConstantDoesNotFit" xml:space="preserve">
+    <value>Constant '{0}' doesn't fit a 64-bit integer.</value>
+  </data>
+  <data name="PdbConstantNotFound" xml:space="preserve">
+    <value>Constant '{0}' isn't in the PDB.</value>
+  </data>
+  <data name="PdbEmpty" xml:space="preserve">
+    <value>The file is empty.</value>
+  </data>
+  <data name="PdbFieldListCycle" xml:space="preserve">
+    <value>The field list of '{0}' continues into itself.</value>
+  </data>
+  <data name="PdbFieldListMissing" xml:space="preserve">
+    <value>The field list of '{0}' doesn't exist.</value>
+  </data>
+  <data name="PdbIdentityMismatch" xml:space="preserve">
+    <value>PDB {0} age {1} doesn't match executable {2} age {3}.</value>
+  </data>
+  <data name="PdbInvalid" xml:space="preserve">
+    <value>'{0}' is not a valid PDB: {1}</value>
+  </data>
+  <data name="PdbNumericKindUnsupported" xml:space="preserve">
+    <value>Number of kind 0x{0} in a class record can't be read.</value>
+  </data>
+  <data name="PdbOmapUnsupported" xml:space="preserve">
+    <value>'{0}' has OMAP streams. A post-link tool rewrote the image, so the symbol offsets don't match it.</value>
+  </data>
+  <data name="PdbSectionHeadersMissing" xml:space="preserve">
+    <value>'{0}' doesn't have a valid section header stream.</value>
+  </data>
+  <data name="PdbSymbolAmbiguous" xml:space="preserve">
+    <value>'{0}' finds 2 RVAs: 0x{1} and 0x{2}.</value>
+  </data>
+  <data name="PdbSymbolNotFound" xml:space="preserve">
+    <value>Symbol '{0}' isn't in the PDB.</value>
+  </data>
+  <data name="PdbTypeChainTooDeep" xml:space="preserve">
+    <value>Type record chain is deeper than {0}.</value>
+  </data>
+  <data name="PdbTypeCountTooLarge" xml:space="preserve">
+    <value>The type stream lists {0} types in {1} bytes.</value>
+  </data>
+  <data name="PdbTypeForwardOnly" xml:space="preserve">
+    <value>Type '{0}' only has forward references in the PDB.</value>
+  </data>
+  <data name="PdbTypeNotFound" xml:space="preserve">
+    <value>Type '{0}' isn't in the PDB.</value>
+  </data>
+  <data name="PdbTypeUnreadable" xml:space="preserve">
+    <value>Can't read type '{0}': {1}</value>
+  </data>
   <data name="PlayersDescription" xml:space="preserve">
     <value>The folder with the players that the fixtures command line built.</value>
   </data>
+  <data name="PlayersSameVersion" xml:space="preserve">
+    <value>Version {0} has more than 1 player folder: {1}. Keep 1 of them.</value>
+  </data>
   <data name="RootDescription" xml:space="preserve">
-    <value>Runs the fixture players of an engine and writes a report.</value>
+    <value>Measures the fixture players of an engine and writes a report.</value>
+  </data>
+  <data name="TargetsBlankName" xml:space="preserve">
+    <value>'{0}': a target has a blank name.</value>
+  </data>
+  <data name="TargetsBlankValue" xml:space="preserve">
+    <value>'{0}': the target '{1}' has a blank value.</value>
   </data>
   <data name="TargetsDescription" xml:space="preserve">
-    <value>The file with the globals to find. Replaces the list built into the command.</value>
+    <value>The file with the values to find. Replaces the list built into the command.</value>
+  </data>
+  <data name="TargetsEmpty" xml:space="preserve">
+    <value>'{0}' doesn't have any targets.</value>
+  </data>
+  <data name="TargetsInvalid" xml:space="preserve">
+    <value>'{0}' is not a valid set of targets: {1}</value>
+  </data>
+  <data name="TargetsNotEmbedded" xml:space="preserve">
+    <value>The command doesn't have a resource called {0}.</value>
+  </data>
+  <data name="TargetsNotFound" xml:space="preserve">
+    <value>'{0}' does not exist.</value>
+  </data>
+  <data name="TargetsNull" xml:space="preserve">
+    <value>'{0}': the target '{1}' is null.</value>
   </data>
   <data name="UncoveredNoCandidate" xml:space="preserve">
     <value>No signature of the group reaches 1 RVA of the global.</value>

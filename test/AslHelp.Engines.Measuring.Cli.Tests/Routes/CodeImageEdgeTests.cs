@@ -35,7 +35,9 @@ public sealed class CodeImageEdgeTests
         string path = Path.Combine(folder, "file ü.bin");
         CodeBuilder.WritePe(path, new CodeBuilder(false).Ret().Build());
 
-        Assert.That(CodeImage.Read(path).Sections.Single().Bytes, Has.Length.EqualTo(1));
+        using var image = CodeImage.Read(path).Unwrap();
+
+        Assert.That(image.Sections.Single().Bytes, Has.Length.EqualTo(1));
     }
 
     // A section without the execute flag stays out, even between 2 executable sections.
@@ -64,7 +66,7 @@ public sealed class CodeImageEdgeTests
             (uint)SectionCharacteristics.MemRead);
         File.WriteAllBytes(path, file);
 
-        var image = CodeImage.Read(path);
+        using var image = CodeImage.Read(path).Unwrap();
 
         Assert.That(image.Sections.Select(static section => section.Rva), Is.EqualTo(_firstAndThird));
     }
@@ -76,17 +78,19 @@ public sealed class CodeImageEdgeTests
         string path = Path.Combine(_folder.Root, "file.bin");
         CodeBuilder.WritePe(path, new CodeBuilder(false).Build());
 
-        Assert.That(CodeImage.Read(path).Sections.Single().Bytes, Is.Empty);
+        using var image = CodeImage.Read(path).Unwrap();
+
+        Assert.That(image.Sections.Single().Bytes.IsEmpty, Is.True);
     }
 
-    // A file that ends inside its headers is no PE file and the message has its path.
+    // A file that ends inside a section is no PE file and the message has its path.
     [Test]
-    public void Read_FileCutInsideTheHeaders_ThrowsWithThePath()
+    public void Read_FileCutInsideASection_FailsWithThePath()
     {
         string path = Path.Combine(_folder.Root, "file.bin");
         CodeBuilder.WritePe(path, new CodeBuilder(false).Ret().Build());
-        File.WriteAllBytes(path, File.ReadAllBytes(path)[..0x60]);
+        File.WriteAllBytes(path, File.ReadAllBytes(path)[..^1]);
 
-        Assert.That(() => CodeImage.Read(path), Throws.TypeOf<BadImageFormatException>().With.Message.Contain(path));
+        Assert.That(CodeImage.Read(path).UnwrapErr().Message, Is.EqualTo(SR.FormatExecutableNotPe(path)));
     }
 }

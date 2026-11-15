@@ -65,7 +65,7 @@ internal static partial class MeasureLog
     [LoggerMessage(EventId = 4, Level = LogLevel.Error, Message = "failed: {Version}: {Reason}")]
     public static partial void PlayerFailed(this ILogger logger, string version, string reason);
 
-    [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "no {Engine} players in '{Folder}'")]
+    [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "players: 0 {Engine} in '{Folder}'")]
     public static partial void NoPlayers(this ILogger logger, string folder, string engine);
 
     [LoggerMessage(EventId = 6, Level = LogLevel.Error, Message = "{Reason}")]
@@ -77,8 +77,8 @@ internal static partial class MeasureLog
     [LoggerMessage(EventId = 8, Level = LogLevel.Information, Message = "players: {Players} in '{Folder}'")]
     public static partial void PlayersFound(this ILogger logger, int players, string folder);
 
-    [LoggerMessage(EventId = 9, Level = LogLevel.Information, Message = "versions with the same offsets:")]
-    public static partial void GroupsHeader(this ILogger logger);
+    [LoggerMessage(EventId = 9, Level = LogLevel.Information, Message = "groups: {Groups}")]
+    public static partial void GroupsHeader(this ILogger logger, int groups);
 
     [LoggerMessage(EventId = 10, Level = LogLevel.Information, Message = "[{Versions}]")]
     public static partial void Group(this ILogger logger, string versions);
@@ -97,4 +97,13 @@ internal static partial class MeasureLog
 
     [LoggerMessage(EventId = 15, Level = LogLevel.Information, Message = "routes ({Seconds:F1} s)")]
     public static partial void RoutesDone(this ILogger logger, double seconds);
+
+    [LoggerMessage(EventId = 16, Level = LogLevel.Information, Message = "[{Key}: {Versions}]")]
+    public static partial void KeyedGroup(this ILogger logger, string key, string versions);
+
+    [LoggerMessage(EventId = 17, Level = LogLevel.Error, Message = "unexpected: {Type}")]
+    public static partial void Unexpected(this ILogger logger, Exception exception, string type);
+
+    [LoggerMessage(EventId = 18, Level = LogLevel.Warning, Message = "jobs: {Jobs}, requested: {Requested}")]
+    public static partial void JobsLowered(this ILogger logger, int jobs, int requested);
 }

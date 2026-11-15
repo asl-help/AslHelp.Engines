@@ -13,6 +13,7 @@
 
   <!-- Shared package versions. -->
   <ItemGroup>
+    <PackageVersion Include="AsmResolver.Symbols.Pdb" Version="6.1.0" />
     <PackageVersion Include="Docker.DotNet.Enhanced" Version="4.3.3" />
     <PackageVersion Include="Iced" Version="1.22.0" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.14" />

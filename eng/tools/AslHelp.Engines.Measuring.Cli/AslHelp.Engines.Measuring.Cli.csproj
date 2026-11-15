@@ -15,6 +15,7 @@
 
   <ItemGroup>
     <PackageReference Include="AslHelp.Memory.Remote" />
+    <PackageReference Include="AsmResolver.Symbols.Pdb" />
     <PackageReference Include="Iced" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />
     <PackageReference Include="System.CommandLine" />

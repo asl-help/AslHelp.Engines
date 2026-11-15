@@ -42,6 +42,7 @@ The tool projects and their tests target `net11.0-windows` because the players o
 
 ## Layout
 
+- `src/AslHelp.Engines`: parts every engine library shares, like member chains. It doesn't contain any engine code.
 - `src/AslHelp.Engines.Unreal`: engine library. It has 1 type per storage shape because shapes change between minor engine versions, not major ones.
 - `eng/tools/AslHelp.Engines.Fixtures`: parts both command lines use, like cache keys, `Player`, the UDK install paths in `Unreal3/UdkInstall` and the player tags and ids in `Unreal4/UnrealPlayer`.
 - `eng/tools/AslHelp.Engines.Fixtures.Cli`: `fixtures` command line. An engine plugs in through `IToolchain`, which adds the engine's own command line options and lists the players of a version. `EmbeddedReleases` reads an engine's `releases.json` with the shared checks and the engine's row type adds its own checks through `IReleaseRow`. A store plugs in through `ICacheStore`. `Formats/` reads and writes archives, cabinets, self-extracting zips and PE imports. `Hosting/` runs players and build steps in containers and processes. `Transfer/` downloads files, talks to the WebDAV store and shows progress.

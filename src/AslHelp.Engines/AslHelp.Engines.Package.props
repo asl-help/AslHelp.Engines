@@ -1,0 +1,12 @@
+<Project>
+
+  <PropertyGroup>
+    <Description>Shared parts of the asl-help engine libraries: member chains that a script writes 1 name at a time and watcher sources.</Description>
+    <PackageTags>game-engine memory watcher</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(RootPath)/readme.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
+
+</Project>

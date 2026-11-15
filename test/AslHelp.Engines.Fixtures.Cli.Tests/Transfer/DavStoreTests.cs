@@ -101,9 +101,9 @@ public sealed class DavStoreTests
         Assert.That(_handler.Requests, Has.Count.EqualTo(1));
     }
 
-    // Parent collections are made from the top down before the file is sent whole with its length.
+    // Parent collections are made from the top down before the file is sent whole with its length to a .partial file and moved over the path.
     [Test]
-    public async Task UploadAsync_NestedPath_SendsMkcolTopDownThenPutWithBytesAndContentLength()
+    public async Task UploadAsync_NestedPath_SendsMkcolTopDownThenPutToPartialThenMove()
     {
         byte[] bytes = [1, 2, 3, 4, 5];
         string source = WriteSource(bytes);
@@ -113,7 +113,7 @@ public sealed class DavStoreTests
 
         var requests = _handler.Requests;
 
-        Assert.That(requests, Has.Count.EqualTo(3));
+        Assert.That(requests, Has.Count.EqualTo(4));
 
         using (Assert.EnterMultipleScope())
         {
@@ -122,13 +122,17 @@ public sealed class DavStoreTests
             Assert.That(requests[1].Method, Is.EqualTo("MKCOL"));
             Assert.That(requests[1].Uri.AbsoluteUri, Is.EqualTo(Base + "a/b"));
             Assert.That(requests[2].Method, Is.EqualTo("PUT"));
-            Assert.That(requests[2].Uri.AbsoluteUri, Is.EqualTo(Base + "a/b/f.tar.zst"));
+            Assert.That(requests[2].Uri.AbsoluteUri, Is.EqualTo(Base + "a/b/f.tar.zst.partial"));
             Assert.That(requests[2].Body, Is.EqualTo(bytes));
             Assert.That(requests[2].ContentLength, Is.EqualTo(bytes.Length));
+            Assert.That(requests[3].Method, Is.EqualTo("MOVE"));
+            Assert.That(requests[3].Uri.AbsoluteUri, Is.EqualTo(Base + "a/b/f.tar.zst.partial"));
+            Assert.That(requests[3].Destination, Is.EqualTo(Base + "a/b/f.tar.zst"));
+            Assert.That(requests[3].Overwrite, Is.EqualTo("T"));
         }
     }
 
-    // 405 on MKCOL means the collection exists, so the upload goes on to PUT.
+    // 405 on MKCOL means the collection exists, so the upload goes on to PUT and MOVE.
     [Test]
     public async Task UploadAsync_Mkcol405_ContinuesToPut()
     {
@@ -137,7 +141,7 @@ public sealed class DavStoreTests
 
         await store.UploadAsync(source, "a/f.tar.zst", null, CancellationToken.None);
 
-        string[] expected = ["MKCOL", "PUT"];
+        string[] expected = ["MKCOL", "PUT", "MOVE"];
 
         Assert.That(_handler.Requests.ConvertAll(request => request.Method), Is.EqualTo(expected));
     }
@@ -165,11 +169,11 @@ public sealed class DavStoreTests
     public async Task UploadAsync_PutReplaced_Succeeds(HttpStatusCode status)
     {
         string source = WriteSource([1]);
-        var store = NewStore(_ => Status(status));
+        var store = NewStore(request => Status(request.Method == "MOVE" ? HttpStatusCode.Created : status));
 
         await store.UploadAsync(source, "f.tar.zst", null, CancellationToken.None);
 
-        Assert.That(_handler.Requests, Has.Count.EqualTo(1));
+        Assert.That(_handler.Requests, Has.Count.EqualTo(2));
     }
 
     // A failed PUT throws with the method, the path and the status code.
@@ -181,7 +185,23 @@ public sealed class DavStoreTests
 
         var exception = await Assert.ThrowsAsync<HttpRequestException>(() => store.UploadAsync(source, "a/f.tar.zst", null, CancellationToken.None));
 
-        Assert.That(exception!.Message, Does.Contain("PUT").And.Contain("'a/f.tar.zst'").And.Contain("500"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exception!.Message, Does.Contain("PUT").And.Contain("'a/f.tar.zst'").And.Contain("500"));
+            Assert.That(_handler.Requests.ConvertAll(request => request.Method), Does.Not.Contain("MOVE"));
+        }
+    }
+
+    // A failed MOVE throws with the method, the path and the status code, because the file then sits only under its .partial name.
+    [Test]
+    public async Task UploadAsync_Move500_ThrowsHttpRequestException()
+    {
+        string source = WriteSource([1]);
+        var store = NewStore(request => Status(request.Method == "MOVE" ? HttpStatusCode.InternalServerError : HttpStatusCode.Created));
+
+        var exception = await Assert.ThrowsAsync<HttpRequestException>(() => store.UploadAsync(source, "a/f.tar.zst", null, CancellationToken.None));
+
+        Assert.That(exception!.Message, Does.Contain("MOVE").And.Contain("'a/f.tar.zst'").And.Contain("500"));
     }
 
     // A redirect message gives the URL the server redirects to, so the user can see the host to set.
@@ -239,7 +259,7 @@ public sealed class DavStoreTests
         Assert.That(exception!.Message, Does.Contain(DavStore.UrlVariable).And.Not.Contain("is up"));
     }
 
-    // A path with 1 segment needs no collection, so the only request is the PUT.
+    // A path with 1 segment needs no collection, so the only requests are the PUT and the MOVE.
     [Test]
     public async Task UploadAsync_TopLevelPath_SendsNoMkcol()
     {
@@ -248,7 +268,7 @@ public sealed class DavStoreTests
 
         await store.UploadAsync(source, "f.tar.zst", null, CancellationToken.None);
 
-        string[] expected = ["PUT"];
+        string[] expected = ["PUT", "MOVE"];
 
         Assert.That(_handler.Requests.ConvertAll(request => request.Method), Is.EqualTo(expected));
     }

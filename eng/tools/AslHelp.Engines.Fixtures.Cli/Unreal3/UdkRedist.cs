@@ -183,7 +183,7 @@ internal sealed class UdkRedist : IDisposable
         ArgumentNullException.ThrowIfNull(directory);
 
         var entry = _archive.GetEntry(entryName)
-            ?? throw new InvalidDataException(UdkSR.FormatRedistEntryMissing(FilePath, entryName));
+            ?? throw new InvalidDataException($"{UdkSR.FormatRedistEntryMissing(FilePath, entryName)} {UdkSR.ReextractInstall}");
 
         entry.ExtractToFile(Path.Combine(directory, Path.GetFileName(entryName)));
     }
@@ -225,7 +225,9 @@ internal sealed class UdkRedist : IDisposable
             catch (InvalidDataException exception)
             {
                 // Put the redist, the entry and the fix in the message, because Cabinet.ReadNames gets only a stream.
-                throw new InvalidDataException(UdkSR.FormatRedistEntryDamaged(name, FilePath, exception.Message), exception);
+                throw new InvalidDataException(
+                    $"{UdkSR.FormatRedistEntryDamaged(name, FilePath, exception.Message)} {UdkSR.ReextractInstall}",
+                    exception);
             }
 
             foreach (string file in files)

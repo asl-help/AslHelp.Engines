@@ -55,7 +55,7 @@ internal static class UdkServer
 
         if (!File.Exists(serverPath))
         {
-            throw new FileNotFoundException(UdkSR.FormatServerNotFound(serverPath), serverPath);
+            throw new FileNotFoundException($"{UdkSR.FormatServerNotFound(serverPath)} {UdkSR.ReextractInstall}", serverPath);
         }
 
         string map = UdkInstall.FindMap(installDirectory);
@@ -131,7 +131,7 @@ internal static class UdkServer
                     ? UdkSR.FormatServerProgressFix(logPath)
                     : UdkSR.FormatServerStartFix(serverPath);
 
-                throw new TimeoutException(UdkSR.FormatServerNotReady(UdkLogScan.ReadyLine, timeout.TotalSeconds, next));
+                throw new TimeoutException(UdkSR.FormatServerNotReady(UdkLogScan.ReadyLine, DurationText.Format(timeout), next));
             }
 
             await Task.Delay(_logPollInterval, cancellationToken).ConfigureAwait(false);

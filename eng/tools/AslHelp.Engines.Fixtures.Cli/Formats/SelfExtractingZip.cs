@@ -34,7 +34,7 @@ internal static class SelfExtractingZip
     {
         ArgumentNullException.ThrowIfNull(path);
 
-        FileStream? file = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.RandomAccess);
+        FileStream? file = new(path, new FileStreamOptions { Options = FileOptions.RandomAccess });
         PayloadStream? payload = null;
 
         try

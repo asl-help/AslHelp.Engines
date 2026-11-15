@@ -65,27 +65,18 @@ public sealed class TransferBarsTests
     [NonParallelizable]
     public async Task ShowAsync_InGitHubActions_PrintsNoEscapeCodes()
     {
-        string? githubActions = Environment.GetEnvironmentVariable("GITHUB_ACTIONS");
-        string? noColor = Environment.GetEnvironmentVariable("NO_COLOR");
+        using EnvironmentVariableScope environment = new("GITHUB_ACTIONS", "NO_COLOR");
 
         // Clear NO_COLOR as on a GitHub runner, because it turns the colors off however ANSI is detected.
         Environment.SetEnvironmentVariable("GITHUB_ACTIONS", "true");
         Environment.SetEnvironmentVariable("NO_COLOR", null);
 
-        try
-        {
-            using StringWriter output = new();
-            var bars = TransferBars.Create(output);
+        using StringWriter output = new();
+        var bars = TransferBars.Create(output);
 
-            await bars.ShowAsync("file.bin", progress => Report(progress, new TransferProgress(50, 100)));
+        await bars.ShowAsync("file.bin", progress => Report(progress, new TransferProgress(50, 100)));
 
-            Assert.That(output.ToString(), Is.EqualTo($"file.bin: 50%{Environment.NewLine}"));
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("GITHUB_ACTIONS", githubActions);
-            Environment.SetEnvironmentVariable("NO_COLOR", noColor);
-        }
+        Assert.That(output.ToString(), Is.EqualTo($"file.bin: 50%{Environment.NewLine}"));
     }
 
     // A failed transfer throws its own exception through the bar, so the failed step prints the real cause.

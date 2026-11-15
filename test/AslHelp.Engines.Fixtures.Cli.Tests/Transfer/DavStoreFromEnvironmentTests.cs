@@ -1,7 +1,6 @@
 using AslHelp.Engines.Fixtures.Cli.Transfer;
 using NUnit.Framework;
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -19,24 +18,18 @@ public sealed class DavStoreFromEnvironmentTests
 
     private static readonly string[] _variables = [DavStore.UrlVariable, DavStore.UserVariable, DavStore.TokenVariable];
 
-    private readonly Dictionary<string, string?> _saved = [];
+    private EnvironmentVariableScope _environment = null!;
 
     [SetUp]
     public void SetUp()
     {
-        foreach (string variable in _variables)
-        {
-            _saved[variable] = Environment.GetEnvironmentVariable(variable);
-        }
+        _environment = new EnvironmentVariableScope(_variables);
     }
 
     [TearDown]
     public void TearDown()
     {
-        foreach ((string variable, string? value) in _saved)
-        {
-            Environment.SetEnvironmentVariable(variable, value);
-        }
+        _environment.Dispose();
     }
 
     // With all 3 variables set, the store is built.

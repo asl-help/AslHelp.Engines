@@ -18,6 +18,8 @@ internal static class Archive
     /// </summary>
     public const int CompressionLevel = 3;
 
+    private const int TarBlockSize = 512;
+
     /// <summary>
     ///     Packs every file and folder under <paramref name="sourceDirectory"/> into <paramref name="archivePath"/>.
     /// </summary>
@@ -229,7 +231,7 @@ internal static class Archive
         // Write the 2 zero blocks that end a tar for an empty folder, because TarWriter writes them only after an entry.
         if (entries.Count == 0)
         {
-            compression.Write(new byte[2 * 512]);
+            compression.Write(new byte[2 * TarBlockSize]);
         }
     }
 
@@ -253,7 +255,7 @@ internal static class Archive
         }
 
         // Open the file as a stream, so the writer copies it in chunks instead of reading it whole.
-        using FileStream file = new(info.FullName, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.SequentialScan);
+        using FileStream file = new(info.FullName, new FileStreamOptions { Options = FileOptions.SequentialScan });
 
         PaxTarEntry fileEntry = new(TarEntryType.RegularFile, name)
         {

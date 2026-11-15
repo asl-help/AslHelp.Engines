@@ -52,7 +52,58 @@ public sealed class CommandLineTests
         }
     }
 
-    // An unknown toolchain fails before any step and the error lists every toolchain, so the user can pick 1.
+    // The help of a toolchain's subcommand lists its own options with --output and <version>, leaves out the options of another toolchain and
+    // doesn't run a step.
+    [Test]
+    public async Task RunAsync_BuildToolchainHelp_ListsOnlyItsOwnOptions()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        FakeToolchain toolchain = new("player");
+        FakeToolchain other = new("other", "--mode");
+        bool opened = false;
+
+        int code = await CommandLine.RunAsync(["build", "player", "--help"], output, error, [other, toolchain], _ =>
+        {
+            opened = true;
+            return null;
+        }, _projects);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero);
+            Assert.That(
+                output.ToString(),
+                Does.Contain("--variant").And.Contain("The variant to build.").And.Contain("--output").And.Contain("<version>"));
+            Assert.That(output.ToString(), Does.Not.Contain("--mode"));
+            Assert.That(opened, Is.False);
+            Assert.That(toolchain.Calls, Is.Empty);
+        }
+    }
+
+    // A build without a toolchain prints the help of build and fails, so a script with a missing argument stops.
+    [Test]
+    public async Task RunAsync_BuildWithoutToolchain_PrintsHelpAndFails()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        bool opened = false;
+
+        int code = await CommandLine.RunAsync(["build"], output, error, [new FakeToolchain("first"), new FakeToolchain("second")], _ =>
+        {
+            opened = true;
+            return null;
+        }, _projects);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(output.ToString(), Does.Contain("Builds players with first.").And.Contain("Builds players with second."));
+            Assert.That(opened, Is.False);
+        }
+    }
+
+    // An unknown toolchain fails before any step. The error has the typo and the help of build lists every toolchain, so the user can pick 1.
     [Test]
     public async Task RunAsync_BuildUnknownToolchain_FailsListingTheToolchains()
     {
@@ -77,7 +128,8 @@ public sealed class CommandLineTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(code, Is.EqualTo(1));
-            Assert.That(error.ToString(), Does.Contain("third").And.Contain("first").And.Contain("second"));
+            Assert.That(error.ToString(), Does.Contain("third"));
+            Assert.That(output.ToString(), Does.Contain("first").And.Contain("second"));
             Assert.That(first.Calls, Is.Empty);
             Assert.That(second.Calls, Is.Empty);
             Assert.That(opened, Is.False);
@@ -102,10 +154,173 @@ public sealed class CommandLineTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(code, Is.Zero);
-            Assert.That(toolchain.Calls, Is.EqualTo([$"InstallAsync 1.0 {_output}", $"BuildAsync {install} {project}", $"CheckAsync {install}"]));
+            Assert.That(
+                toolchain.Calls,
+                Is.EqualTo([$"InstallAsync 1.0 {_output}", $"BuildAsync {install} {project} 1.0", $"CheckAsync {BuiltPath("1.0")}"]));
             Assert.That(other.Calls, Is.Empty);
             Assert.That(LastLine(output), Is.EqualTo(PlayerPath(toolchain)));
             Assert.That(error.ToString(), Is.Empty);
+        }
+    }
+
+    // 1 typed version with 2 players installs once and builds both in 1 pass.
+    [Test]
+    public async Task RunAsync_BuildVersionWith2Players_BuildsBothIn1PassWith1Install()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        FakeToolchain toolchain = new("player");
+        string install = Path.Combine(_output, "install");
+        string project = Path.Combine(_projects, "player");
+        string[] expected =
+        [
+            $"InstallAsync 1.0-a {_output}",
+            $"BuildAsync {install} {project} 1.0-a,1.0-b",
+            $"CheckAsync {BuiltPath("1.0-a")}",
+            $"CheckAsync {BuiltPath("1.0-b")}",
+        ];
+
+        int code = await RunBuildAsync(output, error, toolchain, null, "--variant", "a", "--variant", "b");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, error.ToString());
+            Assert.That(toolchain.Calls, Is.EqualTo(expected));
+            Assert.That(File.Exists(Path.Combine(PlayerPath(toolchain, "1.0-a"), "file.bin")), Is.True);
+            Assert.That(File.Exists(Path.Combine(PlayerPath(toolchain, "1.0-b"), "file.bin")), Is.True);
+        }
+    }
+
+    // A player in the cache isn't rebuilt, so the pass builds and checks only the other player and the folders print in listed order.
+    [Test]
+    public async Task RunAsync_Build1Of2InCache_BuildsOnlyTheOther()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        FakeToolchain toolchain = new("player");
+        string cached = PlayerPath(toolchain, "1.0-a");
+        _ = Directory.CreateDirectory(cached);
+        string install = Path.Combine(_output, "install");
+        string project = Path.Combine(_projects, "player");
+        string[] expected =
+        [
+            $"InstallAsync 1.0-b {_output}",
+            $"BuildAsync {install} {project} 1.0-b",
+            $"CheckAsync {BuiltPath("1.0-b")}",
+        ];
+
+        int code = await RunBuildAsync(output, error, toolchain, null, "--variant", "a", "--variant", "b");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, error.ToString());
+            Assert.That(toolchain.Calls, Is.EqualTo(expected));
+            Assert.That(LastLines(output, 2), Is.EqualTo([cached, PlayerPath(toolchain, "1.0-b")]));
+        }
+    }
+
+    // With all players in the cache the toolchain doesn't run a step and the store doesn't get a request.
+    [Test]
+    public async Task RunAsync_BuildAllInCache_RunsNoStepAndSendsNoRequest()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        FakeToolchain toolchain = new("player");
+        FakeCacheStore store = new();
+        string first = PlayerPath(toolchain, "1.0-a");
+        string second = PlayerPath(toolchain, "1.0-b");
+        _ = Directory.CreateDirectory(first);
+        _ = Directory.CreateDirectory(second);
+
+        int code = await RunBuildAsync(output, error, toolchain, store, "--variant", "a", "--variant", "b");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, error.ToString());
+            Assert.That(toolchain.Calls, Is.Empty);
+            Assert.That(store.Calls, Is.Empty);
+            Assert.That(LastLines(output, 2), Is.EqualTo([first, second]));
+        }
+    }
+
+    // A failed check on the 2nd player keeps the 1st in the folder and the store and doesn't print a folder line.
+    // The next run builds only the 2nd and prints both in listed order.
+    [Test]
+    public async Task RunAsync_BuildCheckFailsOn2nd_Keeps1stStoredAndExits1()
+    {
+        using StringWriter output = new();
+        using StringWriter rerunOutput = new();
+        using StringWriter error = new();
+        string failing = $"CheckAsync {BuiltPath("1.0-b")}";
+        FakeToolchain toolchain = new("player") { FailingStep = failing };
+        FakeToolchain rerun = new("player");
+        FakeCacheStore store = new();
+        string first = PlayerPath(toolchain, "1.0-a");
+        string second = PlayerPath(toolchain, "1.0-b");
+        string install = Path.Combine(_output, "install");
+        string project = Path.Combine(_projects, "player");
+        string[] rerunCalls =
+        [
+            $"InstallAsync 1.0-b {_output}",
+            $"BuildAsync {install} {project} 1.0-b",
+            $"CheckAsync {BuiltPath("1.0-b")}",
+        ];
+
+        int code = await RunBuildAsync(output, error, toolchain, store, "--variant", "a", "--variant", "b");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(error.ToString(), Does.Contain($"{failing} failed in the fake toolchain."));
+            Assert.That(output.ToString().Split(Environment.NewLine), Has.None.EqualTo(first));
+            Assert.That(Directory.Exists(first), Is.True);
+            Assert.That(store.Files.Keys, Is.EquivalentTo([RemotePath(toolchain, "1.0-a"), RemotePath(toolchain, "1.0-a", ".json")]));
+            Assert.That(Directory.Exists(second), Is.False);
+        }
+
+        int rerunCode = await RunBuildAsync(rerunOutput, error, rerun, store, "--variant", "a", "--variant", "b");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(rerunCode, Is.Zero);
+            Assert.That(rerun.Calls, Is.EqualTo(rerunCalls));
+            Assert.That(store.Files.ContainsKey(RemotePath(rerun, "1.0-b")), Is.True);
+            Assert.That(LastLines(rerunOutput, 2), Is.EqualTo([first, second]));
+        }
+    }
+
+    // An option of a toolchain parses on its subcommand and reaches the listing, so the player id and its key come from the option.
+    [Test]
+    public async Task RunAsync_BuildWithToolchainOption_ReachesThePlayerListing()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        FakeToolchain toolchain = new("player");
+
+        int code = await RunBuildAsync(output, error, toolchain, null, "--variant", "x");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, error.ToString());
+            Assert.That(toolchain.Calls[0], Is.EqualTo($"InstallAsync 1.0-x {_output}"));
+            Assert.That(LastLine(output), Is.EqualTo(PlayerPath(toolchain, "1.0-x")));
+        }
+    }
+
+    // The folders print in the listed order as the last lines, so a script can read them from the end of the output.
+    [Test]
+    public async Task RunAsync_BuildSeveralPlayers_PrintsTheFoldersInListedOrder()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        FakeToolchain toolchain = new("player");
+
+        int code = await RunBuildAsync(output, error, toolchain, null, "--variant", "b", "--variant", "a");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, error.ToString());
+            Assert.That(LastLines(output, 2), Is.EqualTo([PlayerPath(toolchain, "1.0-b"), PlayerPath(toolchain, "1.0-a")]));
         }
     }
 
@@ -177,7 +392,8 @@ public sealed class CommandLineTests
         }
     }
 
-    // A miss moves the install to the player folder, writes its manifest, uploads the archive and then the manifest and deletes the local archive.
+    // A miss moves the built folder to the player folder, writes its manifest, uploads the archive and then the manifest and deletes the
+    // local archive.
     [Test]
     public async Task RunAsync_BuildMiss_MovesPacksAndUploadsThePlayer()
     {
@@ -186,7 +402,7 @@ public sealed class CommandLineTests
         FakeToolchain toolchain = new("player");
         FakeCacheStore store = new();
         string remote = RemotePath(toolchain);
-        string manifest = RemotePath(toolchain, ".json");
+        string manifest = RemotePath(toolchain, extension: ".json");
         string player = PlayerPath(toolchain);
 
         int code = await RunBuildAsync(output, error, toolchain, store);
@@ -194,9 +410,9 @@ public sealed class CommandLineTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(code, Is.Zero, error.ToString());
-            Assert.That(Directory.Exists(Path.Combine(_output, "install")), Is.False);
-            Assert.That(await File.ReadAllBytesAsync(Path.Combine(player, "file.bin")), Is.EqualTo(new byte[] { 1, 2, 3 }));
-            Assert.That(UnpackedFile(store.Files[remote]), Is.EqualTo(new byte[] { 1, 2, 3 }));
+            Assert.That(Directory.Exists(BuiltPath("1.0")), Is.False);
+            Assert.That(await File.ReadAllBytesAsync(Path.Combine(player, "file.bin")), Is.EqualTo("1.0"u8.ToArray()));
+            Assert.That(UnpackedFile(store.Files[remote]), Is.EqualTo("1.0"u8.ToArray()));
             Assert.That(File.Exists(player + ".tar.zst"), Is.False);
             Assert.That(store.Calls, Is.EqualTo([$"Download {remote}", $"Upload {remote}", $"Upload {manifest}"]));
             Assert.That(await File.ReadAllBytesAsync(Path.Combine(player, "manifest.json")), Is.EqualTo(store.Files[manifest]));
@@ -257,30 +473,73 @@ public sealed class CommandLineTests
         }
     }
 
-    // A damaged archive in the store fails with the store path, deletes the download and leaves no player folder behind.
+    // A 2nd run into an output folder that another run has fails before the store and the install, because the 2 runs would
+    // delete each other's .partial files.
     [Test]
-    public async Task RunAsync_BuildDamagedArchive_FailsAndLeavesNoPlayerFolder()
+    public async Task RunAsync_BuildOutputLockedByAnotherRun_FailsBeforeAnyStep()
     {
         using StringWriter output = new();
         using StringWriter error = new();
         FakeToolchain toolchain = new("player");
         FakeCacheStore store = new();
-        store.Files[RemotePath(toolchain)] = Encoding.ASCII.GetBytes("not a zstd frame");
+
+        using (new FileStream(Path.Combine(_output, ".fixtures.lock"), FileMode.Create, FileAccess.ReadWrite, FileShare.None))
+        {
+            int code = await RunBuildAsync(output, error, toolchain, store);
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(code, Is.EqualTo(1));
+                Assert.That(error.ToString(), Does.Contain($"The folder {_output} is in use by another fixtures run."));
+                Assert.That(store.Calls, Is.Empty);
+                Assert.That(toolchain.Calls, Is.Empty);
+            }
+        }
+    }
+
+    // A run removes its lock file at the end, so the next run into the folder starts.
+    [Test]
+    public async Task RunAsync_BuildDone_RemovesTheLockFile()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+
+        int code = await RunBuildAsync(output, error, new FakeToolchain("player"), store: null);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero);
+            Assert.That(File.Exists(Path.Combine(_output, ".fixtures.lock")), Is.False);
+        }
+    }
+
+    // A damaged archive in the store counts as a miss with a line that has the store path, so the run builds the player
+    // again and its upload replaces the damaged copy.
+    [Test]
+    public async Task RunAsync_BuildDamagedArchive_RebuildsAndReplacesTheStoreCopy()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        FakeToolchain toolchain = new("player");
+        FakeCacheStore store = new();
+        byte[] damaged = Encoding.ASCII.GetBytes("not a zstd frame");
+        store.Files[RemotePath(toolchain)] = damaged;
         string player = PlayerPath(toolchain);
 
         int code = await RunBuildAsync(output, error, toolchain, store);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(code, Is.EqualTo(1));
-            Assert.That(error.ToString(), Does.Contain(RemotePath(toolchain)));
+            Assert.That(code, Is.Zero);
+            Assert.That(output.ToString(), Does.Contain($"Store copy damaged: {RemotePath(toolchain)} ("));
+            Assert.That(Directory.Exists(player), Is.True);
             Assert.That(File.Exists(player + ".tar.zst"), Is.False);
-            Assert.That(Directory.Exists(player), Is.False);
-            Assert.That(toolchain.Calls, Is.Empty);
+            Assert.That(store.Files[RemotePath(toolchain)], Is.Not.EqualTo(damaged));
+            Assert.That(toolchain.Calls, Is.Not.Empty);
         }
     }
 
-    // A failed upload keeps the player and its archive, so the archive can be uploaded by hand.
+    // A failed upload keeps the player and its archive, so the next run uploads the archive.
     [Test]
     public async Task RunAsync_BuildUploadFails_FailsAndKeepsPlayerAndArchive()
     {
@@ -412,24 +671,36 @@ public sealed class CommandLineTests
         }
     }
 
-    private Task<int> RunBuildAsync(StringWriter output, StringWriter error, FakeToolchain toolchain, FakeCacheStore? store)
+    private Task<int> RunBuildAsync(
+        StringWriter output,
+        StringWriter error,
+        FakeToolchain toolchain,
+        FakeCacheStore? store,
+        params string[] options)
     {
-        return CommandLine.RunAsync(["build", toolchain.Name, "1.0", "--output", _output], output, error, [toolchain], _ => store, _projects);
+        string[] arguments = ["build", toolchain.Name, "1.0", "--output", _output, .. options];
+
+        return CommandLine.RunAsync(arguments, output, error, [toolchain], _ => store, _projects);
     }
 
-    private string PlayerPath(FakeToolchain toolchain)
+    private string BuiltPath(string player)
     {
-        return Path.Combine(_output, $"{toolchain.Name}-1.0-{KeyOf(toolchain).ShortHash}");
+        return Path.Combine(_output, "install", "players", player);
     }
 
-    private string RemotePath(FakeToolchain toolchain, string extension = ".tar.zst")
+    private string PlayerPath(FakeToolchain toolchain, string player = "1.0")
     {
-        return $"players/{toolchain.Name}/1.0/{KeyOf(toolchain).ShortHash}{extension}";
+        return Path.Combine(_output, $"{toolchain.Name}-{player}-{KeyOf(toolchain, player).ShortHash}");
     }
 
-    private CacheKey KeyOf(FakeToolchain toolchain)
+    private string RemotePath(FakeToolchain toolchain, string player = "1.0", string extension = ".tar.zst")
     {
-        return PlayerCache.KeyOf(toolchain, "1.0", Path.Combine(_projects, toolchain.Name)).Key;
+        return $"players/{toolchain.Name}/{player}/{KeyOf(toolchain, player).ShortHash}{extension}";
+    }
+
+    private CacheKey KeyOf(FakeToolchain toolchain, string player)
+    {
+        return PlayerCache.KeyOf(toolchain, player, Path.Combine(_projects, toolchain.Name)).Key;
     }
 
     private byte[] PackedFile(byte[] bytes)
@@ -490,5 +761,10 @@ public sealed class CommandLineTests
     private static string LastLine(StringWriter output)
     {
         return output.ToString().TrimEnd().Split(Environment.NewLine)[^1];
+    }
+
+    private static string[] LastLines(StringWriter output, int count)
+    {
+        return output.ToString().TrimEnd().Split(Environment.NewLine)[^count..];
     }
 }

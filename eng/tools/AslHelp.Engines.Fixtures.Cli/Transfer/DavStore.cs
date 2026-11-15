@@ -11,7 +11,7 @@ using System.Threading.Tasks;
 namespace AslHelp.Engines.Fixtures.Cli.Transfer;
 
 /// <summary>
-///     Reads and writes cached results on a WebDAV folder with GET, PUT and MKCOL from RFC 4918.
+///     Reads and writes cached results on a WebDAV folder with GET, PUT, MKCOL and MOVE from RFC 4918.
 /// </summary>
 internal sealed class DavStore : ICacheStore
 {
@@ -35,7 +35,11 @@ internal sealed class DavStore : ICacheStore
     /// </summary>
     private const int CopyBufferSize = 81920;
 
+    private const string DestinationHeader = "Destination";
+    private const string OverwriteHeader = "Overwrite";
+
     private static readonly HttpMethod _mkcol = new("MKCOL");
+    private static readonly HttpMethod _move = new("MOVE");
 
     private readonly Uri _baseUri;
     private readonly HttpClient _client;
@@ -318,6 +322,10 @@ internal sealed class DavStore : ICacheStore
     /// <summary>
     ///     Uploads <paramref name="sourceFile"/> to <paramref name="path"/> and creates its parent collections first.
     /// </summary>
+    /// <remarks>
+    ///     The body goes to a sibling <c>.partial</c> file first and a MOVE puts it over <paramref name="path"/>, so a cut upload
+    ///     leaves the old file or no file under <paramref name="path"/>.
+    /// </remarks>
     /// <param name="sourceFile">The file to upload. It is streamed, not read into memory.</param>
     /// <param name="path">The relative, '/' separated path under the base URL. An existing file is replaced.</param>
     /// <param name="progress">
@@ -331,7 +339,9 @@ internal sealed class DavStore : ICacheStore
     /// <exception cref="ArgumentException"><paramref name="path"/> is empty, absolute or has an empty, '.' or '..' segment.</exception>
     /// <exception cref="ArgumentNullException"><paramref name="sourceFile"/> or <paramref name="path"/> is <see langword="null"/>.</exception>
     /// <exception cref="FileNotFoundException"><paramref name="sourceFile"/> does not exist.</exception>
-    /// <exception cref="HttpRequestException">The server rejected the credentials or returned another status to a MKCOL or the PUT.</exception>
+    /// <exception cref="HttpRequestException">
+    ///     The server rejected the credentials or returned another status to a MKCOL, the PUT or the MOVE.
+    /// </exception>
     /// <exception cref="TimeoutException">
     ///     Connecting took longer than <see cref="HttpHandlers.ConnectLimit"/>, the response headers to a MKCOL took longer than
     ///     <see cref="TransferTimer.StallLimit"/>, a body write moved no bytes for <see cref="TransferTimer.StallLimit"/>
@@ -347,7 +357,10 @@ internal sealed class DavStore : ICacheStore
         // Open the source before the 1st request, so a missing file sends nothing.
         FileContent content = new(sourceFile, progress, timer);
 
-        using HttpRequestMessage put = new(HttpMethod.Put, ResolveUri(segments, segments.Length)) { Content = content };
+        string[] partialSegments = [.. segments];
+        partialSegments[^1] += TempPaths.PartialSuffix;
+
+        using HttpRequestMessage put = new(HttpMethod.Put, ResolveUri(partialSegments, partialSegments.Length)) { Content = content };
 
         // Wait for 100 Continue, so a server that refuses the PUT responds before tens of GB are sent.
         put.Headers.ExpectContinue = true;
@@ -373,6 +386,18 @@ internal sealed class DavStore : ICacheStore
         if (putResponse.StatusCode is not (HttpStatusCode.Created or HttpStatusCode.OK or HttpStatusCode.NoContent))
         {
             throw UnexpectedStatus(put, path, putResponse);
+        }
+
+        using HttpRequestMessage move = new(_move, ResolveUri(partialSegments, partialSegments.Length));
+        move.Headers.Add(DestinationHeader, ResolveUri(segments, segments.Length).AbsoluteUri);
+        move.Headers.Add(OverwriteHeader, "T");
+
+        using var moveResponse = await SendAsync(move, path, HttpCompletionOption.ResponseContentRead, timer).ConfigureAwait(false);
+
+        // Accept 204 next to 201, because RFC 4918 returns it for a replaced file.
+        if (moveResponse.StatusCode is not (HttpStatusCode.Created or HttpStatusCode.NoContent))
+        {
+            throw UnexpectedStatus(move, path, moveResponse);
         }
     }
 
@@ -557,9 +582,9 @@ internal sealed class DavStore : ICacheStore
             >= 300 and < 400 when response.Headers.Location is { } location
                 => SR.FormatDavRedirectToFix(UrlVariable, new Uri(request.RequestUri!, location)),
             >= 300 and < 400 => SR.FormatDavRedirectFix(UrlVariable),
-            409 when request.Method == _mkcol => SR.FormatDavFolderMissingFix(UrlVariable),
-            413 => SR.DavTooLargeFix,
-            507 => SR.DavNoSpaceFix,
+            (int)HttpStatusCode.Conflict when request.Method == _mkcol => SR.FormatDavFolderMissingFix(UrlVariable),
+            (int)HttpStatusCode.RequestEntityTooLarge => SR.DavTooLargeFix,
+            (int)HttpStatusCode.InsufficientStorage => SR.DavNoSpaceFix,
             >= 400 and < 500 => SR.FormatDavRequestRefusedFix(UrlVariable),
             _ => SR.DavServerFix,
         };

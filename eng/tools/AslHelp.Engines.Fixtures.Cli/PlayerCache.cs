@@ -1,6 +1,7 @@
 using AslHelp.Engines.Fixtures.Cli.Formats;
 using AslHelp.Engines.Fixtures.Cli.Transfer;
 using System;
+using System.Buffers;
 using System.IO;
 using System.Linq;
 using System.Text.Encodings.Web;
@@ -37,6 +38,8 @@ internal sealed class PlayerCache(
     private const string RemoteFolder = "players";
     private const string VersionInput = "version";
 
+    private static readonly SearchValues<char> _hashChars = SearchValues.Create("0123456789abcdef");
+
     // Escape only what JSON needs, because a person reads the manifest and '\u003E' hides the '>' of a value.
     private static readonly JsonTypeInfo<PlayerKey> _manifestTypeInfo = new JsonSerializerOptions(PlayerKeyContext.Default.Options)
     {
@@ -47,34 +50,31 @@ internal sealed class PlayerCache(
     ///     Builds the key of the player that <paramref name="toolchain"/> builds at <paramref name="version"/>.
     /// </summary>
     /// <remarks>
-    ///     The key covers the toolchain name, every file of the project folder and the inputs the toolchain adds with
-    ///     <see cref="IToolchain.AddKeyInputs"/>, so a change to any of them builds the player again and a new build of
-    ///     this tool does not.
+    ///     The key covers the toolchain name and the inputs the toolchain adds with <see cref="IToolchain.AddKeyInputs"/>,
+    ///     the project folder among them, so a change to any of them builds the player again and a new build of this tool
+    ///     does not.
     /// </remarks>
     /// <param name="toolchain">The toolchain.</param>
-    /// <param name="version">The version of the toolchain, as typed.</param>
+    /// <param name="version">The player id from <see cref="IToolchain.ListPlayers"/>.</param>
     /// <param name="projectDirectory">The project folder of the player.</param>
     /// <returns>
     ///     The player key, with a key of kind <c>player</c>, the version as the toolchain pins it and the inputs the key hashed.
     /// </returns>
     /// <exception cref="ArgumentException">
-    ///     <paramref name="toolchain"/> adds an input called <c>toolchain</c> or <c>project</c> or pins a version that is not a
-    ///     valid folder name. It is thrown before the project files are read.
+    ///     <paramref name="toolchain"/> adds an input called <c>toolchain</c> or pins a version that is not a valid folder name.
     /// </exception>
     /// <exception cref="DirectoryNotFoundException"><paramref name="projectDirectory"/> does not exist.</exception>
     /// <exception cref="IOException">A file of the project folder cannot be read.</exception>
     /// <exception cref="InvalidOperationException">
-    ///     <paramref name="toolchain"/> doesn't have a release of <paramref name="version"/>. It is thrown before the project files are read.
-    ///     It is also thrown when the version the toolchain returns is not the input <c>version</c> it adds.
+    ///     <paramref name="toolchain"/> doesn't have a release of <paramref name="version"/>. It is also thrown when the version
+    ///     the toolchain returns is not the input <c>version</c> it adds.
     /// </exception>
     public static PlayerKey KeyOf(IToolchain toolchain, string version, string projectDirectory)
     {
         CacheKeyBuilder builder = new(Kind);
-        _ = builder
-            .Add("toolchain", toolchain.Name)
-            .AddDirectory("project", projectDirectory);
+        _ = builder.Add("toolchain", toolchain.Name);
 
-        string pinned = toolchain.AddKeyInputs(builder, version);
+        string pinned = toolchain.AddKeyInputs(builder, version, projectDirectory);
 
         // Check the pinned version first, because it becomes a folder name and a store path segment.
         if (!IsFolderName(pinned))
@@ -97,25 +97,34 @@ internal sealed class PlayerCache(
     ///     Gets the player of <paramref name="key"/> from the output folder or downloads and unpacks it from the store.
     /// </summary>
     /// <remarks>
-    ///     An existing player folder sends no request. A hit needs the folder or the archive alone and never reads a manifest.
+    ///     An existing player folder sends no request, unless the archive of a failed upload sits beside it. That archive and the
+    ///     manifest go up then. A hit needs the folder or the archive alone and never reads a manifest.
+    ///     A store copy that is damaged, cut short or has a refused entry counts as a miss with a step line.
+    ///     The downloaded copy is deleted.
     /// </remarks>
     /// <param name="key">The key of the player.</param>
     /// <param name="cancellationToken">The token that stops the download.</param>
     /// <returns>
-    ///     The full path of the player folder or <see langword="null"/> when neither the output folder nor the store has the player.
+    ///     The full path of the player folder or <see langword="null"/> when neither the output folder nor the store has a
+    ///     good copy of the player.
     /// </returns>
-    /// <exception cref="IOException">The download or the unpack failed.</exception>
-    /// <exception cref="InvalidDataException">
-    ///     The archive in the store cannot be unpacked, because it is damaged, cut short or has a refused entry.
-    ///     The downloaded copy is deleted and the message has the store path in it.
+    /// <exception cref="IOException">
+    ///     The download, the unpack or the upload of a leftover archive failed. A failed unpack deletes the downloaded copy.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public async Task<string?> TryRestoreAsync(PlayerKey key, CancellationToken cancellationToken)
     {
         string player = PlayerPath(key);
+        string archive = ArchivePath(key);
 
         if (Directory.Exists(player))
         {
+            // Upload an archive beside the player, because it stays there only after a failed upload of an earlier run.
+            if (store is not null && File.Exists(archive))
+            {
+                await UploadAsync(store, key, player, archive, cancellationToken).ConfigureAwait(false);
+            }
+
             return player;
         }
 
@@ -125,7 +134,6 @@ internal sealed class PlayerCache(
         }
 
         string remote = RemotePath(key, ArchiveExtension);
-        string archive = ArchivePath(key);
 
         await output.WriteLineAsync(SR.FormatCacheDownloading(remote).AsMemory(), cancellationToken).ConfigureAwait(false);
 
@@ -149,12 +157,23 @@ internal sealed class PlayerCache(
         }
         catch (InvalidDataException exception)
         {
-            // Delete the download quietly, so a failed delete does not hide the store path and the disk gets its space back.
+            // Delete the download quietly, so a failed delete does not stop the rebuild and the disk gets its space back.
             TempPaths.DeleteFileQuietly(archive);
 
-            // Put the store path in the message, because a fresh download that fails to unpack means the store copy is bad.
-            // Keep the reason of the failed unpack as the cause and not the archive message, whose fix points at the deleted download.
-            throw new InvalidDataException(SR.FormatStoreCopyDamaged(remote), exception.InnerException ?? exception);
+            // Treat the damaged store copy as a miss, because a fresh download that fails to unpack means the store copy is bad
+            // and the upload after the rebuild replaces it. Print the reason of the failed unpack and not the archive message,
+            // whose fix points at the deleted download.
+            string reason = (exception.InnerException ?? exception).Message;
+            await output.WriteLineAsync(SR.FormatCacheDamaged(remote, reason).AsMemory(), cancellationToken).ConfigureAwait(false);
+
+            return null;
+        }
+        catch
+        {
+            // Delete the download on any other failure too, because it takes tens of GB and the next run downloads it again.
+            TempPaths.DeleteFileQuietly(archive);
+
+            throw;
         }
 
         // Delete quietly, because the player is complete and a scanner that has the archive open must not fail the run.
@@ -164,37 +183,39 @@ internal sealed class PlayerCache(
     }
 
     /// <summary>
-    ///     Writes the manifest into the install of a new build, moves the install to the player folder of
-    ///     <paramref name="key"/> and uploads its archive and then the manifest to the store.
+    ///     Writes the manifest into the folder of a new build, moves that folder to the player folder of
+    ///     <paramref name="key"/>, uploads its archive and then the manifest to the store and deletes the folders of the same
+    ///     toolchain and version under another hash.
     /// </summary>
     /// <remarks>
     ///     The manifest is written before the move, so the player folder that later runs hit never lacks it. It is written
     ///     before the pack too, so the archive has it. The archive goes up first, so a manifest in the store always has
-    ///     its archive. The archive is deleted only after both uploads, so a failed upload keeps it for an upload by hand.
+    ///     its archive. The archive is deleted only after both uploads, so a failed upload keeps it for the next run, which uploads it
+    ///     on its hit of the player folder.
     /// </remarks>
     /// <param name="key">The key of the player.</param>
-    /// <param name="installDirectory">The install that the player was built and checked in.</param>
+    /// <param name="playerDirectory">The checked folder of the player from <see cref="IToolchain.BuildAsync"/>.</param>
     /// <param name="cancellationToken">The token that stops the upload.</param>
     /// <returns>
     ///     The full path of the player folder.
     /// </returns>
     /// <exception cref="IOException">The move, the manifest write, the pack or an upload failed.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
-    public async Task<string> StoreAsync(PlayerKey key, string installDirectory, CancellationToken cancellationToken)
+    public async Task<string> StoreAsync(PlayerKey key, string playerDirectory, CancellationToken cancellationToken)
     {
         string player = PlayerPath(key);
-        string installManifest = Path.Combine(installDirectory, ManifestFileName);
+        string builtManifest = Path.Combine(playerDirectory, ManifestFileName);
 
-        await output.WriteLineAsync(SR.FormatCacheWritingManifest(installManifest).AsMemory(), cancellationToken).ConfigureAwait(false);
-        await WriteManifestAsync(key, installManifest, cancellationToken).ConfigureAwait(false);
+        await output.WriteLineAsync(SR.FormatCacheWritingManifest(builtManifest).AsMemory(), cancellationToken).ConfigureAwait(false);
+        await WriteManifestAsync(key, builtManifest, cancellationToken).ConfigureAwait(false);
 
-        await output.WriteLineAsync(SR.FormatCacheMoving(installDirectory, player).AsMemory(), cancellationToken).ConfigureAwait(false);
-        Directory.Move(installDirectory, player);
-
-        string manifest = Path.Combine(player, ManifestFileName);
+        await output.WriteLineAsync(SR.FormatCacheMoving(playerDirectory, player).AsMemory(), cancellationToken).ConfigureAwait(false);
+        Directory.Move(playerDirectory, player);
 
         if (store is null)
         {
+            await RemoveStaleSiblingsAsync(key, player, cancellationToken).ConfigureAwait(false);
+
             return player;
         }
 
@@ -202,11 +223,72 @@ internal sealed class PlayerCache(
         cancellationToken.ThrowIfCancellationRequested();
 
         string archive = ArchivePath(key);
-        string remoteArchive = RemotePath(key, ArchiveExtension);
-        string remoteManifest = RemotePath(key, ManifestExtension);
 
         await output.WriteLineAsync(SR.FormatCachePacking(player, archive).AsMemory(), cancellationToken).ConfigureAwait(false);
         Archive.Pack(player, archive);
+
+        await UploadAsync(store, key, player, archive, cancellationToken).ConfigureAwait(false);
+        await RemoveStaleSiblingsAsync(key, player, cancellationToken).ConfigureAwait(false);
+
+        return player;
+    }
+
+    /// <summary>
+    ///     Deletes the player folders of the same toolchain and version under another hash and writes a step line for each.
+    /// </summary>
+    /// <remarks>
+    ///     Keeps a folder that fails to delete and writes a step line for it, because the new player is in the store already.
+    /// </remarks>
+    /// <param name="key">The key of the stored player.</param>
+    /// <param name="player">The folder of the stored player.</param>
+    /// <param name="cancellationToken">The token that stops the step lines.</param>
+    /// <returns>
+    ///     A task that completes once every stale folder is deleted or kept.
+    /// </returns>
+    private async Task RemoveStaleSiblingsAsync(PlayerKey key, string player, CancellationToken cancellationToken)
+    {
+        string prefix = $"{key.Toolchain}-{key.Version}-";
+
+        foreach (string sibling in Directory.EnumerateDirectories(Path.GetFullPath(outputDirectory), prefix + "*"))
+        {
+            // Skip a name that doesn't end in a hash right after the prefix, because the folders of version 1.0-b start with 1.0- too.
+            if (!IsShortHash(Path.GetFileName(sibling).AsSpan(prefix.Length)) || sibling.Equals(player, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            string line;
+
+            try
+            {
+                Directory.Delete(sibling, recursive: true);
+                line = SR.FormatCacheStaleRemoved(sibling);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                line = SR.FormatCacheStaleKept(sibling, exception.Message);
+            }
+
+            await output.WriteLineAsync(line.AsMemory(), cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    ///     Uploads the archive of <paramref name="key"/> and then its manifest to the store and deletes the archive.
+    /// </summary>
+    /// <param name="store">The store.</param>
+    /// <param name="key">The key of the player.</param>
+    /// <param name="player">The player folder with the manifest.</param>
+    /// <param name="archive">The packed player.</param>
+    /// <param name="cancellationToken">The token that stops the upload.</param>
+    /// <returns>
+    ///     A task that completes once the store has both files.
+    /// </returns>
+    private async Task UploadAsync(ICacheStore store, PlayerKey key, string player, string archive, CancellationToken cancellationToken)
+    {
+        string manifest = Path.Combine(player, ManifestFileName);
+        string remoteArchive = RemotePath(key, ArchiveExtension);
+        string remoteManifest = RemotePath(key, ManifestExtension);
 
         await output.WriteLineAsync(SR.FormatCacheUploading(archive, remoteArchive).AsMemory(), cancellationToken).ConfigureAwait(false);
         await bars.ShowAsync(remoteArchive, progress => store.UploadAsync(archive, remoteArchive, progress, cancellationToken)).ConfigureAwait(false);
@@ -217,15 +299,13 @@ internal sealed class PlayerCache(
 
         // Delete quietly, because the player is complete and a scanner that has the archive open must not fail the run.
         TempPaths.DeleteFileQuietly(archive);
-
-        return player;
     }
 
     /// <summary>
     ///     Writes <paramref name="key"/> as indented camelCase JSON to <paramref name="path"/>.
     /// </summary>
     /// <remarks>
-    ///     A stopped write leaves a cut manifest in the install, which the next build of that install writes again.
+    ///     A stopped write leaves a cut manifest in the built folder, which the next build writes again.
     /// </remarks>
     /// <param name="key">The key of the player.</param>
     /// <param name="path">The manifest file to create or replace.</param>
@@ -240,6 +320,18 @@ internal sealed class PlayerCache(
         {
             await JsonSerializer.SerializeAsync(stream, key, _manifestTypeInfo, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    /// <summary>
+    ///     Checks whether <paramref name="value"/> has the form of <see cref="CacheKey.ShortHash"/>.
+    /// </summary>
+    /// <param name="value">The text after the toolchain and the version of a folder name.</param>
+    /// <returns>
+    ///     <see langword="true"/> for 16 lowercase hex chars.
+    /// </returns>
+    private static bool IsShortHash(ReadOnlySpan<char> value)
+    {
+        return value.Length == CacheKey.ShortHashLength && !value.ContainsAnyExcept(_hashChars);
     }
 
     /// <summary>

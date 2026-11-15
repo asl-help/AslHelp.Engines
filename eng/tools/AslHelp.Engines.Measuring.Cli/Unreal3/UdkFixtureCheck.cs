@@ -1,3 +1,4 @@
+using AslHelp.Engines.Measuring.Cli.Unreal3.Errors;
 using AslHelp.Engines.Unreal;
 using AslHelp.Memory;
 using Microsoft.Extensions.Logging;
@@ -47,7 +48,7 @@ internal static class UdkFixtureCheck
         {
             if (!offsets.ContainsKey(member))
             {
-                return UdkError.FixtureCheckNeeds(member);
+                return UdkFixtureError.FixtureCheckNeeds(member);
             }
         }
 
@@ -55,8 +56,8 @@ internal static class UdkFixtureCheck
         StructReader structs = new(
             memory,
             objects,
-            new StructLayout(UnknownOffset, offsets[UdkMembers.Children], UnknownOffset),
-            new FieldLayout(offsets[UdkMembers.Next]));
+            new StructLayout(UnknownOffset, offsets[UdkMembers.Children]),
+            new ChildLayout(offsets[UdkMembers.Next]));
 
         // Compare the class and not only the name, because a property of the game has the same name as the class.
         var fixtureClass = measured.ObjectsByName[ClassName]
@@ -64,7 +65,7 @@ internal static class UdkFixtureCheck
 
         if (fixtureClass == Address.Zero)
         {
-            return UdkError.ClassNotFound(ClassName);
+            return UdkMemberError.ClassNotFound(ClassName);
         }
 
         // Try the objects with the class name first, because the game spawns the instance under that name and each other object costs 1 read.
@@ -78,7 +79,7 @@ internal static class UdkFixtureCheck
 
         if (instance == Address.Zero)
         {
-            return UdkError.FixtureInstanceNotFound();
+            return UdkFixtureError.FixtureInstanceNotFound();
         }
 
         var field = Address.Zero;
@@ -88,7 +89,7 @@ internal static class UdkFixtureCheck
         {
             if (!child.TryUnwrap(out var address, out var chainError))
             {
-                return UdkError.FixtureChildrenUnreadable(chainError);
+                return UdkFixtureError.FixtureChildrenUnreadable(chainError);
             }
 
             // Go on past a name that does not read, because the field behind it can still be IntValue.
@@ -109,26 +110,26 @@ internal static class UdkFixtureCheck
 
         if (field == Address.Zero)
         {
-            return firstNameError is null ? UdkError.FixtureFieldNotFound() : UdkError.FixtureFieldNameUnreadable(firstNameError);
+            return firstNameError is null ? UdkFixtureError.FixtureFieldNotFound() : UdkFixtureError.FixtureFieldNameUnreadable(firstNameError);
         }
 
         var offsetAddress = field + offsets[UdkMembers.Offset];
 
         if (!memory.Read<int>(offsetAddress).TryUnwrap(out int fieldOffset, out var error))
         {
-            return UdkError.FixtureOffsetUnreadable(offsetAddress, error);
+            return UdkFixtureError.FixtureOffsetUnreadable(offsetAddress, error);
         }
 
         var valueAddress = instance + fieldOffset;
 
         if (!memory.Read<int>(valueAddress).TryUnwrap(out int value, out error))
         {
-            return UdkError.FixtureValueUnreadable(valueAddress, error);
+            return UdkFixtureError.FixtureValueUnreadable(valueAddress, error);
         }
 
         if (value != ExpectedValue)
         {
-            return UdkError.FixtureValueWrong(ExpectedValue, value);
+            return UdkFixtureError.FixtureValueWrong(ExpectedValue, value);
         }
 
         logger.FixtureValueRead(value, instance);

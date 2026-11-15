@@ -1,4 +1,5 @@
 using AslHelp.Engines.Fixtures.Unreal3;
+using AslHelp.Engines.Measuring.Cli.Unreal3.Errors;
 using AslHelp.Memory;
 using AslHelp.Memory.Remote;
 using Microsoft.Extensions.Logging;
@@ -56,7 +57,7 @@ internal sealed class UdkMeasurer : IEngineMeasurer
         // Fail the row, because the members of a server that dies during the searches end up in unmeasured with the wrong reason.
         // Put the exit first, because a dead server does not have a module and its sections read as zeros, which fail the search.
         return player.Process.HasExited
-            ? UdkError.PlayerExitedDuringMeasurement(player.Process.ExitCode, measurement.Error)
+            ? UdkPlayerError.PlayerExitedDuringMeasurement(player.Process.ExitCode, measurement.Error)
             : measurement;
     }
 
@@ -64,7 +65,7 @@ internal sealed class UdkMeasurer : IEngineMeasurer
     {
         if (!memory.GetModule(UdkInstall.ExecutableName).TryUnwrap(out var module, out var moduleError))
         {
-            return UdkError.ModuleNotLoaded(UdkInstall.ExecutableName, moduleError);
+            return UdkPlayerError.ModuleNotLoaded(UdkInstall.ExecutableName, moduleError);
         }
 
         var moduleBase = module.Range.Start;

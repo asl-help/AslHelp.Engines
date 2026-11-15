@@ -156,6 +156,9 @@
   <data name="PackFolderNotFound" xml:space="preserve">
     <value>The folder '{0}' does not exist. Pass an existing folder to pack.</value>
   </data>
+  <data name="PeImportsUnreadable" xml:space="preserve">
+    <value>The file '{0}' is not a PE file with a readable import table.</value>
+  </data>
   <data name="PinnedHashInvalid" xml:space="preserve">
     <value>'{0}' is not a sha1 digest. Write the pin as 40 lowercase hex chars.</value>
   </data>

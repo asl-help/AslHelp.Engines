@@ -141,7 +141,7 @@ internal static class UdkMeasurement
         Dictionary<string, int> offsets,
         UdkObjectSlotTarget slot)
     {
-        StructReader structs = new(memory, reader, new StructLayout(offsets[UdkMembers.SuperField], -1, -1), new FieldLayout(-1));
+        StructReader structs = new(memory, reader, new StructLayout(offsets[UdkMembers.SuperField], -1), new ChildLayout(-1));
         List<uint> rvas = [];
 
         foreach ((uint rva, var value) in UdkSections.Pointers(sections, memory.Layout))

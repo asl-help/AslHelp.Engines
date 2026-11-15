@@ -1,0 +1,3 @@
+# Player project files, which the player key hashes with CRLF line endings
+[**]
+end_of_line = crlf

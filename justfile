@@ -39,7 +39,7 @@ fixtures *args:
 [no-cd]
 [script("pwsh", "-NoLogo", "-NoProfile")]
 fixtures-all output:
-    $installers = Get-Content -Raw '{{ justfile_directory() }}/eng/tools/AslHelp.Engines.Fixtures.Cli/Unreal3/installers.json' | ConvertFrom-Json
+    $installers = Get-Content -Raw '{{ justfile_directory() }}/eng/fixtures/unreal3/releases.json' | ConvertFrom-Json
     $failed = 0
     foreach ($version in $installers.version) {
         $started = Get-Date

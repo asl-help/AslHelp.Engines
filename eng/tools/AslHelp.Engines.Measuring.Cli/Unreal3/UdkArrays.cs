@@ -1,3 +1,4 @@
+using AslHelp.Engines.Measuring.Cli.Unreal3.Errors;
 using AslHelp.Engines.Unreal;
 using AslHelp.Memory;
 using System;
@@ -67,7 +68,7 @@ internal static class UdkArrays
 
         if (candidates.Count == 0)
         {
-            return UdkError.NameArrayNotFound(firstNames[0], firstNames[1]);
+            return UdkArrayError.NameArrayNotFound(firstNames[0], firstNames[1]);
         }
 
         var (firstRva, data, layout) = candidates[0];
@@ -75,7 +76,7 @@ internal static class UdkArrays
 
         if (other >= 0)
         {
-            return UdkError.NameArrayAmbiguous(Hex(firstRva), Hex(candidates[other].Rva));
+            return UdkArrayError.NameArrayAmbiguous(Hex(firstRva), Hex(candidates[other].Rva));
         }
 
         FlatNameTable table = new(memory, moduleBase + firstRva, layout);
@@ -84,12 +85,12 @@ internal static class UdkArrays
         {
             if (!table.Read(id).TryUnwrap(out string? name, out var error))
             {
-                return UdkError.NameArrayNameUnreadable(Hex(firstRva), id, error);
+                return UdkArrayError.NameArrayNameUnreadable(Hex(firstRva), id, error);
             }
 
             if (!string.Equals(name, firstNames[id], StringComparison.Ordinal))
             {
-                return UdkError.NameArrayWrongName(Hex(firstRva), name, id, firstNames[id]);
+                return UdkArrayError.NameArrayWrongName(Hex(firstRva), name, id, firstNames[id]);
             }
         }
 
@@ -125,7 +126,7 @@ internal static class UdkArrays
 
         if (candidates.Count == 0)
         {
-            return UdkError.ObjectArrayNotFound();
+            return UdkArrayError.ObjectArrayNotFound();
         }
 
         // Take the longest array, because a shorter array that starts with the same objects also fits the sample.
@@ -134,7 +135,7 @@ internal static class UdkArrays
 
         if (other >= 0)
         {
-            return UdkError.ObjectArrayAmbiguous(Hex(firstRva), Hex(candidates[other].Rva));
+            return UdkArrayError.ObjectArrayAmbiguous(Hex(firstRva), Hex(candidates[other].Rva));
         }
 
         FlatObjectArray array = new(memory, moduleBase + firstRva);
@@ -144,7 +145,7 @@ internal static class UdkArrays
         {
             if (!item.TryUnwrap(out var obj, out var error))
             {
-                return UdkError.ObjectArrayUnreadable(Hex(firstRva), error);
+                return UdkArrayError.ObjectArrayUnreadable(Hex(firstRva), error);
             }
 
             if (obj != Address.Zero)

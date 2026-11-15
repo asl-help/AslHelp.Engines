@@ -1,3 +1,4 @@
+using AslHelp.Engines.Fixtures.Cli.Hosting;
 using AslHelp.Engines.Fixtures.Unreal3;
 using System;
 using System.Diagnostics;
@@ -95,7 +96,7 @@ internal static class UdkServer
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     /// <exception cref="TimeoutException">The ready line is not in the log within <paramref name="timeout"/>.</exception>
     private static async Task WaitForReadyLineAsync(
-        IPlayerRun player,
+        IHostedRun player,
         string serverPath,
         string logPath,
         TimeSpan timeout,

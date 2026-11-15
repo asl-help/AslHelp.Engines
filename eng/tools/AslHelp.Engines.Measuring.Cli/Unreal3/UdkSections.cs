@@ -1,3 +1,4 @@
+using AslHelp.Engines.Measuring.Cli.Unreal3.Errors;
 using AslHelp.Memory;
 using System;
 using System.Buffers.Binary;
@@ -34,17 +35,17 @@ internal static class UdkSections
         }
         catch (BadImageFormatException)
         {
-            return UdkError.ExecutableNotPe(executablePath);
+            return UdkPlayerError.ExecutableNotPe(executablePath);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
-            return UdkError.FileUnreadable(executablePath, exception.Message);
+            return UdkPlayerError.FileUnreadable(executablePath, exception.Message);
         }
 
         // Check the optional header, because PEReader reads a file without the PE signature as an object file with no error.
         if (headers.PEHeader is null)
         {
-            return UdkError.ExecutableNotPe(executablePath);
+            return UdkPlayerError.ExecutableNotPe(executablePath);
         }
 
         List<UdkSection> sections = [];

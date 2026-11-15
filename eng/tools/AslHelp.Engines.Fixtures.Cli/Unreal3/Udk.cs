@@ -1,3 +1,6 @@
+using AslHelp.Engines.Fixtures.Cli.Formats;
+using AslHelp.Engines.Fixtures.Cli.Hosting;
+using AslHelp.Engines.Fixtures.Cli.Transfer;
 using AslHelp.Engines.Fixtures.Unreal3;
 using System;
 using System.Globalization;
@@ -12,7 +15,7 @@ namespace AslHelp.Engines.Fixtures.Cli.Unreal3;
 ///     and compiles the fixture package in it.
 /// </summary>
 /// <remarks>
-///     Each version is pinned to the sha1 of its installer in <c>installers.json</c>, so every machine installs the
+///     Each version is pinned to the sha1 of its installer in <c>releases.json</c>, so every machine installs the
 ///     same bytes and the archive.org listing is never read. The installer is a zip after an UnSetup stub.
 ///     The zip is extracted directly, so UnSetup never runs and nothing is written to the registry.
 /// </remarks>
@@ -38,44 +41,44 @@ internal sealed class Udk(
 
     /// <inheritdoc/>
     /// <remarks>
-    ///     The inputs are the version as in <see cref="UdkInstallers.All"/>, the installer sha1, the make and server command
+    ///     The inputs are the version as in <see cref="UdkReleases.All"/>, the installer sha1, the make and server command
     ///     lines, the line edit of <c>UDKGame/Config/DefaultEngineUDK.ini</c>, the delete of
     ///     <c>UDKGame/Config/UDKEngine.ini</c> and the build version. The runtime DLLs are no input, because the key is
     ///     built before the install exists. The installer sha1 pins the import tables they are read from and the redist
     ///     they come from. <c>BuildVersion</c> pins the code that reads them.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    ///     <see cref="UdkInstallers.All"/> doesn't have an installer of <paramref name="version"/>.
+    ///     <see cref="UdkReleases.All"/> doesn't have a row of <paramref name="version"/>.
     /// </exception>
     public string AddKeyInputs(CacheKeyBuilder builder, string version)
     {
         ArgumentNullException.ThrowIfNull(builder);
 
         // Look the version up first, so an unpinned version adds nothing and every spelling of a version shares 1 key.
-        var installer = UdkInstallers.Find(version);
+        var release = UdkReleases.Find(version);
 
         _ = builder
-            .Add("version", installer.Version)
-            .Add("installer-sha1", installer.Sha1)
+            .Add("version", release.Version)
+            .Add("installer-sha1", release.Sha1)
             .Add("make-command", UdkProject.MakeCommand)
             .Add("server-command", UdkInstall.ServerCommand)
             .Add("config-edit", UdkProject.ConfigEdit)
             .Add("config-delete", UdkProject.EngineConfigPath)
             .Add("build-version", BuildVersion.ToString(CultureInfo.InvariantCulture));
 
-        return installer.Version;
+        return release.Version;
     }
 
     /// <inheritdoc/>
     /// <remarks>
     ///     The install goes to <c>udk-&lt;version&gt;</c> under <paramref name="outputDirectory"/> and the installer to
-    ///     <c>downloads</c> next to it. The folder spells the version as in <see cref="UdkInstallers.All"/>. An existing
+    ///     <c>downloads</c> next to it. The folder spells the version as in <see cref="UdkReleases.All"/>. An existing
     ///     install folder sends no request, so a cached install works offline. A missing one sends 1 request, the pinned
     ///     download. An install whose redist has the PhysX installer, UDK 2009-11, is refused once it is
     ///     extracted. An install without a redist passes. The runtime step reports a missing redist if it needs one.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
-    ///     <see cref="UdkInstallers.All"/> doesn't have an installer of <paramref name="version"/> or the install needs the PhysX installer.
+    ///     <see cref="UdkReleases.All"/> doesn't have a row of <paramref name="version"/> or the install needs the PhysX installer.
     /// </exception>
     public async Task<string> InstallAsync(
         string version,
@@ -88,20 +91,20 @@ internal sealed class Udk(
 
         // Look the version up first, so an unpinned version touches neither the network nor the disk
         // and every spelling of a version shares 1 install folder.
-        var installer = UdkInstallers.Find(version);
+        var release = UdkReleases.Find(version);
         string output = Path.GetFullPath(outputDirectory);
-        string installDirectory = Path.Combine(output, $"udk-{installer.Version}");
+        string installDirectory = Path.Combine(output, $"udk-{release.Version}");
 
         // Check the install before the download, so a cached install needs no network
         // and no hash of an installer of up to 2 GB.
         if (Directory.Exists(installDirectory))
         {
-            UdkRedist.ThrowIfNeedsPhysXInstaller(installDirectory, installer.Version);
+            UdkRedist.ThrowIfNeedsPhysXInstaller(installDirectory, release.Version);
 
             return installDirectory;
         }
 
-        var file = installer.File;
+        var file = release.File;
         string installerPath = Path.Combine(output, "downloads", file.Name);
 
         await downloader.DownloadAsync(file.Url, installerPath, file.Hash, progress, cancellationToken).ConfigureAwait(false);
@@ -109,7 +112,7 @@ internal sealed class Udk(
         SelfExtractingZip.Extract(installerPath, installDirectory);
 
         // Check right after the extraction, so a version this tool cannot build fails before the build starts.
-        UdkRedist.ThrowIfNeedsPhysXInstaller(installDirectory, installer.Version);
+        UdkRedist.ThrowIfNeedsPhysXInstaller(installDirectory, release.Version);
 
         return installDirectory;
     }

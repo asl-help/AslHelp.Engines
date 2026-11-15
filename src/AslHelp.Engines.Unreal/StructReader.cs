@@ -14,20 +14,20 @@ namespace AslHelp.Engines.Unreal;
 /// <param name="memory">The memory to read from.</param>
 /// <param name="objects">The reader of the names and the outer objects.</param>
 /// <param name="layout">The offsets inside a struct.</param>
-/// <param name="fieldLayout">The offsets inside a field.</param>
+/// <param name="childLayout">The offsets inside a field on the children chain.</param>
 /// <exception cref="ArgumentNullException">
-///     <paramref name="memory"/>, <paramref name="objects"/>, <paramref name="layout"/> or <paramref name="fieldLayout"/> is <see langword="null"/>.
+///     <paramref name="memory"/>, <paramref name="objects"/>, <paramref name="layout"/> or <paramref name="childLayout"/> is <see langword="null"/>.
 /// </exception>
 public sealed class StructReader(
     IMemoryReader memory,
     ObjectReader objects,
     StructLayout layout,
-    FieldLayout fieldLayout)
+    ChildLayout childLayout)
 {
     private const int MaxChildren = 4096;
     private const int MaxDepth = 64;
 
-    private readonly FieldLayout _fieldLayout = fieldLayout ?? throw new ArgumentNullException(nameof(fieldLayout));
+    private readonly ChildLayout _childLayout = childLayout ?? throw new ArgumentNullException(nameof(childLayout));
     private readonly StructLayout _layout = layout ?? throw new ArgumentNullException(nameof(layout));
     private readonly IMemoryReader _memory = memory ?? throw new ArgumentNullException(nameof(memory));
     private readonly ObjectReader _objects = objects ?? throw new ArgumentNullException(nameof(objects));
@@ -129,11 +129,11 @@ public sealed class StructReader(
 
             yield return field;
 
-            var nextAddress = field + _fieldLayout.Next;
+            var nextAddress = field + _childLayout.Next;
 
             if (!_memory.ReadPointer(nextAddress).TryUnwrap(out var next, out error))
             {
-                yield return StructError.NextUnreadable(field, nextAddress, _fieldLayout.Next, error);
+                yield return StructError.NextUnreadable(field, nextAddress, _childLayout.Next, error);
                 yield break;
             }
 

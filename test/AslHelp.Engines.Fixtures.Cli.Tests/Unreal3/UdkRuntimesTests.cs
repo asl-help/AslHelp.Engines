@@ -98,6 +98,20 @@ public sealed class UdkRuntimesTests
                 .And.Message.Contains("run the build again"));
     }
 
+    // A damaged UDK.exe throws with its path and the fix for an extracted install, because PeImports only reports the file.
+    [Test]
+    public void FindImports_DamagedServer_ThrowsWithTheInstallFix()
+    {
+        string install = _folder.NewFolder();
+        WriteBytes(install, "Binaries/Win32/UDK.exe", Noise(1024));
+
+        Assert.That(
+            () => UdkRuntimes.FindImports(Binaries(install)),
+            Throws.TypeOf<InvalidDataException>()
+                .With.Message.Contains(Path.Combine(Binaries(install), "UDK.exe"))
+                .And.Message.Contains("build again"));
+    }
+
     // UDK.exe imports d3dx9_43.dll, which is in Binaries/Win32 already.
     // The install doesn't have a redist, so the call reads nothing and writes nothing.
     [Test]

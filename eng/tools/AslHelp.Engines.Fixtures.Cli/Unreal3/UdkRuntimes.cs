@@ -1,3 +1,4 @@
+using AslHelp.Engines.Fixtures.Cli.Formats;
 using AslHelp.Engines.Fixtures.Unreal3;
 using System;
 using System.Collections.Generic;
@@ -49,7 +50,19 @@ internal static class UdkRuntimes
 
         while (pending.TryDequeue(out string? path))
         {
-            foreach (string import in PeImports.Read(path))
+            IReadOnlyList<string> imports;
+
+            try
+            {
+                imports = PeImports.Read(path);
+            }
+            catch (InvalidDataException exception)
+            {
+                // Add the UDK fix, because the PeImports message only describes what is wrong with the file.
+                throw new InvalidDataException($"{exception.Message} {UdkSR.ReextractInstall}", exception);
+            }
+
+            foreach (string import in imports)
             {
                 if (IsRuntime(import))
                 {

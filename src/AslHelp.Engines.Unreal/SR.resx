@@ -70,7 +70,7 @@
     <value>Can't read the fields of the struct at {0}: reading {1} failed. {2} Check StructLayout.Children (0x{3}) against this engine version.</value>
   </data>
   <data name="StructFieldNextUnreadable" xml:space="preserve">
-    <value>Can't read the next field after the field at {0}: reading {1} failed. {2} Check FieldLayout.Next (0x{3}) against this engine version.</value>
+    <value>Can't read the next field after the field at {0}: reading {1} failed. {2} Check ChildLayout.Next (0x{3}) against this engine version.</value>
   </data>
   <data name="StructFieldUnreadable" xml:space="preserve">
     <value>Can't read field {0} of the struct at {1}. {2}</value>

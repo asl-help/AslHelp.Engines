@@ -1,3 +1,4 @@
+using AslHelp.Engines.Fixtures.Cli.Hosting;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,16 +8,16 @@ namespace AslHelp.Engines.Fixtures.Cli.Tests;
 // Runs a fake executable as a player on this machine, because the tests have neither Docker nor a real engine.
 internal sealed class LocalPlayerHost : IPlayerHost
 {
-    public Task<IPlayerRun> StartAsync(string installDirectory, string executablePath, string arguments, CancellationToken cancellationToken)
+    public Task<IHostedRun> StartAsync(string installDirectory, string executablePath, string arguments, CancellationToken cancellationToken)
     {
         string path = Path.Combine(installDirectory, executablePath);
         PlayerStartInfo info = new(path, arguments, Path.GetDirectoryName(path)!) { HiddenDesktop = true };
 
-        return Task.FromResult<IPlayerRun>(new LocalPlayerRun(Player.Start(info)));
+        return Task.FromResult<IHostedRun>(new LocalPlayerRun(Player.Start(info)));
     }
 }
 
-file sealed class LocalPlayerRun(Player player) : IPlayerRun
+file sealed class LocalPlayerRun(Player player) : IHostedRun
 {
     public bool HasExited => player.HasExited;
 

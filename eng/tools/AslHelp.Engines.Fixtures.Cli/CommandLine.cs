@@ -1,3 +1,5 @@
+using AslHelp.Engines.Fixtures.Cli.Hosting;
+using AslHelp.Engines.Fixtures.Cli.Transfer;
 using AslHelp.Engines.Fixtures.Cli.Unreal3;
 using System;
 using System.Collections.Generic;
@@ -29,7 +31,7 @@ internal static class CommandLine
     public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error)
     {
         using Downloader downloader = new();
-        using ContainerPlayerHost host = new();
+        using ContainerHost host = new();
 
         return await RunAsync(
             args,

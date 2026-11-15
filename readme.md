@@ -72,11 +72,11 @@ just fixtures-all ../fixtures
 
 The build needs a Docker engine that runs Windows containers and that your user can reach. The 1st build pulls `mcr.microsoft.com/windows/server:ltsc2025`, which is about 16 GB. We use that image because it's the smallest one with `dsound.dll` and `dinput8.dll`.
 
-1. Pass the version as in the installer file name. Upper or lower case both work. `eng/tools/AslHelp.Engines.Fixtures.Cli/Unreal3/installers.json` lists every pinned version and its sha1.
+1. Pass the version the way the installer file name writes it. Upper or lower case both work. `eng/fixtures/unreal3/releases.json` lists every pinned version with its sha1.
 2. The build downloads `UDKInstall-<version>.exe` from the [`udkinstaller`](https://archive.org/details/udkinstaller) item into `<output>/downloads`, checks its sha1 and extracts the zip inside it into `<output>/udk-<version>`, so the UDK setup program never runs.
 3. It reads the import tables of `Binaries/Win32/UDK.exe` and of the DLLs it loads from that folder. It copies the DirectX and Visual C++ 2010 DLLs they import from the install's own `Binaries/Redist/UE3Redist.exe` (`Binaries/Windows/UE3Redist.exe` before 2011-05) into `Binaries/Win32`, each DirectX DLL from the 1st x86 cabinet of the redist that lists it. The Visual C++ 2005 and 2008 DLLs come from Windows. Nothing is installed for the whole system.
 4. Versions up to 2011-07 target CLR 2, which Windows Server doesn't ship, so it adds a startup section with CLR 4 to `Binaries/Win32/UDK.exe.config` and `Binaries/Win32/UDK.com.config`.
-5. It copies `test/fixtures/unreal3/Classes` to `Development/Src/Fixture/Classes`, turns `Fixture` on in `UDKGame/Config/DefaultEngineUDK.ini` and deletes `UDKGame/Config/UDKEngine.ini`.
+5. It copies `eng/fixtures/unreal3/Classes` to `Development/Src/Fixture/Classes`, turns on `Fixture` in `UDKGame/Config/DefaultEngineUDK.ini` and deletes `UDKGame/Config/UDKEngine.ini`.
 6. It runs `Binaries/Win32/UDK.com make -unattended -nullrhi` in a container, stops it after 10 minutes and checks `UDKGame/Script/Fixture.u`.
 7. It runs `Binaries/Win32/UDK.exe server <map>?game=Fixture.FixtureGame -unattended -nullrhi -FORCELOGFLUSH` in a container with the 1st map under `UDKGame/Content/Maps` and waits up to 2 minutes for `ScriptLog: Fixture ready` in `UDKGame/Logs/Launch.log`. After a pass it deletes the log, because the log has the machine name, the user and the paths of the build.
 8. The player ends up in `<output>/unreal3-<version>-<hash>` with the install layout and `manifest.json` inside. `udk-<version>` is the install only until then.
@@ -89,7 +89,7 @@ Every pinned version from 2010-06-BETA on builds. The build refuses 2009-11-BETA
 
 #### Adding a UDK version
 
-1. Copy the sha1 of `UDKInstall-<version>.exe` from https://archive.org/metadata/udkinstaller into `installers.json` in version order.
+1. Copy the sha1 of `UDKInstall-<version>.exe` from https://archive.org/metadata/udkinstaller into `eng/fixtures/unreal3/releases.json`, keeping the versions in order.
 2. Run the build command for it.
 
 ## Measuring
@@ -205,7 +205,7 @@ A route covers a version when every match in the code sections of that version d
 
 ### Unreal Engine 3 targets
 
-`eng/tools/AslHelp.Engines.Measuring.Cli/Unreal3/targets.json` lists the globals as an object, with the name of the global as the key and a `$type` in each value. The members are not in the file, because the search for each member is code.
+`eng/fixtures/unreal3/targets.json` lists the globals as an object. Each key is the name of a global and each value has a `$type`. The members aren't in the file because the search for each member is written in code.
 
 ```json
 {

@@ -1,0 +1,16 @@
+<Project>
+
+  <!-- Copy only these files, so a stray editor file next to them doesn't change the player key. -->
+  <ItemGroup>
+    <Content
+      Include="$(MSBuildThisFileDirectory)/Classes/*.uc"
+      Link="projects/unreal3/Classes/%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Embed the pin table, because only the code reads it. Set LogicalName, so the resource name does not depend on RootNamespace. -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)/releases.json" LogicalName="Unreal3/releases.json" />
+  </ItemGroup>
+
+</Project>

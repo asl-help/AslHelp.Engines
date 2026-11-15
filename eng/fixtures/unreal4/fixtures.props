@@ -1,0 +1,44 @@
+<Project>
+
+  <!-- Copy only these files, so a stray editor file next to them doesn't change the player key. -->
+  <ItemGroup>
+    <Content
+      Include="$(MSBuildThisFileDirectory)/*.uproject"
+      Link="projects/unreal4/%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" />
+    <Content
+      Include="$(MSBuildThisFileDirectory)/Config/*.ini"
+      Link="projects/unreal4/Config/%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" />
+    <Content
+      Include="
+        $(MSBuildThisFileDirectory)/Source/**/*.cpp;
+        $(MSBuildThisFileDirectory)/Source/**/*.cs;
+        $(MSBuildThisFileDirectory)/Source/**/*.h"
+      Link="projects/unreal4/Source/%(RecursiveDir)%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Copy only these files of the build image folder, so a stray editor file next to them doesn't change the image tag.
+       Copy them and the step scripts outside the project, so the render never sees them. -->
+  <ItemGroup>
+    <Content
+      Include="
+        $(MSBuildThisFileDirectory)/image/Dockerfile;
+        $(MSBuildThisFileDirectory)/image/*.ps1;
+        $(MSBuildThisFileDirectory)/image/*.xml"
+      Link="build/unreal4/image/%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" />
+    <Content
+      Include="$(MSBuildThisFileDirectory)/build/*.bat"
+      Link="build/unreal4/steps/%(Filename)%(Extension)"
+      CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- Embed the pin table and the install script, because only the code reads them. Set LogicalName, so the resource name does not depend on RootNamespace. -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)/releases.json" LogicalName="Unreal4/releases.json" />
+    <EmbeddedResource Include="$(MSBuildThisFileDirectory)/install_engine.py" LogicalName="Unreal4/install_engine.py" />
+  </ItemGroup>
+
+</Project>

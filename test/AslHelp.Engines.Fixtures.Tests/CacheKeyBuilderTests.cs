@@ -628,6 +628,62 @@ public sealed class CacheKeyBuilderTests
         Assert.That(HashOf(second), Is.Not.EqualTo(HashOf(first)));
     }
 
+    // A file set with the files of a folder, in any order, gives the hash and the input of that folder, because both payloads
+    // share 1 layout.
+    [Test]
+    public void AddFiles_SameFilesAsFolder_GivesHashAndInputOfTheFolder()
+    {
+        string folder = NewFolder();
+        WriteBytes(folder, "\uFF01.txt", [1]);
+        WriteBytes(folder, "\U0001F600/a.txt", [2]);
+        WriteBytes(folder, "empty.txt", []);
+        CacheKeyFile[] files =
+        [
+            new("empty.txt", Array.Empty<byte>()),
+            new("\uFF01.txt", new byte[] { 1 }),
+            new("\U0001F600/a.txt", new byte[] { 2 }),
+        ];
+
+        var directory = new CacheKeyBuilder("player").AddDirectory("source", folder);
+        var fileSet = new CacheKeyBuilder("player").AddFiles("source", files);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(fileSet.Build(), Is.EqualTo(directory.Build()));
+            Assert.That(fileSet.Inputs, Is.EqualTo(directory.Inputs));
+        }
+    }
+
+    // 1 changed byte of a file in the set changes the hash.
+    [Test]
+    public void AddFiles_ChangedContent_ChangesHash()
+    {
+        var first = new CacheKeyBuilder("player").AddFiles("source", [new("a.txt", new byte[] { 1 })]).Build();
+        var second = new CacheKeyBuilder("player").AddFiles("source", [new("a.txt", new byte[] { 2 })]).Build();
+
+        Assert.That(second, Is.Not.EqualTo(first));
+    }
+
+    // A path that is in the set twice throws with the path, because a folder can't have 2 files at 1 path.
+    [Test]
+    public void AddFiles_SamePathTwice_ThrowsArgumentException()
+    {
+        CacheKeyBuilder builder = new("player");
+
+        Assert.That(
+            () => builder.AddFiles("source", [new("a.txt", new byte[] { 1 }), new("a.txt", new byte[] { 2 })]),
+            Throws.ArgumentException.With.Message.Contains("'a.txt'"));
+    }
+
+    // A path with a lone surrogate throws at AddFiles, because its UTF-8 bytes would match those of another path.
+    [Test]
+    public void AddFiles_PathWithLoneSurrogate_ThrowsArgumentException()
+    {
+        CacheKeyBuilder builder = new("player");
+
+        Assert.That(() => builder.AddFiles("source", [new("a\uD800.txt", new byte[] { 1 })]), Throws.ArgumentException);
+    }
+
     private string NewFolder()
     {
         _folderCount++;

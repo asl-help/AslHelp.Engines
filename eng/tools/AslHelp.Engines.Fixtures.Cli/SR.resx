@@ -129,8 +129,14 @@
   <data name="DockerFailed" xml:space="preserve">
     <value>Docker did not start a container from '{0}'. {1}</value>
   </data>
+  <data name="DockerLookupFailed" xml:space="preserve">
+    <value>Docker did not look up the image '{0}'. {1}</value>
+  </data>
   <data name="DockerLost" xml:space="preserve">
     <value>Docker lost the container from '{0}'. {1}</value>
+  </data>
+  <data name="DockerRemoveFailed" xml:space="preserve">
+    <value>Docker did not remove the containers of '{0}'. {1}</value>
   </data>
   <data name="DownloadBadRange" xml:space="preserve">
     <value>GET '{0}' returned 206 with Content-Range '{1}' instead of a range from byte {2} to the end of the file. Delete '{3}' and run again.</value>
@@ -155,6 +161,15 @@
   </data>
   <data name="DurationSeconds" xml:space="preserve">
     <value>{0} s</value>
+  </data>
+  <data name="EngineNotOnDrive" xml:space="preserve">
+    <value>'{0}' doesn't start with a drive letter. Pass an --output folder on a local drive.</value>
+  </data>
+  <data name="EngineRemoved" xml:space="preserve">
+    <value>Removed {0}</value>
+  </data>
+  <data name="EngineSpaceLow" xml:space="preserve">
+    <value>Drive {0} has {1} GiB free and the install needs {2} GiB. Free space on it or pass another --output folder.</value>
   </data>
   <data name="ExtractDestinationExists" xml:space="preserve">
     <value>The destination '{0}' exists. Delete it or pick another folder to extract into.</value>

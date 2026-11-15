@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="ArchDescription" xml:space="preserve">
+    <value>Builds only the players of this architecture, such as x64.</value>
+  </data>
+  <data name="ArchiveNotFound" xml:space="preserve">
+    <value>The package step of {0} didn't write a folder into '{1}'. Read '{2}'.</value>
+  </data>
+  <data name="ConfigDescription" xml:space="preserve">
+    <value>Builds only the players of this build configuration, such as shipping.</value>
+  </data>
+  <data name="DirectiveBadCondition" xml:space="preserve">
+    <value>{0}({1}): bad condition '{2}'. Write an op and a major.minor, such as &gt;=4.14. The ops are &gt;=, &gt;, &lt;, &lt;= and ==.</value>
+  </data>
+  <data name="DirectiveElseTwice" xml:space="preserve">
+    <value>{0}({1}): second @else for the @if on line {2}.</value>
+  </data>
+  <data name="DirectiveElseWithoutIf" xml:space="preserve">
+    <value>{0}({1}): @else without @if.</value>
+  </data>
+  <data name="DirectiveEndifWithoutIf" xml:space="preserve">
+    <value>{0}({1}): @endif without @if.</value>
+  </data>
+  <data name="DirectiveUnclosed" xml:space="preserve">
+    <value>{0}({1}): @if without @endif.</value>
+  </data>
+  <data name="DirectiveUnknown" xml:space="preserve">
+    <value>{0}({1}): unknown directive '{2}'. Use @if, @else or @endif.</value>
+  </data>
+  <data name="DisplayName" xml:space="preserve">
+    <value>Unreal Engine</value>
+  </data>
+  <data name="EngineFilesMismatch" xml:space="preserve">
+    <value>{0} failed the file hash check. Run the build again, which downloads only the bad files.{1}</value>
+  </data>
+  <data name="EngineInstallFailed" xml:space="preserve">
+    <value>Installing {0} failed with code {1}.{2}</value>
+  </data>
+  <data name="EngineManagedByLegendary" xml:space="preserve">
+    <value>Legendary lists {0} as installed and would reuse its folder. Take it off the list with 'just legendary uninstall --keep-files {0}'.</value>
+  </data>
+  <data name="ExecutableNotFound" xml:space="preserve">
+    <value>The executable '{0}' does not exist.</value>
+  </data>
+  <data name="GameDllMissing" xml:space="preserve">
+    <value>{0} exited during the check because a DLL is missing (0xC0000135). {1}</value>
+  </data>
+  <data name="GameExited" xml:space="preserve">
+    <value>{0} exited with code {1} (0x{1:X8}) during the check. {2}</value>
+  </data>
+  <data name="GameLogFix" xml:space="preserve">
+    <value>Read '{0}' for the errors.</value>
+  </data>
+  <data name="GameNotReady" xml:space="preserve">
+    <value>{0} didn't write {1} within {2}. {3}</value>
+  </data>
+  <data name="GameProgressFix" xml:space="preserve">
+    <value>Read '{0}' to see where it stopped.</value>
+  </data>
+  <data name="GameStartFix" xml:space="preserve">
+    <value>Run '{0} {1}' by hand to see why.</value>
+  </data>
+  <data name="ImageMissing" xml:space="preserve">
+    <value>The build image {0} is missing. Build it with: docker build -t {0} "{1}"</value>
+  </data>
+  <data name="ManifestEmpty" xml:space="preserve">
+    <value>'{0}' has no manifest.</value>
+  </data>
+  <data name="ManifestNoFixtureData" xml:space="preserve">
+    <value>The headers in '{0}' don't declare {1}.</value>
+  </data>
+  <data name="ManifestNoMemberName" xml:space="preserve">
+    <value>The declaration '{0}' in '{1}' doesn't end in a member name.</value>
+  </data>
+  <data name="ManifestNotPinned" xml:space="preserve">
+    <value>The manifest of {0} doesn't match its pin in {1}. Epic changed the manifest or the row is wrong.{2}</value>
+  </data>
+  <data name="NotLoggedIn" xml:space="preserve">
+    <value>Legendary isn't logged in. Run 'just legendary auth'.{0}</value>
+  </data>
+  <data name="ReleasesBadFlag" xml:space="preserve">
+    <value>{0} has an empty switch for version '{1}'. Remove it and build the tool again.</value>
+  </data>
+  <data name="ReleasesBadInstallBytes" xml:space="preserve">
+    <value>{0} has the install size {1} for version '{2}'. Write the bytes of the install, above 0, and build the tool again.</value>
+  </data>
+  <data name="ReleasesBadPlayer" xml:space="preserve">
+    <value>'{0}' isn't a player tag. Write it as win-x64-shipping, win-x64-development, win-x86-shipping or win-x86-development.</value>
+  </data>
+  <data name="ReleasesBadVersion" xml:space="preserve">
+    <value>{0} has the version '{1}'. Write it as major.minor.hotfix, such as 4.19.2, and build the tool again.</value>
+  </data>
+  <data name="ReleasesBuildMismatch" xml:space="preserve">
+    <value>{0} has the build '{1}' for version '{2}'. Fix the row and build the tool again.</value>
+  </data>
+  <data name="ReleasesNoPlayers" xml:space="preserve">
+    <value>{0} doesn't list a player for version '{1}'. Add 1 and build the tool again.</value>
+  </data>
+  <data name="ReleasesPlayerTwice" xml:space="preserve">
+    <value>{0} lists the player '{1}' twice for version '{2}'. Remove 1 and build the tool again.</value>
+  </data>
+  <data name="RuntimeConflict" xml:space="preserve">
+    <value>The pool has 2 different files of {0}: '{1}' and '{2}'.</value>
+  </data>
+  <data name="RuntimeMissing" xml:space="preserve">
+    <value>'{0}' requires {1}, missing from '{2}' and Windows.</value>
+  </data>
+  <data name="SourceFolderNotFound" xml:space="preserve">
+    <value>The source folder '{0}' does not exist.</value>
+  </data>
+  <data name="StepFailed" xml:space="preserve">
+    <value>The {0} step exited with code {1} (0x{1:X8}). Read '{2}'.{3}</value>
+  </data>
+  <data name="StepNotDone" xml:space="preserve">
+    <value>The {0} step didn't finish within {1}. Read '{2}' to see where it stopped.</value>
+  </data>
+  <data name="UvNotFound" xml:space="preserve">
+    <value>'{0}' wasn't found. Install uv with 'winget install astral-sh.uv'.</value>
+  </data>
+</root>

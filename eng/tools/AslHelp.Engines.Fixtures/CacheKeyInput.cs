@@ -5,7 +5,7 @@ namespace AslHelp.Engines.Fixtures;
 /// </summary>
 /// <param name="Name">The name of the input, in lowercase ascii letters, digits and '-'.</param>
 /// <param name="Value">
-///     The text of a value input or, for a folder input, the sha256 over the folder payload as 64 lowercase hex chars.
+///     The text of a value input or, for a folder or file set input, the sha256 over its payload as 64 lowercase hex chars.
 /// </param>
 public sealed record CacheKeyInput(
     string Name,

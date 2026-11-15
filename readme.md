@@ -19,38 +19,34 @@ just fixtures build <toolchain> <version> --output <folder>
 | Argument | Value |
 |---|---|
 | `<toolchain>` | The toolchain that builds the players. |
-| `<version>` | The version of the toolchain, as its release lists it. |
+| `<version>` | The toolchain version, written the way its release lists it. |
 | `--output` | The folder for the downloads, the install and the players. Required. |
 
 Each toolchain can add its own options. Run `build <toolchain> --help` to see them.
 
-`just fixtures` runs the command line from the current folder, so a relative `--output` folder is read from there. Without `just`, run `dotnet run --project eng/tools/AslHelp.Engines.Fixtures.Cli -- <arguments>` from the repo root.
+`just fixtures` runs from your current folder, so a relative `--output` path starts there. If you don't use `just`, run `dotnet run --project eng/tools/AslHelp.Engines.Fixtures.Cli -- <arguments>` from the repo root.
 
 1 version can have several players. The `build` command installs the toolchain once into the `--output` folder, builds all the players in 1 pass and checks that each one starts. Then it moves each player to `<output>/<toolchain>-<version>-<hash>` and prints the player folders at the end, 1 per line. If a check fails, it exits with code 1 but keeps the players it already stored.
 
-It prints a line as each step starts. The installer download and the download and upload of a player archive show a progress bar with the size, the speed and the time left, which is cleared when the transfer ends. When the output is not a terminal, such as a log in CI, a transfer prints its name and its percentage instead, once when it starts, at 25, 50 and 75 percent and from 95 percent on.
-
-A failed step prints its error and exits with code 1. A download or an upload fails its step when connecting to the server takes more than 30 seconds. It also fails when the server sends no response within 1 minute or the transfer moves no bytes for 1 minute. After the last byte of an upload, the server gets 5 minutes to respond, because it stores the file first. The message has the URL or the store path.
+It prints a line when each step starts. Downloads and uploads show a progress bar in a terminal and just a percentage anywhere else. If a step fails, the command prints the error and exits with code 1. A transfer gives up after 30 seconds without a connection or 1 minute without getting a byte. After the last byte of an upload the server gets 5 minutes to answer.
 
 If a toolchain download stops, the next run picks it up where it left off. A run keeps `.fixtures.lock` open in the `--output` folder, so a 2nd run into the same folder fails right away.
 
 ### Cache
 
-The `build` command keeps each player in a WebDAV folder, so a player is built only once and other machines download it. These environment variables turn the cache on:
+The `build` command can keep each player in a WebDAV folder. That way each player only gets built once and other machines just download it. Set these environment variables to turn the cache on:
 
 | Variable | Value |
 |---|---|
-| `FIXTURES_DAV_URL` | The https URL of the WebDAV folder, with no query or fragment. A plain http URL works only for `localhost`. |
+| `FIXTURES_DAV_URL` | The https URL of the WebDAV folder, without a query or fragment. Plain http only works for `localhost`. |
 | `FIXTURES_DAV_USER` | The WebDAV user |
-| `FIXTURES_DAV_TOKEN` | The app password of that user. It is never printed. |
+| `FIXTURES_DAV_TOKEN` | The app password for that user. The tool never prints it. |
 
-With none of them set, the build stays local and prints a line that lists them. With only some of them set, the build fails and lists the missing ones.
+If none of them are set, the build stays local and prints a line that lists them. If only some are set, the build fails and lists the ones you're missing.
 
-The key of a player covers the toolchain name and the inputs the toolchain adds, like the player project as the build uses it. The key covers what goes into the build, not the code of the tool. A player is built once per key and other machines download it.
+A player's key comes from the toolchain name and the toolchain's inputs, like the player project. You'll find the inputs in each toolchain's section below. Each toolchain also has a `BuildVersion`. Bump it when you change a build step in a way the other inputs don't show and every player gets built again.
 
-The section of each toolchain lists its inputs. In a folder name, `<hash>` is the first 16 hex characters of the key and `<version>` is the version the toolchain pins for that player, not the one you typed. Players go in `<output>/<toolchain>-<version>-<hash>` on disk and in `players/<toolchain>/<version>/<hash>.tar.zst` in the store, with a `<hash>.json` manifest next to the archive.
-
-The manifest lists every input of the key, so you can see why 2 keys are different. You'll also find it in the player folder as `manifest.json`. It has the full key (`player-` plus all 64 hex characters of the hash), the toolchain, the version and the inputs in the order the key hashed them. The project shows up as 1 content hash, not as a list of files. A build never reads a manifest, so a missing one never fails a build.
+In a folder name, `<hash>` is the first 16 hex characters of the key and `<version>` is the pinned version. Players go in `<output>/<toolchain>-<version>-<hash>` on disk and in `players/<toolchain>/<version>/<hash>.tar.zst` in the store, with a `<hash>.json` manifest next to the archive. The manifest lists every input of the key, so you can see why 2 keys are different. You'll also find it in the player folder as `manifest.json`. A build never reads a manifest, so a missing one never fails a build.
 
 For each player, the build checks these in order:
 
@@ -62,7 +58,7 @@ If an upload fails, the build keeps the archive next to the player folder and th
 
 ### Unreal Engine 3
 
-Unreal Engine 3 players are built with UDK, the free Unreal Engine 3 release.
+We build Unreal Engine 3 players with UDK, which is the free Unreal Engine 3 release.
 
 ```
 dotnet run --project eng/tools/AslHelp.Engines.Fixtures.Cli -- build unreal3 2015-02 --output ../fixtures
@@ -71,22 +67,22 @@ just fixtures-all unreal3 ../fixtures
 
 `just fixtures-all` builds every pinned version of the toolchain, 1 at a time. It shows each build's output while it runs, then a line with the exit code, the time in seconds and the last output line. Its exit code is the number of versions that failed.
 
-The build needs a Docker engine that runs Windows containers and that your user can reach. The 1st build pulls `mcr.microsoft.com/windows/server:ltsc2025`, which is about 16 GB. We use that image because it's the smallest one with `dsound.dll` and `dinput8.dll`.
+You need a Docker engine with Windows containers that your user can reach. The 1st build pulls `mcr.microsoft.com/windows/server:ltsc2025`, which is about 16 GB. We use it because it's the smallest image that has `dsound.dll` and `dinput8.dll`.
 
 1. Pass the version the way the installer file name writes it. Upper or lower case both work. `eng/fixtures/unreal3/releases.json` lists every pinned version with its sha1.
-2. The build downloads `UDKInstall-<version>.exe` from the [`udkinstaller`](https://archive.org/details/udkinstaller) item into `<output>/downloads`, checks its sha1 and extracts the zip inside it into `<output>/udk-<version>`, so the UDK setup program never runs.
-3. It reads the import tables of `Binaries/Win32/UDK.exe` and of the DLLs it loads from that folder. It copies the DirectX and Visual C++ 2010 DLLs they import from the install's own `Binaries/Redist/UE3Redist.exe` (`Binaries/Windows/UE3Redist.exe` before 2011-05) into `Binaries/Win32`, each DirectX DLL from the 1st x86 cabinet of the redist that lists it. The Visual C++ 2005 and 2008 DLLs come from Windows. Nothing is installed for the whole system.
-4. Versions up to 2011-07 target CLR 2, which Windows Server doesn't ship, so it adds a startup section with CLR 4 to `Binaries/Win32/UDK.exe.config` and `Binaries/Win32/UDK.com.config`.
+2. The build downloads `UDKInstall-<version>.exe` from the [`udkinstaller`](https://archive.org/details/udkinstaller) item into `<output>/downloads` and checks its sha1. Then it extracts the zip inside it into `<output>/udk-<version>`, so the UDK setup program never runs.
+3. It reads the import tables of `Binaries/Win32/UDK.exe` and of the DLLs it loads from that folder. Then it copies the DirectX and Visual C++ 2010 DLLs they import into `Binaries/Win32`, taking them from the install's own `Binaries/Redist/UE3Redist.exe` (`Binaries/Windows/UE3Redist.exe` before 2011-05). Each DirectX DLL comes from the 1st x86 cabinet in the redist that has it. The Visual C++ 2005 and 2008 DLLs come from Windows. Nothing gets installed for the whole system.
+4. Versions up to 2011-07 target CLR 2, which Windows Server doesn't ship. For those it adds a startup section for CLR 4 to `Binaries/Win32/UDK.exe.config` and `Binaries/Win32/UDK.com.config`.
 5. It copies `eng/fixtures/unreal3/Classes` to `Development/Src/Fixture/Classes`, turns on `Fixture` in `UDKGame/Config/DefaultEngineUDK.ini` and deletes `UDKGame/Config/UDKEngine.ini`.
-6. It runs `Binaries/Win32/UDK.com make -unattended -nullrhi` in a container, stops it after 10 minutes and checks `UDKGame/Script/Fixture.u`.
-7. It runs `Binaries/Win32/UDK.exe server <map>?game=Fixture.FixtureGame -unattended -nullrhi -FORCELOGFLUSH` in a container with the 1st map under `UDKGame/Content/Maps` and waits up to 2 minutes for `ScriptLog: Fixture ready` in `UDKGame/Logs/Launch.log`. After a pass it deletes the log, because the log has the machine name, the user and the paths of the build.
-8. The player ends up in `<output>/unreal3-<version>-<hash>` with the install layout and `manifest.json` inside. `udk-<version>` is the install only until then.
+6. It runs `Binaries/Win32/UDK.com make -unattended -nullrhi` in a container, stops it after 10 minutes and checks for `UDKGame/Script/Fixture.u`.
+7. It runs `Binaries/Win32/UDK.exe server <map>?game=Fixture.FixtureGame -unattended -nullrhi -FORCELOGFLUSH` in a container with the 1st map under `UDKGame/Content/Maps`. Then it waits up to 2 minutes for `ScriptLog: Fixture ready` to show up in `UDKGame/Logs/Launch.log`. When the check passes it deletes the log, because the log has the machine name, the user name and the build paths in it.
+8. The player ends up in `<output>/unreal3-<version>-<hash>` with the install layout and a `manifest.json`. Until then, `udk-<version>` is just the install.
 
-The key of a UDK player covers the pinned version, the project folder as it is on disk, the installer sha1, the make and server command lines, the ini edits and a build version. The runtime DLLs aren't a key input because the key is built before the install exists. The installer sha1 pins the files they come from. Bump `BuildVersion` in `Udk` when a build step changes in a way the other inputs don't show, so every player is built again.
+For a UDK player, the key comes from the pinned version, the project folder, the installer sha1, the make and server command lines, the ini edits and `BuildVersion` in `Udk`.
 
-The compiler and the server run in a Windows container with the install mounted, so a build fails when the player needs something that only the build machine has. The `-nullrhi` switch turns rendering off, because a container has no display. The build gives your user full control of the install before each start, because the files a container writes belong to the administrator of the container. A step that finds files missing or damaged in the extracted install needs a fresh extraction: delete `<output>/udk-<version>` and run the build again.
+The compiler and the server run in a Windows container with the install mounted, so the build fails if the player needs something only your machine has. The build gives your user full control of the folders it mounts because files that a container writes belong to the container's administrator. If a step finds that the extracted install is damaged, delete `<output>/udk-<version>` and build again.
 
-Every pinned version from 2010-06-BETA on builds. The build refuses 2009-11-BETA right after the extraction, because that engine stops at startup until the PhysX installer has run on the machine.
+Every pinned version from 2010-06-BETA on builds. The build refuses 2009-11-BETA because that engine needs PhysX installed on the machine.
 
 #### Adding a UDK version
 
@@ -129,7 +125,7 @@ Here's what a build does:
 5. Starts each exe with `-nullrhi -nosound` in a clean `mcr.microsoft.com/windows/server:ltsc2025` container and waits up to 3 minutes for the fixture to write `FixtureReady.txt` next to the exe. Then it deletes that file and `Fixture/Saved`.
 6. Moves each player to `<output>/unreal4-<version>-<tag>-<hash>`.
 
-When every script passes it deletes `project` and `out`. When a script fails it keeps them so you can look at what the step saw. The top of each script has the `docker run` line for running it by hand.
+When a build passes it deletes `project` and `out`. When it fails it keeps them so you can look at what the step saw. The top of each script has the `docker run` line for running it by hand.
 
 Each version's row in `releases.json` has what's different for that version. "All 4" in the table means win-x64-shipping, win-x64-development, win-x86-shipping and win-x86-development. The 1st player in the list is the one that cooks.
 
@@ -159,7 +155,7 @@ Each version's row in `releases.json` has what's different for that version. "Al
 
 A player's key comes from the player id, the manifest sha1, the image tag, the project as it renders for the version, the step scripts, `editorFlags`, `packageFlags`, `pathPrepend`, `runtimes` and `BuildVersion` in `Unreal`. If a change sits behind a version check that leaves it out for some version, the key of that version stays the same.
 
-#### Adding a version
+#### Adding an Unreal Engine version
 
 1. Add a row to `eng/fixtures/unreal4/releases.json` with `version`, `app` (like `UE_4.19`), `build`, the `sha1` of the manifest, `installBytes`, `installTags`, `players`, `editorFlags`, `packageFlags`, `pathPrepend` (or `null`) and `runtimes`. Add it to the table above too.
 2. Run the build command for it.
@@ -174,7 +170,7 @@ just measure <engine> <players> --output <file> [--targets <file>] [--jobs <n>]
 |---|---|
 | `<engine>` | The engine's subcommand, `unreal3` or `unreal4`. `just measure <engine> --help` lists its options. |
 | `<players>` | The folder with the `<engine>-<version>-<hash>` players from `just fixtures build`. Keep 1 folder per version. |
-| `--output` | The file for the JSON report. |
+| `--output` | The file to write the JSON report to. |
 | `--jobs`, `-j` | How many players to measure at once and how many executables in a group to decode and search at once, 1 or more. The default is the engine's limit, which is 4 for `unreal4` and 1 for `unreal3`. A higher value gets lowered to the limit with a warning. Lower it if you run short on memory. |
 | `--targets` | The file with the values to find. It replaces the built-in list, so you can change it without a rebuild. |
 
@@ -198,11 +194,11 @@ If a player fails, its row gets the error and the run keeps going, but the comma
 
 A row has the version and 3 maps:
 
-- `globals` has a list of RVAs in the executable for each global, because several statics can point at 1 object.
-- `offsets` has the offset of each member under its type, with the real names of the engine.
-- `unmeasured` has the reason for each global or member that was not found. The row still counts as measured.
+- `globals` lists RVAs in the executable for each global. It's a list because several statics can point at the same object.
+- `offsets` has the offset of each member under its type, using the engine's real names.
+- `unmeasured` has the reason each global or member wasn't found. The row still counts as measured.
 
-A failed row has `error` and none of the maps. Numbers are hex strings:
+A failed row has `error` instead of the maps. Numbers are written as hex strings:
 
 ```json
 {
@@ -274,7 +270,7 @@ A route covers a version when every match in that version's image reaches the sa
 }
 ```
 
-`forward` has the same spelling as the `forward` step of a `LocatorRoute` in AslHelp.Memory, with `?` for the bytes of the address operands and the branch targets. When linear decoding misses the load of a version, its route can also have `??` for the ModRM byte of the load.
+`forward` uses the same format as the `forward` step of a `LocatorRoute` in AslHelp.Memory, with `?` for the bytes of address operands and branch targets. If linear decoding misses the load in a version, its route can also have `??` for the ModRM byte of the load.
 
 ### Unreal Engine 3 targets
 
@@ -292,9 +288,9 @@ A route covers a version when every match in that version's image reaches the sa
 
 | `$type` | Keys | Finds |
 |---|---|---|
-| `nameArray` | `firstNames` | The array whose first entries are these names. The file needs exactly 1 of this type. |
-| `objectArray` | | The array whose objects contain their own position. The file needs exactly 1 of this type. |
-| `objectSlot` | `class`, `object` | Every static that points at an object of `class` or of a class deriving from it. `object` is optional and is the name of the object in the name array. |
+| `nameArray` | `firstNames` | The array that starts with these names. The file needs exactly 1 of these. |
+| `objectArray` | | The array whose objects store their own position in it. The file needs exactly 1 of these. |
+| `objectSlot` | `class`, `object` | Every static that points at an object of `class` or of a class that derives from it. `object` is optional and is the object's name in the name array. |
 
 The measurer finds the 2 arrays by their contents in the data of the running `UDK.exe`. From there it uses the classes `Class`, `State`, `Struct`, `Field` and `Object` to find the offsets, because their names and super chain are the same in every build. The row fails if it doesn't find an array or the name, class or outer offset. Any other member it doesn't find goes to `unmeasured`.
 

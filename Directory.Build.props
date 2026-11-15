@@ -4,9 +4,9 @@
   <PropertyGroup>
     <RootPath>$(MSBuildThisFileDirectory)</RootPath>
 
-    <SrcPath>$(RootPath)/src</SrcPath>
-    <ToolsPath>$(RootPath)/eng/tools</ToolsPath>
     <FixturesPath>$(RootPath)/eng/fixtures</FixturesPath>
+    <ToolsPath>$(RootPath)/eng/tools</ToolsPath>
+    <SrcPath>$(RootPath)/src</SrcPath>
     <TestPath>$(RootPath)/test</TestPath>
 
     <ArtifactsPath>$(RootPath)/artifacts</ArtifactsPath>
@@ -17,12 +17,13 @@
     <IsPackable>false</IsPackable>
     <LangVersion>preview</LangVersion>
 
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+    <Nullable>enable</Nullable>
 
     <AnalysisLevel>latest-all</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
     <!-- Restore the Windows projects on Linux too, because CI checks the format there. -->

@@ -4,8 +4,6 @@
     <AssemblyName>measure</AssemblyName>
     <OutputType>Exe</OutputType>
     <TargetFramework>net11.0-windows</TargetFramework>
-
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>

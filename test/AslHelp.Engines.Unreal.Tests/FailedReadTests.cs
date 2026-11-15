@@ -7,6 +7,7 @@ namespace AslHelp.Engines.Unreal.Tests;
 
 public sealed class FailedReadTests
 {
+    private const int LargestBytesPerNestedProbe = 384;
     private const int LargestBytesPerProbe = 256;
     private const int ProbeCount = 1000;
     private const int WarmUpCount = 16;
@@ -18,6 +19,7 @@ public sealed class FailedReadTests
     private static readonly Address _entry = new(0x8000_2000);
     private static readonly NameEntryLayout _entryLayout = new(0, 12);
     private static readonly ObjectLayout _objectLayout = new(0x10, 0x18, 0x24);
+    private static readonly PropertyLayout _propertyLayout = new(0x20, 0x24, 0x34);
     private static readonly StructLayout _structLayout = new(0x40, 0x48);
     private static readonly Address _type = new(0x8000_5000);
     private static readonly Address _unreadable = new(0x8000_9000);
@@ -30,24 +32,25 @@ public sealed class FailedReadTests
         {
             foreach ((string name, var probe) in Probes())
             {
-                for (int warmUp = 0; warmUp < WarmUpCount; warmUp++)
-                {
-                    _ = probe();
-                }
-
-                int failed = 0;
-                long before = GC.GetAllocatedBytesForCurrentThread();
-
-                for (int count = 0; count < ProbeCount; count++)
-                {
-                    failed += probe() ? 1 : 0;
-                }
-
-                long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
-
-                Assert.That(failed, Is.EqualTo(ProbeCount), name);
-                Assert.That(bytes / ProbeCount, Is.LessThan(LargestBytesPerProbe), name);
+                Assert.That(BytesPerProbe(name, probe), Is.LessThan(LargestBytesPerProbe), name);
             }
+        }
+    }
+
+    // The object shape runs 2 iterators because it enumerates StructReader.ChildrenOf, so its limit is 384 bytes, less than 1 formatted message.
+    [Test]
+    public void PropertiesOf_ObjectShapeFailedProbe_AllocatesLessThanAMessage()
+    {
+        var memory = MemoryWithNames();
+        ObjectPropertyReader reader = new(memory, CreateObjects(memory), CreateStructs(memory), _propertyLayout);
+
+        long bytes = BytesPerProbe("failed", () => reader.PropertiesOf(_unreadable).First().IsErr);
+        long formatted = BytesPerProbe("formatted", () => reader.PropertiesOf(_unreadable).First().UnwrapErr().Message.Length > 0);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(bytes, Is.LessThan(LargestBytesPerNestedProbe));
+            Assert.That(formatted, Is.GreaterThan(LargestBytesPerNestedProbe));
         }
     }
 
@@ -66,8 +69,8 @@ public sealed class FailedReadTests
                 $"Can't follow the super chain of the struct at {_type} at level 1. "
                 + $"Can't read the name of the object at {_type} with the name id 0. "
                 + $"The entry of name 0 at {_entry} has index 10, which is name 5. "
-                + $"Check NameEntryLayout.Index (0x{_entryLayout.Index:X}) against this engine version. "
-                + $"Check ObjectLayout.Name (0x{_objectLayout.Name:X}) against this engine version."));
+                + $"Check NameEntryLayout.Index (0x{_entryLayout.Index:X}). "
+                + $"Check ObjectLayout.Name (0x{_objectLayout.Name:X})."));
     }
 
     // A match ends the chain, so a super pointer that does not read behind the match does not fail the call.
@@ -87,9 +90,9 @@ public sealed class FailedReadTests
         }
     }
 
-    // The limit ends the chain before level 65, so memory that does not read at that level does not fail the call.
+    // The limit ends the chain before level 65, so the call fails past the limit and doesn't read the struct at that level.
     [Test]
-    public void DerivesFrom_UnreadableStructAtLevel65_ReturnsFalse()
+    public void DerivesFrom_UnreadableStructAtLevel65_FailsPastLimit()
     {
         const int Spacing = 0x100;
 
@@ -106,7 +109,7 @@ public sealed class FailedReadTests
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(derives, Is.EqualTo(Result.Ok(false)));
+            Assert.That(derives.UnwrapErr().Message, Does.StartWith($"The super chain of the struct at {_chain} goes on past 64 levels."));
             Assert.That(memory.ReadsAt(_unreadable + _objectLayout.Name), Is.Zero);
         }
     }
@@ -125,7 +128,7 @@ public sealed class FailedReadTests
             Is.EqualTo(
                 $"Can't read the name of the object at {_type} with the name id 7. "
                 + $"Can't read the header of the name array at {_array}: reading {count} failed. No block contains {count}. "
-                + $"Check ObjectLayout.Name (0x{_objectLayout.Name:X}) against this engine version."));
+                + $"Check ObjectLayout.Name (0x{_objectLayout.Name:X})."));
     }
 
     // A text past the limit keeps the entry, the address of the text and the layout field around the failure of the string read.
@@ -134,13 +137,35 @@ public sealed class FailedReadTests
     {
         FakeMemory memory = new();
         memory.AddNameArray(_array, _data, 1, _entry);
-        memory.AddNameEntry(_entry, _entryLayout, 0, new string('x', 257));
+        memory.AddNameEntry(_entry, _entryLayout, 0, new string('x', 1025));
 
         Assert.That(
             new FlatNameTable(memory, _array, _entryLayout).Read(0).UnwrapErr().Message,
             Does.StartWith($"Can't read the text of name 0 from its entry at {_entry}: reading {_entry + _entryLayout.Name} failed.")
-                .And.Contain("no terminator within 256 characters")
-                .And.EndWith($"Check NameEntryLayout.Name (0x{_entryLayout.Name:X}) against this engine version."));
+                .And.Contain("no terminator within 1024 characters")
+                .And.EndWith($"Check NameEntryLayout.Name (0x{_entryLayout.Name:X})."));
+    }
+
+    private static long BytesPerProbe(string name, Func<bool> probe)
+    {
+        for (int warmUp = 0; warmUp < WarmUpCount; warmUp++)
+        {
+            _ = probe();
+        }
+
+        int failed = 0;
+        long before = GC.GetAllocatedBytesForCurrentThread();
+
+        for (int count = 0; count < ProbeCount; count++)
+        {
+            failed += probe() ? 1 : 0;
+        }
+
+        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        Assert.That(failed, Is.EqualTo(ProbeCount), name);
+
+        return bytes / ProbeCount;
     }
 
     private static (string Name, Func<bool> Probe)[] Probes()
@@ -151,7 +176,16 @@ public sealed class FailedReadTests
         FlatNameTable names = new(memory, _array, _entryLayout);
         var objects = CreateObjects(memory);
         var structs = CreateStructs(memory);
-        FlatObjectArray array = new(memory, _unreadable);
+        PointerObjectArray array = new(memory, _unreadable);
+        IndirectNameTable indirectNames = new(memory, _unreadable, _entryLayout);
+        ChunkedNameTable chunkedNames = new(memory, _unreadable);
+        IndirectObjectArray indirectObjects = new(memory, _unreadable, new IndirectObjectArrayLayout(0, 0x800, 0x804));
+        ObjectItemLayout item = new(0, 0x10);
+        ItemObjectArray itemObjects = new(memory, _unreadable, new ItemObjectArrayLayout(0, 0x8), item);
+        ChunkedObjectArray chunkedObjects = new(memory, _unreadable, new ChunkedObjectArrayLayout(0, 0xC, 0x14, 65536), item);
+        ObjectPropertyReader objectProperties = new(memory, objects, structs, _propertyLayout);
+        FieldPropertyLayout fieldLayout = new(0x04, 0x10, 0x14);
+        FieldPropertyReader fieldProperties = new(memory, names, new FieldStructLayout(0x30), fieldLayout, new FieldClassLayout(0), _propertyLayout);
 
         return
         [
@@ -165,6 +199,17 @@ public sealed class FailedReadTests
             ("ChildrenOf", () => structs.ChildrenOf(_unreadable).First().IsErr),
             ("ReadCount", () => array.ReadCount().IsErr),
             ("Array.Read", () => array.Read(1).First().IsErr),
+            ("IndirectNameTable.Read", () => indirectNames.Read(0).IsErr),
+            ("ChunkedNameTable.Read", () => chunkedNames.Read(0).IsErr),
+            ("IndirectObjectArray.Read", () => indirectObjects.Read(1).First().IsErr),
+            ("ItemObjectArray.Read", () => itemObjects.Read(1).First().IsErr),
+            ("ChunkedObjectArray.Read", () => chunkedObjects.Read(1).First().IsErr),
+            ("ObjectPropertyReader.KindOf", () => objectProperties.KindOf(_unreadable).IsErr),
+            ("ObjectPropertyReader.OffsetOf", () => objectProperties.OffsetOf(_unreadable).IsErr),
+            ("FieldPropertyReader.PropertiesOf", () => fieldProperties.PropertiesOf(_unreadable).First().IsErr),
+            ("FieldPropertyReader.NameOf", () => fieldProperties.NameOf(_unreadable).IsErr),
+            ("FieldPropertyReader.KindOf", () => fieldProperties.KindOf(_unreadable).IsErr),
+            ("FieldPropertyReader.ArrayDimOf", () => fieldProperties.ArrayDimOf(_unreadable).IsErr),
         ];
     }
 

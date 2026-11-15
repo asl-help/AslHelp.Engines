@@ -4,7 +4,7 @@ AslHelp.Engines has the libraries that read game engines from memory and the too
 
 ## Libraries
 
-`AslHelp.Engines.Unreal` reads names, objects and structs from Unreal Engine 3 games given their layouts. The readers return `Result<T>`. A failed read has the address, the layout field to check and the read that failed in its message. A pointer of 0 is a success with `Address.Zero`. We don't publish it to NuGet, because its API can still change.
+`AslHelp.Engines.Unreal` reads names, objects, structs and properties from Unreal Engine 3, 4 and 5 games. You pick the storage shape and pass in its layouts. For properties you use `ObjectPropertyReader` up to 4.24 and `FieldPropertyReader` from 4.25 on. The readers return `Result<T>`. When a read fails, its message has the address, the read that failed and the layout field you should check. `ClassOf`, `OuterOf` and `SuperOf` return `Address.Zero` when the pointer they read is 0. `IObjectArray.Read` also returns it for an empty position. Reading `Address.Zero` itself with an `ObjectReader` fails. The name tables aren't thread-safe. The library isn't on NuGet because its API isn't stable.
 
 ## Fixture players
 

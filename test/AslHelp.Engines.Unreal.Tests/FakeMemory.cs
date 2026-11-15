@@ -17,6 +17,7 @@ internal sealed class FakeMemory : IMemoryReader
     private const int EntriesOffset = 0x1000;
     private const int EntrySpacing = 0x100;
     private const int ObjectSize = 0x100;
+    private const int PoolBlockSize = 0x2_0000;
 
     private readonly List<(Address Start, byte[] Bytes)> _blocks = [];
     private readonly Dictionary<Address, int> _readsAt = [];
@@ -118,6 +119,158 @@ internal sealed class FakeMemory : IMemoryReader
     }
 
     /// <summary>
+    ///     Adds a property that isn't an object in a block as large as an object.
+    /// </summary>
+    /// <param name="field">The address of the property.</param>
+    /// <param name="layout">The offsets inside the property.</param>
+    /// <param name="nameId">The name id.</param>
+    /// <param name="klass">The field class.</param>
+    /// <param name="next">The next property.</param>
+    public void AddField(Address field, FieldPropertyLayout layout, int nameId, Address klass = default, Address next = default)
+    {
+        Add(field, new byte[ObjectSize]);
+        WriteInt32(field + layout.Name, nameId);
+        WritePointer(field + layout.Class, klass);
+        WritePointer(field + layout.Next, next);
+    }
+
+    /// <summary>
+    ///     Adds a field class in a block as large as an object.
+    /// </summary>
+    /// <param name="klass">The address of the field class.</param>
+    /// <param name="layout">The offsets inside the field class.</param>
+    /// <param name="nameId">The name id.</param>
+    public void AddFieldClass(Address klass, FieldClassLayout layout, int nameId)
+    {
+        Add(klass, new byte[ObjectSize]);
+        WriteInt32(klass + layout.Name, nameId);
+    }
+
+    /// <summary>
+    ///     Adds a block of pointers, such as a chunk table or a chunk of entry pointers.
+    /// </summary>
+    /// <param name="start">The address of the 1st pointer.</param>
+    /// <param name="pointers">The pointers.</param>
+    public void AddPointers(Address start, params Address[] pointers)
+    {
+        Add(start, new byte[pointers.Length * Layout.PointerSize]);
+
+        for (int i = 0; i < pointers.Length; i++)
+        {
+            WritePointer(start + (i * Layout.PointerSize), pointers[i]);
+        }
+    }
+
+    /// <summary>
+    ///     Adds a name pool with its block pointers behind a lock of 1 pointer and 2 4-byte cursors.
+    /// </summary>
+    /// <remarks>
+    ///     Sets the current block to the last block and its byte cursor to the end of a 128 KB block, so every byte of every block counts as used.
+    /// </remarks>
+    /// <param name="pool">The address of the pool.</param>
+    /// <param name="blocks">The block pointers.</param>
+    public void AddNamePool(Address pool, params Address[] blocks)
+    {
+        int cursors = Layout.PointerSize;
+        int slots = cursors + (2 * sizeof(int));
+
+        Add(pool, new byte[slots + (blocks.Length * Layout.PointerSize)]);
+        WriteInt32(pool + cursors, blocks.Length - 1);
+        WriteInt32(pool + cursors + sizeof(int), PoolBlockSize);
+
+        for (int i = 0; i < blocks.Length; i++)
+        {
+            WritePointer(pool + slots + (i * Layout.PointerSize), blocks[i]);
+        }
+    }
+
+    /// <summary>
+    ///     Adds an entry of a name pool whose block ends right after the text, without a terminator.
+    /// </summary>
+    /// <param name="entry">The address of the entry.</param>
+    /// <param name="wide"><see langword="true"/> to write the text as UTF-16 and set the low bit of the header.</param>
+    /// <param name="text">The text.</param>
+    public void AddPoolEntry(Address entry, bool wide, string text)
+    {
+        byte[] characters = (wide ? Encoding.Unicode : Encoding.ASCII).GetBytes(text);
+        byte[] bytes = new byte[sizeof(ushort) + characters.Length];
+
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes, (ushort)((text.Length << 6) | (wide ? 1 : 0)));
+        characters.CopyTo(bytes, sizeof(ushort));
+
+        Add(entry, bytes);
+    }
+
+    /// <summary>
+    ///     Adds an object array with its count, its chunk count and its chunk pointers in 1 block.
+    /// </summary>
+    /// <param name="array">The address of the array.</param>
+    /// <param name="layout">The offsets inside the array.</param>
+    /// <param name="count">The count of objects.</param>
+    /// <param name="chunks">The chunk pointers, which also set the chunk count.</param>
+    public void AddIndirectObjectArray(Address array, IndirectObjectArrayLayout layout, int count, params Address[] chunks)
+    {
+        Add(array, new byte[layout.NumChunks + sizeof(int)]);
+        WriteInt32(array + layout.NumElements, count);
+        WriteInt32(array + layout.NumChunks, chunks.Length);
+
+        for (int i = 0; i < chunks.Length; i++)
+        {
+            WritePointer(array + layout.Objects + (i * Layout.PointerSize), chunks[i]);
+        }
+    }
+
+    /// <summary>
+    ///     Adds an object array with a pointer to its items and its count.
+    /// </summary>
+    /// <param name="array">The address of the array.</param>
+    /// <param name="layout">The offsets inside the array.</param>
+    /// <param name="data">The address of the items.</param>
+    /// <param name="count">The count of items.</param>
+    public void AddItemObjectArray(Address array, ItemObjectArrayLayout layout, Address data, int count)
+    {
+        Add(array, new byte[layout.NumElements + sizeof(int)]);
+        WritePointer(array + layout.Objects, data);
+        WriteInt32(array + layout.NumElements, count);
+    }
+
+    /// <summary>
+    ///     Adds an object array and its block of chunk pointers.
+    /// </summary>
+    /// <param name="array">The address of the array.</param>
+    /// <param name="layout">The offsets inside the array.</param>
+    /// <param name="table">The address of the chunk pointers.</param>
+    /// <param name="count">The count of items.</param>
+    /// <param name="chunks">The chunk pointers, which also set the chunk count.</param>
+    public void AddChunkedObjectArray(Address array, ChunkedObjectArrayLayout layout, Address table, int count, params Address[] chunks)
+    {
+        Add(array, new byte[layout.NumChunks + sizeof(int)]);
+        WritePointer(array + layout.Objects, table);
+        WriteInt32(array + layout.NumElements, count);
+        WriteInt32(array + layout.NumChunks, chunks.Length);
+        AddPointers(table, chunks);
+    }
+
+    /// <summary>
+    ///     Adds a block of items, with every byte beside the object pointers set, so a read at the wrong offset returns another address.
+    /// </summary>
+    /// <param name="start">The address of the 1st item.</param>
+    /// <param name="item">The offsets inside an item.</param>
+    /// <param name="objects">The object pointer of each item.</param>
+    public void AddObjectItems(Address start, ObjectItemLayout item, params Address[] objects)
+    {
+        byte[] bytes = new byte[objects.Length * item.Size];
+
+        bytes.AsSpan().Fill(0xAB);
+        Add(start, bytes);
+
+        for (int i = 0; i < objects.Length; i++)
+        {
+            WritePointer(start + ((long)i * item.Size) + item.ObjectPointer, objects[i]);
+        }
+    }
+
+    /// <summary>
     ///     Writes a 4-byte value into the block that contains <paramref name="address"/>.
     /// </summary>
     /// <param name="address">The address of the value.</param>
@@ -136,16 +289,10 @@ internal sealed class FakeMemory : IMemoryReader
     /// <exception cref="ArgumentOutOfRangeException">No block contains <paramref name="address"/>.</exception>
     public void WritePointer(Address address, Address value)
     {
-        var bytes = BytesAt(address, Layout.PointerSize);
-
-        if (Layout.PointerSize == sizeof(ulong))
-        {
-            BinaryPrimitives.WriteUInt64LittleEndian(bytes, value.Value);
-        }
-        else
-        {
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes, (uint)value.Value);
-        }
+        // Write the low bytes of 8, so a pointer size other than 4 or 8 gets a pointer too.
+        byte[] full = new byte[sizeof(ulong)];
+        BinaryPrimitives.WriteUInt64LittleEndian(full, value.Value);
+        full.AsSpan(0, Layout.PointerSize).CopyTo(BytesAt(address, Layout.PointerSize));
     }
 
     /// <inheritdoc/>

@@ -86,6 +86,25 @@ public sealed class UdkFixtureCheckTests(
         Assert.That(_image.Memory.ReadsAt(filler + layout.Class), Is.Zero);
     }
 
+    // The game spawns the instance as the class name with a number, such as FixtureData_0, so the search finds it by its base name
+    // and still reads no class of other objects.
+    [Test]
+    public void Measure_InstanceWithANumber_ReadsNoClassOfOtherObjects()
+    {
+        _image = new FakeImage(layout, FirstNames, fillers: 600);
+        _image.Memory.WriteInt32(_image.FixtureInstance + layout.Name + sizeof(int), 1);
+
+        var filler = _image.Memory.ReadPointer(FakeImage.ObjectPointerAt(FakeImage.FirstFillerPosition + 599)).UnwrapOr(Address.Zero);
+
+        string log = MeasureAndLog();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(log, Does.Contain($"at {_image.FixtureInstance}"));
+            Assert.That(_image.Memory.ReadsAt(filler + layout.Class), Is.Zero);
+        }
+    }
+
     // The object array doesn't have a fixed order, so an instance in front of its class still counts.
     [Test]
     public void Measure_InstanceInFrontOfItsClass_ReadsIt()
@@ -127,25 +146,25 @@ public sealed class UdkFixtureCheckTests(
         Assert.That(MeasureAndLog(), Does.Contain($"at {_image.FixtureInstance}"));
     }
 
-    // A field of another struct ends the chain, so the field behind it does not count.
+    // A 1st field of another struct fails the chain, so the field behind it does not count and the cause has the outer object.
     [Test]
-    public void Measure_FieldBehindAFieldOfAnotherStruct_FailsFieldNotFound()
+    public void Measure_FieldBehindAFirstFieldOfAnotherStruct_FailsChildrenUnreadable()
     {
         _image.Memory.WritePointer(Filler + layout.Next, FixtureField);
         _image.Memory.WritePointer(FixtureClass + layout.Children, Filler);
 
-        Assert.That(MeasureError(), Is.EqualTo(UdkSR.FixtureFieldNotFound));
+        Assert.That(MeasureError(), Does.StartWith(UdkSR.FixtureChildrenUnreadable).And.Contain($"The 1st field at {Filler} of the struct at {FixtureClass}"));
     }
 
-    // A chain that loops ends at the limit of the reader, so a damaged class fails the row and does not hang it.
+    // A chain that loops fails at the limit of the reader, so a damaged class fails the row and does not hang it.
     [Test]
-    public void Measure_FieldChainLoops_FailsFieldNotFound()
+    public void Measure_FieldChainLoops_FailsChildrenUnreadable()
     {
         _image.Memory.WritePointer(Filler + layout.Outer, FixtureClass);
         _image.Memory.WritePointer(Filler + layout.Next, Filler);
         _image.Memory.WritePointer(FixtureClass + layout.Children, Filler);
 
-        Assert.That(MeasureError(), Is.EqualTo(UdkSR.FixtureFieldNotFound));
+        Assert.That(MeasureError(), Does.StartWith(UdkSR.FixtureChildrenUnreadable));
     }
 
     // The offset comes from the field, so a value at another offset passes and the old position does not matter.

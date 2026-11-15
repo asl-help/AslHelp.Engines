@@ -19,7 +19,7 @@ namespace AslHelp.Engines.Measuring.Cli.Unreal3;
 internal sealed record UdkNameArray(
     IReadOnlyList<uint> Rvas,
     NameEntryLayout Layout,
-    FlatNameTable Table);
+    INameTable Table);
 
 /// <summary>
 ///     Describes the object array that <see cref="UdkArrays.FindObjects"/> found.
@@ -30,7 +30,7 @@ internal sealed record UdkNameArray(
 /// <param name="Pointers">The pointers in the array at the time of the search, without its empty positions.</param>
 internal sealed record UdkObjectArray(
     IReadOnlyList<uint> Rvas,
-    FlatObjectArray Array,
+    IObjectArray Array,
     int IndexOffset,
     IReadOnlyList<Address> Pointers);
 
@@ -120,7 +120,7 @@ internal static class UdkArrays
                 array.Rva,
                 array.Data,
                 array.Count,
-                IndexOffset: FindIndexOffset(memory, new FlatObjectArray(memory, moduleBase + array.Rva))))
+                IndexOffset: FindIndexOffset(memory, new PointerObjectArray(memory, moduleBase + array.Rva))))
             .Where(static candidate => candidate.IndexOffset != NotFound)
             .ToList();
 
@@ -138,7 +138,7 @@ internal static class UdkArrays
             return UdkArrayError.ObjectArrayAmbiguous(Hex(firstRva), Hex(candidates[other].Rva));
         }
 
-        FlatObjectArray array = new(memory, moduleBase + firstRva);
+        PointerObjectArray array = new(memory, moduleBase + firstRva);
         List<Address> pointers = [];
 
         foreach (var item in array.Read(int.MaxValue))
@@ -236,7 +236,7 @@ internal static class UdkArrays
     /// <returns>
     ///     The offset or -1 if the array does not fit.
     /// </returns>
-    private static int FindIndexOffset(IMemoryReader memory, FlatObjectArray array)
+    private static int FindIndexOffset(IMemoryReader memory, PointerObjectArray array)
     {
         // Stop at a failed read, because a miss is normal here and most arrays in the sections are false matches.
         var sample = array

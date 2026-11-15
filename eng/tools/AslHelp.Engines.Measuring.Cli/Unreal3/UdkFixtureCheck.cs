@@ -60,7 +60,7 @@ internal static class UdkFixtureCheck
             new ChildLayout(offsets[UdkMembers.Next]));
 
         // Compare the class and not only the name, because a property of the game has the same name as the class.
-        var fixtureClass = measured.ObjectsByName[ClassName]
+        var fixtureClass = measured.ObjectsByBaseName[ClassName]
             .FirstOrDefault(obj => objects.ClassOf(obj).UnwrapOr(Address.Zero) == measured.ClassClass);
 
         if (fixtureClass == Address.Zero)
@@ -68,11 +68,12 @@ internal static class UdkFixtureCheck
             return UdkMemberError.ClassNotFound(ClassName);
         }
 
-        // Try the objects with the class name first, because the game spawns the instance under that name and each other object costs 1 read.
+        // Try the objects with the base name of the class first, because the game spawns the instance as the class name with a number
+        // and each other object costs 1 read.
         // Skip the class default objects, because they have the class too but not the value the game sets.
         // Skip an object whose name does not read, because a live instance always has a name.
-        var instance = measured.ObjectsByName[ClassName]
-            .Concat(measured.ObjectsByName
+        var instance = measured.ObjectsByBaseName[ClassName]
+            .Concat(measured.ObjectsByBaseName
                 .Where(static group => group.Key is { } name && !name.StartsWith(DefaultObjectPrefix, StringComparison.Ordinal))
                 .SelectMany(static group => group))
             .FirstOrDefault(obj => objects.ClassOf(obj).UnwrapOr(Address.Zero) == fixtureClass);

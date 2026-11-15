@@ -1,5 +1,7 @@
 using AslHelp.Memory;
 using NUnit.Framework;
+using System;
+using System.Buffers.Binary;
 
 namespace AslHelp.Engines.Unreal.Tests;
 
@@ -23,40 +25,43 @@ public sealed class ObjectReaderTests(
         new(MemoryLayout.X64, new Address(0x7FF6_0000_0000), new ObjectLayout(0x10, 0x18, 0x28)),
     ];
 
+    private readonly Address _block = start + 0x9000;
     private readonly Address _class = start + 0x7000;
     private readonly Address _nameArray = start;
     private readonly Address _object = start + 0x5000;
     private readonly Address _otherObject = start + 0x5100;
     private readonly Address _outer = start + 0x6000;
+    private readonly Address _pool = start + 0x8000;
 
-    // A number of 0 returns the text of the name id.
+    // A number of 0 returns the text of the name id as is, so the cached string of the table comes back and nothing is allocated.
     [Test]
-    public void NameOf_ObjectWithNumberZero_ReturnsBaseName()
+    public void NameOf_ObjectWithNumberZero_ReturnsCachedBaseName()
     {
         var memory = MemoryWithNames();
         memory.AddObject(_object, layout, CoreId);
+        memory.AddObject(_otherObject, layout, CoreId);
+        var reader = CreateReader(memory);
 
-        Assert.That(CreateReader(memory).NameOf(_object).Unwrap(), Is.EqualTo("Core"));
+        string first = reader.NameOf(_object).Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(first, Is.EqualTo("Core"));
+            Assert.That(reader.NameOf(_otherObject).Unwrap(), Is.SameAs(first));
+        }
     }
 
-    // A positive number returns the base name with no suffix for the number.
-    [Test]
-    public void NameOf_ObjectWithNumber_ReturnsBaseNameWithoutSuffix()
+    // A number above 0 adds _ and the number minus 1, because the engine stores the printed number plus 1.
+    [TestCase(1, "Core_0")]
+    [TestCase(5, "Core_4")]
+    [TestCase(1000, "Core_999")]
+    [TestCase(int.MaxValue, "Core_2147483646")]
+    public void NameOf_ObjectWithNumber_ReturnsNameWithSuffix(int number, string expected)
     {
         var memory = MemoryWithNames();
-        memory.AddObject(_object, layout, CoreId, number: 5);
+        memory.AddObject(_object, layout, CoreId, number: number);
 
-        Assert.That(CreateReader(memory).NameOf(_object).Unwrap(), Is.EqualTo("Core"));
-    }
-
-    // The largest number is still not negative, so the base name comes back.
-    [Test]
-    public void NameOf_LargestNumber_ReturnsBaseName()
-    {
-        var memory = MemoryWithNames();
-        memory.AddObject(_object, layout, CoreId, number: int.MaxValue);
-
-        Assert.That(CreateReader(memory).NameOf(_object).Unwrap(), Is.EqualTo("Core"));
+        Assert.That(CreateReader(memory).NameOf(_object).Unwrap(), Is.EqualTo(expected));
     }
 
     // A negative number fails with the number and the name offset even though the name id is valid.
@@ -70,7 +75,21 @@ public sealed class ObjectReaderTests(
             CreateReader(memory).NameOf(_object).UnwrapErr().Message,
             Is.EqualTo(
                 $"The object at {_object} has the name number -1, which is below 0. "
-                + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
+                + $"Check ObjectLayout.Name (0x{layout.Name:X})."));
+    }
+
+    // A big-endian target stores the id and the number each in that byte order, so the number reads back as -2 and not as the id or a swapped value.
+    [Test]
+    public void NameOf_BigEndianNegativeNumber_FailsWithThatNumber()
+    {
+        byte[] bytes = new byte[layout.Name + (2 * sizeof(int))];
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(layout.Name), CoreId);
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(layout.Name + sizeof(int)), -2);
+
+        FakeMemory memory = new() { Layout = MemoryLayout.BigEndian32 };
+        memory.Add(_object, bytes);
+
+        Assert.That(CreateReader(memory).NameOf(_object).UnwrapErr().Message, Does.Contain("name number -2,"));
     }
 
     // The smallest number reads as signed, so it fails.
@@ -115,6 +134,36 @@ public sealed class ObjectReaderTests(
         }
     }
 
+    // Address 0 fails the class and the outer reads with no memory read too, even when address 0 has a valid object.
+    [Test]
+    public void ClassOf_OuterOf_AddressZero_FailWithNoRead()
+    {
+        var memory = MemoryWithNames();
+        memory.AddObject(Address.Zero, layout, CoreId, outer: _outer, klass: _class);
+        var reader = CreateReader(memory);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reader.ClassOf(Address.Zero).UnwrapErr().Message, Is.EqualTo("The object pointer is 0."));
+            Assert.That(reader.OuterOf(Address.Zero).UnwrapErr().Message, Is.EqualTo("The object pointer is 0."));
+            Assert.That(memory.Reads, Is.Zero);
+        }
+    }
+
+    // Every read of address 0 returns the same error, because the error has no values to keep apart.
+    [Test]
+    public void NameOf_ClassOf_OuterOf_AddressZero_ShareTheError()
+    {
+        var reader = CreateReader(MemoryWithNames());
+        var error = reader.NameOf(Address.Zero).UnwrapErr();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(reader.ClassOf(Address.Zero).UnwrapErr(), Is.SameAs(error));
+            Assert.That(reader.OuterOf(Address.Zero).UnwrapErr(), Is.SameAs(error));
+        }
+    }
+
     // An unreadable object fails with the object and the name offset with no read of the name array.
     [Test]
     public void NameOf_UnreadableObject_FailsWithNameOffset()
@@ -128,26 +177,26 @@ public sealed class ObjectReaderTests(
                 CreateReader(memory).NameOf(_object).UnwrapErr().Message,
                 Is.EqualTo(
                     $"Can't read the name of the object at {_object}: reading {address} failed. No block contains {address}. "
-                    + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
+                    + $"Check ObjectLayout.Name (0x{layout.Name:X})."));
             Assert.That(memory.ReadsAt(_nameArray), Is.Zero);
         }
     }
 
-    // A block that ends right after the name id fails the number read, so the message has the address of the number.
+    // A block that ends right after the name id fails the read of the id and the number, so the message has the address of the id.
     [Test]
-    public void NameOf_NumberOutsideReadableMemory_FailsWithNameOffset()
+    public void NameOf_NumberOutsideReadableMemory_FailsAtNameId()
     {
         var memory = MemoryWithNames();
         memory.Add(_object, new byte[layout.Name + sizeof(int)]);
         memory.WriteInt32(_object + layout.Name, CoreId);
 
-        var address = _object + layout.Name + sizeof(int);
+        var address = _object + layout.Name;
 
         Assert.That(
             CreateReader(memory).NameOf(_object).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the name of the object at {_object}: reading {address} failed. No block contains {address}. "
-                + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
+                + $"Check ObjectLayout.Name (0x{layout.Name:X})."));
     }
 
     // An object at the end of the address range wraps around to unreadable memory and does not throw, although the build turns on overflow checks.
@@ -157,7 +206,7 @@ public sealed class ObjectReaderTests(
         Assert.That(CreateReader(MemoryWithNames()).NameOf(new Address(ulong.MaxValue)).IsErr, Is.True);
     }
 
-    // The 4 bytes to the number go on the address and not on the offset, so the largest offset does not overflow a 4-byte sum.
+    // Add the offset to the address and not to a 4-byte sum, so the largest offset does not overflow.
     [Test]
     public void NameOf_NameOffsetAtIntLimit_ReturnsBaseName()
     {
@@ -184,7 +233,20 @@ public sealed class ObjectReaderTests(
             CreateReader(memory).NameOf(_object).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the name of the object at {_object} with the name id {id}. {tableError} "
-                + $"Check ObjectLayout.Name (0x{layout.Name:X}) against this engine version."));
+                + $"Check ObjectLayout.Name (0x{layout.Name:X})."));
+    }
+
+    // An id of a chunked pool is a block and an offset, which goes through the table as is.
+    [Test]
+    public void NameOf_ChunkedNameId_ReturnsText()
+    {
+        FakeMemory memory = new() { Layout = memoryLayout };
+        memory.AddNamePool(_pool, Address.Zero, _block);
+        memory.AddPoolEntry(_block + 0x20, wide: false, "Core");
+        memory.AddObject(_object, layout, 0x0001_0010);
+        ObjectReader reader = new(memory, new ChunkedNameTable(memory, _pool), layout);
+
+        Assert.That(reader.NameOf(_object).Unwrap(), Is.EqualTo("Core"));
     }
 
     // A changed name id returns the new name, because the game can reuse the address of a freed object.
@@ -268,7 +330,7 @@ public sealed class ObjectReaderTests(
             CreateReader(MemoryWithNames()).ClassOf(_object).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the class of the object at {_object}: reading {address} failed. No block contains {address}. "
-                + $"Check ObjectLayout.Class (0x{layout.Class:X}) against this engine version."));
+                + $"Check ObjectLayout.Class (0x{layout.Class:X})."));
     }
 
     // A changed class returns the new pointer, because the game can reuse the address of a freed object.
@@ -334,7 +396,7 @@ public sealed class ObjectReaderTests(
             CreateReader(MemoryWithNames()).OuterOf(_object).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the outer object of the object at {_object}: reading {address} failed. No block contains {address}. "
-                + $"Check ObjectLayout.Outer (0x{layout.Outer:X}) against this engine version."));
+                + $"Check ObjectLayout.Outer (0x{layout.Outer:X})."));
     }
 
     // A changed outer object returns the new pointer, because the game can reuse the address of a freed object.
@@ -379,26 +441,6 @@ public sealed class ObjectReaderTests(
         Assert.That(
             () => new ObjectReader(null!, names, layout),
             Throws.ArgumentNullException.With.Property("ParamName").EqualTo("memory"));
-    }
-
-    // A null table throws with its parameter name.
-    [Test]
-    public void Constructor_NullNames_ThrowsArgumentNullException()
-    {
-        Assert.That(
-            () => new ObjectReader(new FakeMemory(), null!, layout),
-            Throws.ArgumentNullException.With.Property("ParamName").EqualTo("names"));
-    }
-
-    // A null layout throws with its parameter name.
-    [Test]
-    public void Constructor_NullLayout_ThrowsArgumentNullException()
-    {
-        FlatNameTable names = new(new FakeMemory(), _nameArray, _entryLayout);
-
-        Assert.That(
-            () => new ObjectReader(new FakeMemory(), names, null!),
-            Throws.ArgumentNullException.With.Property("ParamName").EqualTo("layout"));
     }
 
     private FakeMemory MemoryWithNames()

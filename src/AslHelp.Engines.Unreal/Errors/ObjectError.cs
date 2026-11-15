@@ -12,6 +12,9 @@ namespace AslHelp.Engines.Unreal.Errors;
 /// </remarks>
 internal abstract record ObjectError : ResultError
 {
+    // Share 1 instance, because the error has no values and a search can fail on many objects of 0.
+    private static readonly ObjectError _nullObject = new NullObjectError();
+
     /// <summary>
     ///     Creates the error for a class pointer that did not read.
     /// </summary>
@@ -75,11 +78,11 @@ internal abstract record ObjectError : ResultError
     ///     Creates the error for an object pointer of 0.
     /// </summary>
     /// <returns>
-    ///     The error.
+    ///     The shared error.
     /// </returns>
     public static ObjectError NullObject()
     {
-        return new NullObjectError();
+        return _nullObject;
     }
 
     /// <summary>

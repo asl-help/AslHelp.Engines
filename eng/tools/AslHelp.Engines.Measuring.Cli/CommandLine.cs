@@ -275,7 +275,7 @@ internal static class CommandLine
 
                 foreach (var group in measuredGroups)
                 {
-                    groups.Add(FindRoutes(group, measurements, logger, cancellationToken));
+                    groups.Add(FindRoutes(group, measurements, maxDegreeOfParallelism, logger, cancellationToken));
                 }
             }
 
@@ -424,6 +424,7 @@ internal static class CommandLine
     /// </summary>
     /// <param name="group">The group.</param>
     /// <param name="measurements">The measurement of each measured version.</param>
+    /// <param name="maxDegreeOfParallelism">The number of executables to read at once, the same as the players of the run.</param>
     /// <param name="logger">The logger for the steps and the failures of the run.</param>
     /// <param name="cancellationToken">The token that stops the search.</param>
     /// <returns>
@@ -433,6 +434,7 @@ internal static class CommandLine
     private static VersionGroup FindRoutes(
         VersionGroup group,
         Dictionary<string, PlayerMeasurement> measurements,
+        int maxDegreeOfParallelism,
         ILogger logger,
         CancellationToken cancellationToken)
     {
@@ -455,7 +457,7 @@ internal static class CommandLine
             .. group.Versions.Select(version => new RouteVersion(version, measurements[version].ExecutablePath, measurements[version].Globals)),
         ];
 
-        var routes = SharedRoutes.Find(routeVersions, logger, cancellationToken);
+        var routes = SharedRoutes.Find(routeVersions, maxDegreeOfParallelism, logger, cancellationToken);
 
         foreach ((string global, var globalRoutes) in routes)
         {

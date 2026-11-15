@@ -14,6 +14,18 @@ internal sealed record FileError : ResultError
     public override string Message { get; }
 
     /// <summary>
+    ///     Creates the error for an executable that is not x86 or x64.
+    /// </summary>
+    /// <param name="path">The path of the file.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static FileError MachineUnsupported(string path)
+    {
+        return new(SR.FormatExecutableMachineUnsupported(path));
+    }
+
+    /// <summary>
     ///     Creates the error for a file that is not a PE file.
     /// </summary>
     /// <param name="path">The path of the file.</param>

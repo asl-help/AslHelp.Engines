@@ -54,7 +54,7 @@ public sealed class InstructionSitesTests
     public void Find_X64RipRelativeLoad_ResolvesAgainstTheNextInstruction()
     {
         var image = new CodeBuilder(true).MovRax(Global).Build();
-        var moved = image with { Sections = [new CodeSection(CodeBuilder.CodeRva + 0x10, image.Sections[0].Bytes)] };
+        CodeImage moved = new(true, image.ImageBase, image.ImageSize, [new CodeSection(CodeBuilder.CodeRva + 0x10, image.Sections[0].Bytes)]);
 
         var windows = InstructionSites.Find(image, _wanted);
 

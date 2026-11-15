@@ -41,7 +41,7 @@ internal static class PeFile
         {
             return FileError.NotPe(path);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
             return FileError.Unreadable(path, exception.Message);
         }

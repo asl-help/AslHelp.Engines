@@ -71,6 +71,14 @@ public sealed class PeFileTests
         Assert.That(() => File.Delete(path), Throws.Nothing);
     }
 
+    // A path that the file APIs refuse fails as unreadable, with the path.
+    [TestCase("")]
+    [TestCase("file\0.bin")]
+    public void Open_InvalidPath_FailsAsUnreadable(string path)
+    {
+        Assert.That(PeFile.Open(path).UnwrapErr().Message, Does.StartWith(SR.FormatFileUnreadable(path, "")));
+    }
+
     // A missing file fails as unreadable, with the path.
     [Test]
     public void Open_MissingFile_FailsAsUnreadable()

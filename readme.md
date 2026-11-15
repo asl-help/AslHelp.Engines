@@ -175,7 +175,7 @@ just measure <engine> <players> --output <file> [--targets <file>] [--jobs <n>]
 | `<engine>` | The engine of the players, such as `unreal3`. |
 | `<players>` | The folder with the `<engine>-<version>-<hash>` players from `just fixtures build`. Keep 1 folder per version. |
 | `--output` | The file for the JSON report. |
-| `--jobs`, `-j` | How many players to measure at once, 1 or more. The default is the engine's limit, which is 1 for `unreal3`. A higher value gets lowered to the limit with a warning. Lower it if you run short on memory. |
+| `--jobs`, `-j` | How many players to measure at once and how many executables in a group to decode and search at once, 1 or more. The default is the engine's limit, which is 1 for `unreal3`. A higher value gets lowered to the limit with a warning. Lower it if you run short on memory. |
 | `--targets` | The file with the values to find. It replaces the built-in list, so you can change it without a rebuild. |
 
 The command runs each player on the current machine in version order until its fixture game is ready, reads the player's memory and writes 1 row per player into the report. It logs each step to the console with the time and the level, with the steps of a player indented under its start line. Errors go to stderr.
@@ -246,9 +246,9 @@ Failed rows and rows with empty `offsets` and empty `globals` don't join a group
 ]
 ```
 
-A group also has `routes`, with an entry for each global of its versions. A route is a signature search through the code of the executable and then a read of the global from the operand at `offset`. The command reads the executable file of each version once after the players have ended, so the search needs no running game.
+Each group also has `routes`, with an entry for each global of its versions. A route finds a global with a signature search through the code of the executable and then reads the global from the operand at `offset`. Once the players have ended, the command reads the executable file of each version, so the search doesn't need a running game. It reads, decodes and searches as many executables at once as `--jobs` allows.
 
-A route covers a version when every match in the code sections of that version decodes to an address operand at `offset` and all of them reach 1 RVA from the list of the global in that version. `reached` has that RVA per version, because the list can have statics that change between runs. The command picks the route that covers the most versions, then with the fewest instructions and bytes. It repeats that for the versions left, so a global can have several routes. It tries at most 64 candidates per instruction count, because each one costs a search through the file of every version. `uncovered` has the reason for each version that no route covers and is missing when every version is covered. A file that fails to read gets its version into `uncovered` and the run goes on.
+A route covers a version when every match in that version's image reaches the same RVA of the global. `reached` lists that RVA for each version. The image means everything the loader maps, because a search of the whole module at run time reads all of it. The command throws out a route that also matches in another version of the group and reaches a different address there, because a reader on that version would get the wrong value. It picks the route that covers the most versions, then the shortest one. Then it does the same for the versions that are left, so a global can end up with several routes. `uncovered` has the reason for each version that no route covers.
 
 ```json
 "routes": {

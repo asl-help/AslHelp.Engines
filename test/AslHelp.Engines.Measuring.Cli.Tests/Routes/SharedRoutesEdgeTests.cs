@@ -59,6 +59,7 @@ public sealed class SharedRoutesEdgeTests
                 new RouteVersion("a", Path.Combine(_folder.Root, "missing.bin"), new Dictionary<string, IReadOnlyList<uint>>()),
                 Version("b", new CodeBuilder(false).MovEcx(GlobalB), GlobalB),
             ],
+            2,
             new WriterLogger(output, TextWriter.Null),
             CancellationToken.None);
 
@@ -94,7 +95,7 @@ public sealed class SharedRoutesEdgeTests
         AssertOnlyBFails(whole);
     }
 
-    // A section RVA that does not fit a signed value is out of range for PEReader and fails only its version.
+    // A section RVA that does not fit a signed value is outside the image and fails only its version.
     [Test]
     public void Find_SectionRvaAbove2Gb_FailsOnlyThatVersion()
     {
@@ -135,6 +136,7 @@ public sealed class SharedRoutesEdgeTests
 
         var found = SharedRoutes.Find(
             [new RouteVersion("a", missing, new Dictionary<string, IReadOnlyList<uint>> { ["X"] = [GlobalA], ["Y"] = [GlobalB] })],
+            2,
             new WriterLogger(output, TextWriter.Null),
             CancellationToken.None);
 
@@ -195,14 +197,33 @@ public sealed class SharedRoutesEdgeTests
         }
     }
 
-    // Growth stops once a route covers the versions with a site, so c gets its own route even though 1 longer route covers all 3.
+    // The short candidate of a and b also loads another global in c, which is without a site, so the longer candidate covers all 3 in 1 route.
+    [Test]
+    public void Find_ShortCandidateConflictsInVersionWithoutSite_LongerCoversAll()
+    {
+        var found = Find(
+            Version("a", new CodeBuilder(false).MovEcx(GlobalA).Ret(), GlobalA),
+            Version("b", new CodeBuilder(false).MovEcx(GlobalB).Ret(), GlobalB),
+            Version("c", new CodeBuilder(false).MovEcx(Other).Nops(1).Raw(0xB8).MovEcx(GlobalA).Ret(), GlobalA));
+
+        var route = found[Global].Routes.Single();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(route.Forward, Is.EqualTo("8B 0D ???????? C3"));
+            Assert.That(route.Versions, Is.EqualTo(_threeVersions));
+            Assert.That(found[Global].Uncovered, Is.Null);
+        }
+    }
+
+    // Growth stops once a route covers the versions with a site, so c gets its own route even though 1 looser route covers all 3.
     [Test]
     public void Find_BestCoversEveryVersionWithASite_LeavesTheOtherVersionToTheNextRoute()
     {
         var found = Find(
             Version("a", new CodeBuilder(false).MovEcx(GlobalA).Ret(), GlobalA),
             Version("b", new CodeBuilder(false).MovEcx(GlobalB).Ret(), GlobalB),
-            Version("c", new CodeBuilder(false).MovEcx(Other).Nops(1).Raw(0xB8).MovEcx(GlobalA).Ret(), GlobalA));
+            Version("c", new CodeBuilder(false).Raw(0xB8).MovEdx(GlobalA).Ret(), GlobalA));
 
         var routes = found[Global].Routes;
 
@@ -212,7 +233,7 @@ public sealed class SharedRoutesEdgeTests
         {
             Assert.That(routes[0].Forward, Is.EqualTo("8B 0D ????????"));
             Assert.That(routes[0].Versions, Is.EqualTo(_aAndB));
-            Assert.That(routes[1].Forward, Is.EqualTo("8B 0D ???????? C3"));
+            Assert.That(routes[1].Forward, Is.EqualTo("8B ?? ????????"));
             Assert.That(routes[1].Versions, Is.EqualTo(_c));
             Assert.That(found[Global].Uncovered, Is.Null);
         }
@@ -273,6 +294,7 @@ public sealed class SharedRoutesEdgeTests
     }
 
     // The search result of a candidate is kept per file, so it must still pass the check against the list of the next global.
+    // For Y the candidate reaches another address in b, which refuses it for a too.
     [Test]
     public void Find_SameCandidateForTwoGlobals_ChecksEachList()
     {
@@ -287,7 +309,7 @@ public sealed class SharedRoutesEdgeTests
         {
             Assert.That(found["X"].Routes.Single().Versions, Is.EqualTo(_aAndB));
             Assert.That(found["X"].Uncovered, Is.Null);
-            Assert.That(found["Y"].Uncovered!.Keys, Is.EqualTo(_b));
+            Assert.That(found["Y"].Uncovered!.Keys, Is.EqualTo(_aAndB));
         }
     }
 
@@ -359,12 +381,12 @@ public sealed class SharedRoutesEdgeTests
         source.Cancel();
         RouteVersion version = new("a", Path.Combine(_folder.Root, "missing.bin"), Globals(GlobalA));
 
-        Assert.That(() => SharedRoutes.Find([version], NullLogger.Instance, source.Token), Throws.InstanceOf<OperationCanceledException>());
+        Assert.That(() => SharedRoutes.Find([version], 2, NullLogger.Instance, source.Token), Throws.InstanceOf<OperationCanceledException>());
     }
 
     private static IReadOnlyDictionary<string, GlobalRoutes> Find(params RouteVersion[] versions)
     {
-        return SharedRoutes.Find(versions, NullLogger.Instance, CancellationToken.None);
+        return SharedRoutes.Find(versions, 2, NullLogger.Instance, CancellationToken.None);
     }
 
     private static Dictionary<string, IReadOnlyList<uint>> Globals(params uint[] rvas)

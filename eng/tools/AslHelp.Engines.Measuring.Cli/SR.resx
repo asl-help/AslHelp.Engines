@@ -28,7 +28,7 @@
     <value>--jobs has to be 1 or more.</value>
   </data>
   <data name="JobsDescription" xml:space="preserve">
-    <value>The most players to measure at once. Default is the limit of the engine.</value>
+    <value>The most players to measure at once and the most executables of a group to decode and search at once. Default is the limit of the engine.</value>
   </data>
   <data name="OffsetKeyMalformed" xml:space="preserve">
     <value>Offset '{0}' is not of the form Type.Member.</value>

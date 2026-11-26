@@ -5,6 +5,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="$(SrcPath)/AslHelp.Engines/AslHelp.Engines.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="AslHelp.Memory" />
   </ItemGroup>
 

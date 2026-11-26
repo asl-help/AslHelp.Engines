@@ -12,25 +12,25 @@ namespace AslHelp.Engines.Unreal;
 ///     Reads the memory on every call, because the game can free a property and reuse its address.
 /// </remarks>
 /// <param name="memory">The memory to read from.</param>
-/// <param name="objects">The reader of the names and the classes of the fields.</param>
-/// <param name="structs">The reader of the fields and the super chains of their classes.</param>
-/// <param name="layout">The offsets inside a property.</param>
+/// <param name="objectReader">The reader of the names and the classes of the fields.</param>
+/// <param name="structReader">The reader of the fields and the super chains of their classes.</param>
+/// <param name="propertyLayout">The offsets inside a property.</param>
 /// <exception cref="ArgumentNullException">
-///     <paramref name="memory"/>, <paramref name="objects"/>, <paramref name="structs"/> or <paramref name="layout"/> is <see langword="null"/>.
+///     <paramref name="memory"/>, <paramref name="objectReader"/>, <paramref name="structReader"/> or <paramref name="propertyLayout"/> is <see langword="null"/>.
 /// </exception>
 public sealed class ObjectPropertyReader(
     IMemoryReader memory,
-    ObjectReader objects,
-    StructReader structs,
-    PropertyLayout layout) : IPropertyReader
+    ObjectReader objectReader,
+    StructReader structReader,
+    PropertyLayout propertyLayout) : IPropertyReader
 {
     // Use the name of UProperty, which every property class derives from.
     private const string PropertyClass = "Property";
 
-    private readonly PropertyLayout _layout = layout ?? throw new ArgumentNullException(nameof(layout));
     private readonly IMemoryReader _memory = memory ?? throw new ArgumentNullException(nameof(memory));
-    private readonly ObjectReader _objects = objects ?? throw new ArgumentNullException(nameof(objects));
-    private readonly StructReader _structs = structs ?? throw new ArgumentNullException(nameof(structs));
+    private readonly ObjectReader _objectReader = objectReader ?? throw new ArgumentNullException(nameof(objectReader));
+    private readonly PropertyLayout _propertyLayout = propertyLayout ?? throw new ArgumentNullException(nameof(propertyLayout));
+    private readonly StructReader _structReader = structReader ?? throw new ArgumentNullException(nameof(structReader));
 
     /// <summary>
     ///     Enumerates the properties that <paramref name="type"/> declares itself in chain order.
@@ -53,7 +53,7 @@ public sealed class ObjectPropertyReader(
         // Create the map at the 1st class, because a failed probe would pay for it on every call.
         Dictionary<Address, bool>? propertyClasses = null;
 
-        foreach (var child in _structs.ChildrenOf(type))
+        foreach (var child in _structReader.ChildrenOf(type))
         {
             position++;
 
@@ -63,7 +63,7 @@ public sealed class ObjectPropertyReader(
                 yield break;
             }
 
-            if (!_objects.ClassOf(field).TryUnwrap(out var klass, out var error))
+            if (!_objectReader.ClassOf(field).TryUnwrap(out var klass, out var error))
             {
                 yield return PropertyError.FieldClassUnreadable(type, position, error);
                 yield break;
@@ -71,7 +71,7 @@ public sealed class ObjectPropertyReader(
 
             if (klass == Address.Zero)
             {
-                yield return PropertyError.FieldClassNull(type, position, _objects.ClassOffset);
+                yield return PropertyError.FieldClassNull(type, position, _objectReader.ClassOffset);
                 yield break;
             }
 
@@ -79,7 +79,7 @@ public sealed class ObjectPropertyReader(
 
             if (!propertyClasses.TryGetValue(klass, out bool isProperty))
             {
-                if (!_structs.DerivesFrom(klass, PropertyClass).TryUnwrap(out isProperty, out error))
+                if (!_structReader.DerivesFrom(klass, PropertyClass).TryUnwrap(out isProperty, out error))
                 {
                     yield return PropertyError.FieldClassUnreadable(type, position, error);
                     yield break;
@@ -98,7 +98,7 @@ public sealed class ObjectPropertyReader(
     /// <inheritdoc/>
     public Result<string> NameOf(Address prop)
     {
-        return _objects.NameOf(prop);
+        return _objectReader.NameOf(prop);
     }
 
     /// <summary>
@@ -106,35 +106,35 @@ public sealed class ObjectPropertyReader(
     /// </summary>
     /// <param name="prop">The address of the property.</param>
     /// <returns>
-    ///     The kind or a failure with the property and the failed read when a read fails or the class pointer is 0.
+    ///     The class name or a failure with the property and the failed read when a read fails or the class pointer is 0.
     /// </returns>
-    public Result<string> KindOf(Address prop)
+    public Result<string> ClassNameOf(Address prop)
     {
-        if (!_objects.ClassOf(prop).TryUnwrap(out var klass, out var error))
+        if (!_objectReader.ClassOf(prop).TryUnwrap(out var klass, out var error))
         {
-            return PropertyError.KindUnreadable(prop, error);
+            return PropertyError.ObjectClassUnreadable(prop, error);
         }
 
-        return _objects.NameOf(klass).TryUnwrap(out string? kind, out error)
-            ? kind
-            : PropertyError.KindUnreadable(prop, error);
+        return _objectReader.NameOf(klass).TryUnwrap(out string? className, out error)
+            ? className
+            : PropertyError.ObjectClassUnreadable(prop, error);
     }
 
     /// <inheritdoc/>
     public Result<int> ArrayDimOf(Address prop)
     {
-        return PropertyMembers.ReadArrayDim(_memory, prop, _layout);
+        return PropertyMembers.ReadArrayDim(_memory, prop, _propertyLayout);
     }
 
     /// <inheritdoc/>
     public Result<int> ElementSizeOf(Address prop)
     {
-        return PropertyMembers.ReadElementSize(_memory, prop, _layout);
+        return PropertyMembers.ReadElementSize(_memory, prop, _propertyLayout);
     }
 
     /// <inheritdoc/>
     public Result<int> OffsetOf(Address prop)
     {
-        return PropertyMembers.ReadOffset(_memory, prop, _layout);
+        return PropertyMembers.ReadOffset(_memory, prop, _propertyLayout);
     }
 }

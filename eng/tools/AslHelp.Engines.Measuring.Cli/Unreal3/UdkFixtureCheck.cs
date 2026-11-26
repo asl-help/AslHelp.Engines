@@ -53,7 +53,7 @@ internal static class UdkFixtureCheck
         }
 
         var objects = measured.Reader;
-        StructReader structs = new(
+        StructReader structReader = new(
             memory,
             objects,
             new StructLayout(UnknownOffset, offsets[UdkMembers.Children]),
@@ -86,7 +86,7 @@ internal static class UdkFixtureCheck
         var field = Address.Zero;
         ResultError? firstNameError = null;
 
-        foreach (var child in structs.ChildrenOf(fixtureClass))
+        foreach (var child in structReader.ChildrenOf(fixtureClass))
         {
             if (!child.TryUnwrap(out var address, out var chainError))
             {

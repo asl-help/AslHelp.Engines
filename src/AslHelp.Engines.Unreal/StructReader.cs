@@ -12,25 +12,30 @@ namespace AslHelp.Engines.Unreal;
 ///     Reads the memory on every call, because the game can free a struct and reuse its address.
 /// </remarks>
 /// <param name="memory">The memory to read from.</param>
-/// <param name="objects">The reader of the names and the outer objects.</param>
-/// <param name="layout">The offsets inside a struct.</param>
+/// <param name="objectReader">The reader of the names and the outer objects.</param>
+/// <param name="structLayout">The offsets inside a struct.</param>
 /// <param name="childLayout">The offsets inside a field on the children chain.</param>
 /// <exception cref="ArgumentNullException">
-///     <paramref name="memory"/>, <paramref name="objects"/>, <paramref name="layout"/> or <paramref name="childLayout"/> is <see langword="null"/>.
+///     <paramref name="memory"/>, <paramref name="objectReader"/>, <paramref name="structLayout"/> or <paramref name="childLayout"/> is <see langword="null"/>.
 /// </exception>
 public sealed class StructReader(
     IMemoryReader memory,
-    ObjectReader objects,
-    StructLayout layout,
+    ObjectReader objectReader,
+    StructLayout structLayout,
     ChildLayout childLayout)
 {
     private const int MaxChildren = 4096;
     private const int MaxDepth = 64;
 
     private readonly ChildLayout _childLayout = childLayout ?? throw new ArgumentNullException(nameof(childLayout));
-    private readonly StructLayout _layout = layout ?? throw new ArgumentNullException(nameof(layout));
     private readonly IMemoryReader _memory = memory ?? throw new ArgumentNullException(nameof(memory));
-    private readonly ObjectReader _objects = objects ?? throw new ArgumentNullException(nameof(objects));
+    private readonly ObjectReader _objectReader = objectReader ?? throw new ArgumentNullException(nameof(objectReader));
+    private readonly StructLayout _structLayout = structLayout ?? throw new ArgumentNullException(nameof(structLayout));
+
+    /// <summary>
+    ///     Gets the offset of the super pointer in a struct.
+    /// </summary>
+    internal int SuperOffset => _structLayout.SuperStruct;
 
     /// <summary>
     ///     Reads the struct that <paramref name="type"/> derives from.
@@ -41,11 +46,11 @@ public sealed class StructReader(
     /// </returns>
     public Result<Address> SuperOf(Address type)
     {
-        var address = type + _layout.SuperStruct;
+        var address = type + _structLayout.SuperStruct;
 
         return _memory.ReadPointer(address).TryUnwrap(out var super, out var error)
             ? super
-            : StructError.SuperUnreadable(type, address, _layout.SuperStruct, error);
+            : StructError.SuperUnreadable(type, address, _structLayout.SuperStruct, error);
     }
 
     /// <summary>
@@ -72,7 +77,7 @@ public sealed class StructReader(
 
         for (int depth = 0; depth < MaxDepth && current != Address.Zero; depth++)
         {
-            if (!_objects.NameOf(current).TryUnwrap(out string? currentName, out var error))
+            if (!_objectReader.NameOf(current).TryUnwrap(out string? currentName, out var error))
             {
                 return StructError.ChainUnreadable(type, depth + 1, error);
             }
@@ -90,7 +95,7 @@ public sealed class StructReader(
 
         if (current != Address.Zero)
         {
-            return StructError.ChainPastLimit(type, MaxDepth, _layout.SuperStruct);
+            return StructError.ChainPastLimit(type, MaxDepth, _structLayout.SuperStruct);
         }
 
         return false;
@@ -114,17 +119,17 @@ public sealed class StructReader(
     /// </returns>
     public IEnumerable<Result<Address>> ChildrenOf(Address type)
     {
-        var childrenAddress = type + _layout.Children;
+        var childrenAddress = type + _structLayout.Children;
 
         if (!_memory.ReadPointer(childrenAddress).TryUnwrap(out var field, out var error))
         {
-            yield return StructError.ChildrenUnreadable(type, childrenAddress, _layout.Children, error);
+            yield return StructError.ChildrenUnreadable(type, childrenAddress, _structLayout.Children, error);
             yield break;
         }
 
         for (int count = 0; count < MaxChildren && field != Address.Zero; count++)
         {
-            if (!_objects.OuterOf(field).TryUnwrap(out var outer, out error))
+            if (!_objectReader.OuterOf(field).TryUnwrap(out var outer, out error))
             {
                 yield return StructError.FieldUnreadable(type, count + 1, error);
                 yield break;
@@ -135,7 +140,7 @@ public sealed class StructReader(
                 // Fail a 1st field with another outer object, because the struct points at its own 1st field and a wrong offset would end as an empty success.
                 if (count == 0)
                 {
-                    yield return StructError.FirstFieldOuterMismatch(type, field, outer, _objects.OuterOffset);
+                    yield return StructError.FirstFieldOuterMismatch(type, field, outer, _objectReader.OuterOffset);
                 }
 
                 yield break;

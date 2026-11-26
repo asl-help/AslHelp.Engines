@@ -98,7 +98,7 @@ public sealed class UnrealGameEdgeTests(
 
         var game = UnrealGame.Attach(memory, Module, Profile("indirect", "pointers")).Unwrap();
 
-        Assert.That(game.GWorld.Read().UnwrapErr().Message, Is.EqualTo($"No block contains {_gWorld}."));
+        Assert.That(game.GWorld.Read().UnwrapErr().Message, Is.EqualTo($"Can't read GWorld. No block contains {_gWorld}."));
     }
 
     // Writes a document with the offsets of the indirect and chunked name tables and the flat and pointer arrays.

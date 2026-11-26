@@ -225,10 +225,10 @@ public sealed class ObjectPropertyReaderEdgeTests(
         AddChain(memory, _actor, (_property3, _intProperty));
 
         var reader = CreateReader(memory);
-        var structs = CreateStructs(memory, objectLayout, structLayout);
+        var structReader = CreateStructs(memory, objectLayout, structLayout);
         List<Address> properties = [];
 
-        for (var type = _pawn; type != Address.Zero; type = structs.SuperOf(type).Unwrap())
+        for (var type = _pawn; type != Address.Zero; type = structReader.SuperOf(type).Unwrap())
         {
             properties.AddRange(Properties(reader, type));
         }
@@ -515,9 +515,9 @@ public sealed class ObjectPropertyReaderEdgeTests(
         }
     }
 
-    // A memory without a pointer size refuses every pointer read, so the list and the kind fail with that reason and don't throw.
+    // A memory without a pointer size refuses every pointer read, so the list and the class name fail with that reason and don't throw.
     [Test]
-    public void PropertiesOf_KindOf_MemoryWithoutPointerSize_FailWithThatReason()
+    public void PropertiesOf_ClassNameOf_MemoryWithoutPointerSize_FailWithThatReason()
     {
         FakeMemory memory = new() { Layout = default };
         memory.Add(_pawn, new byte[BlockSpacing]);
@@ -530,13 +530,13 @@ public sealed class ObjectPropertyReaderEdgeTests(
         {
             Assert.That(items, Has.Count.EqualTo(1));
             Assert.That(items[0].UnwrapErr().Message, Does.Contain("pointer size of 0 bytes"));
-            Assert.That(reader.KindOf(_property1).UnwrapErr().Message, Does.Contain("pointer size of 0 bytes"));
+            Assert.That(reader.ClassNameOf(_property1).UnwrapErr().Message, Does.Contain("pointer size of 0 bytes"));
         }
     }
 
     // 4.23 and 4.24 have the name pool and object properties, so the class check and both reads go through the pool, with UTF-16 text too.
     [Test]
-    public void PropertiesOf_NameOf_KindOf_NamesInPool_ReturnTexts()
+    public void PropertiesOf_NameOf_ClassNameOf_NamesInPool_ReturnTexts()
     {
         const int FunctionName = 0x40;
         const int IntPropertyName = 0x80;
@@ -559,9 +559,9 @@ public sealed class ObjectPropertyReaderEdgeTests(
         AddChain(memory, _pawn, (_function, _functionClass), (_property1, _intProperty));
         memory.WriteInt32(_property1 + objectLayout.Name, ValueName);
 
-        ObjectReader objects = new(memory, new ChunkedNameTable(memory, _pool), objectLayout);
-        StructReader structs = new(memory, objects, structLayout, new ChildLayout(fieldNext));
-        ObjectPropertyReader reader = new(memory, objects, structs, layout);
+        ObjectReader objectReader = new(memory, new ChunkedNameTable(memory, _pool), objectLayout);
+        StructReader structReader = new(memory, objectReader, structLayout, new ChildLayout(fieldNext));
+        ObjectPropertyReader reader = new(memory, objectReader, structReader, layout);
 
         Address[] expected = [_property1];
 
@@ -569,64 +569,64 @@ public sealed class ObjectPropertyReaderEdgeTests(
         {
             Assert.That(Properties(reader, _pawn), Is.EqualTo(expected));
             Assert.That(reader.NameOf(_property1).Unwrap(), Is.EqualTo(Value));
-            Assert.That(reader.KindOf(_property1).Unwrap(), Is.EqualTo("IntProperty"));
+            Assert.That(reader.ClassNameOf(_property1).Unwrap(), Is.EqualTo("IntProperty"));
         }
     }
 
-    // A kind that starts with F or U keeps that letter, because a kind doesn't have a prefix to strip.
+    // A class name that starts with F or U keeps that letter, because a class name doesn't have a prefix to strip.
     [TestCase("FloatProperty")]
     [TestCase("FieldPathProperty")]
     [TestCase("UInt32Property")]
-    public void KindOf_KindStartingLikeAPrefix_KeepsIt(string kind)
+    public void ClassNameOf_NameStartingLikeAPrefix_KeepsIt(string className)
     {
         FakeMemory memory = new() { Layout = memoryLayout };
-        memory.AddNames(_nameArray, _entryLayout, kind);
+        memory.AddNames(_nameArray, _entryLayout, className);
         memory.AddObject(_intProperty, objectLayout, 0);
         memory.AddObject(_property1, objectLayout, 0, klass: _intProperty);
 
-        Assert.That(CreateReader(memory).KindOf(_property1).Unwrap(), Is.EqualTo(kind));
+        Assert.That(CreateReader(memory).ClassNameOf(_property1).Unwrap(), Is.EqualTo(className));
     }
 
     // A negative number on the class fails with the property and that number, because the real name of the class stays unknown.
     [Test]
-    public void KindOf_NegativeClassNameNumber_FailsWithKindAndNumber()
+    public void ClassNameOf_NegativeClassNameNumber_FailsWithPropertyAndNumber()
     {
         var memory = MemoryWithChain();
         memory.WriteInt32(_intProperty + objectLayout.Name + sizeof(int), -1);
 
         Assert.That(
-            CreateReader(memory).KindOf(_property1).UnwrapErr().Message,
+            CreateReader(memory).ClassNameOf(_property1).UnwrapErr().Message,
             Is.EqualTo(
-                $"Can't read the kind of the property at {_property1}. "
+                $"Can't read the class name of the property at {_property1}. "
                 + $"The object at {_intProperty} has the name number -1, which is below 0. "
                 + $"Check ObjectLayout.Name (0x{objectLayout.Name:X})."));
     }
 
     // A class name id outside the table keeps the id and the failure of the table in the message.
     [Test]
-    public void KindOf_ClassNameIdOutsideTable_FailsWithKindAndId()
+    public void ClassNameOf_ClassNameIdOutsideTable_FailsWithPropertyAndId()
     {
         var memory = MemoryWithChain();
         memory.WriteInt32(_intProperty + objectLayout.Name, 99);
 
         Assert.That(
-            CreateReader(memory).KindOf(_property1).UnwrapErr().Message,
+            CreateReader(memory).ClassNameOf(_property1).UnwrapErr().Message,
             Is.EqualTo(
-                $"Can't read the kind of the property at {_property1}. "
+                $"Can't read the class name of the property at {_property1}. "
                 + $"Can't read the name of the object at {_intProperty} with the name id 99. Name 99 is outside the array of 13 names. "
                 + $"Check ObjectLayout.Name (0x{objectLayout.Name:X})."));
     }
 
     // Every read goes to memory again, because the game can free a property and reuse its address.
     [Test]
-    public void NameOf_KindOf_OffsetOf_SameAddressAfterMemoryChanged_ReturnNewValues()
+    public void NameOf_ClassNameOf_OffsetOf_SameAddressAfterMemoryChanged_ReturnNewValues()
     {
         var memory = MemoryWithChain();
         memory.WriteInt32(_property1 + layout.Offset, 0x10);
         var reader = CreateReader(memory);
 
         string firstName = reader.NameOf(_property1).Unwrap();
-        string firstKind = reader.KindOf(_property1).Unwrap();
+        string firstClassName = reader.ClassNameOf(_property1).Unwrap();
         int firstOffset = reader.OffsetOf(_property1).Unwrap();
 
         memory.WriteInt32(_property1 + objectLayout.Name, TickId);
@@ -636,17 +636,17 @@ public sealed class ObjectPropertyReaderEdgeTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(firstName, Is.EqualTo("IntValue"));
-            Assert.That(firstKind, Is.EqualTo("IntProperty"));
+            Assert.That(firstClassName, Is.EqualTo("IntProperty"));
             Assert.That(firstOffset, Is.EqualTo(0x10));
             Assert.That(reader.NameOf(_property1).Unwrap(), Is.EqualTo("Tick"));
-            Assert.That(reader.KindOf(_property1).Unwrap(), Is.EqualTo("NumericProperty"));
+            Assert.That(reader.ClassNameOf(_property1).Unwrap(), Is.EqualTo("NumericProperty"));
             Assert.That(reader.OffsetOf(_property1).Unwrap(), Is.EqualTo(0x20));
         }
     }
 
     // A garbage property address at the top of the address range is a failure from every read and doesn't throw.
     [Test]
-    public void NameOf_KindOf_ArrayDimOf_PropertyAtTopOfAddressRange_Fail()
+    public void NameOf_ClassNameOf_ArrayDimOf_PropertyAtTopOfAddressRange_Fail()
     {
         var reader = CreateReader(MemoryWithChain());
         var top = TopOfAddressRange;
@@ -654,7 +654,7 @@ public sealed class ObjectPropertyReaderEdgeTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(reader.NameOf(top).UnwrapErr().Message, Does.Contain($"Can't read the name of the object at {top}"));
-            Assert.That(reader.KindOf(top).UnwrapErr().Message, Does.Contain($"Can't read the class of the object at {top}"));
+            Assert.That(reader.ClassNameOf(top).UnwrapErr().Message, Does.Contain($"Can't read the class of the object at {top}"));
             Assert.That(reader.ArrayDimOf(top).UnwrapErr().Message, Does.StartWith($"Can't read the array size of the property at {top}:"));
         }
     }
@@ -749,14 +749,14 @@ public sealed class ObjectPropertyReaderEdgeTests(
         return memory;
     }
 
-    private ObjectReader CreateObjects(FakeMemory memory, ObjectLayout objects)
+    private ObjectReader CreateObjects(FakeMemory memory, ObjectLayout objectReader)
     {
-        return new ObjectReader(memory, new FlatNameTable(memory, _nameArray, _entryLayout), objects);
+        return new ObjectReader(memory, new FlatNameTable(memory, _nameArray, _entryLayout), objectReader);
     }
 
-    private StructReader CreateStructs(FakeMemory memory, ObjectLayout objects, StructLayout structs)
+    private StructReader CreateStructs(FakeMemory memory, ObjectLayout objectReader, StructLayout structReader)
     {
-        return new StructReader(memory, CreateObjects(memory, objects), structs, new ChildLayout(fieldNext));
+        return new StructReader(memory, CreateObjects(memory, objectReader), structReader, new ChildLayout(fieldNext));
     }
 
     private ObjectPropertyReader CreateReader(FakeMemory memory)
@@ -764,8 +764,8 @@ public sealed class ObjectPropertyReaderEdgeTests(
         return CreateReader(memory, objectLayout, structLayout);
     }
 
-    private ObjectPropertyReader CreateReader(FakeMemory memory, ObjectLayout objects, StructLayout structs)
+    private ObjectPropertyReader CreateReader(FakeMemory memory, ObjectLayout objectReader, StructLayout structReader)
     {
-        return new ObjectPropertyReader(memory, CreateObjects(memory, objects), CreateStructs(memory, objects, structs), layout);
+        return new ObjectPropertyReader(memory, CreateObjects(memory, objectReader), CreateStructs(memory, objectReader, structReader), layout);
     }
 }

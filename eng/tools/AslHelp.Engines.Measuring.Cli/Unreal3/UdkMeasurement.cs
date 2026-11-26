@@ -149,13 +149,13 @@ internal static class UdkMeasurement
         Dictionary<string, int> offsets,
         UdkObjectSlotTarget slot)
     {
-        StructReader structs = new(memory, reader, new StructLayout(offsets[UdkMembers.SuperField], -1), new ChildLayout(-1));
+        StructReader structReader = new(memory, reader, new StructLayout(offsets[UdkMembers.SuperField], -1), new ChildLayout(-1));
         List<uint> rvas = [];
 
         foreach ((uint rva, var value) in UdkSections.Pointers(sections, memory.Layout))
         {
             if (known.Contains(value)
-                && structs.DerivesFrom(reader.ClassOf(value).UnwrapOr(Address.Zero), slot.Class).UnwrapOr(false)
+                && structReader.DerivesFrom(reader.ClassOf(value).UnwrapOr(Address.Zero), slot.Class).UnwrapOr(false)
                 && (slot.Object is null || string.Equals(reader.NameOf(value).UnwrapOrDefault(), slot.Object, StringComparison.Ordinal)))
             {
                 rvas.Add(rva);

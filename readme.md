@@ -15,10 +15,19 @@ This repo contains the libraries that read game engines from memory and the tool
 var profile = UnrealProfile.Parse(File.ReadAllText("unreal4-4.18.3-win-x64-shipping.json")).Unwrap();
 var game = UnrealGame.Attach(memory, module, profile).Unwrap();
 
-var world = game.GWorld.Read();
+var hp = game.GWorld.ObjectMember("AuthorityGameMode").ObjectMember("FixtureData").Int32Member("Hp");
+var watcher = hp.CreateWatcher(ticks);
 ```
 
-`GWorld` reads the pointer again on each call. It's 0 until the game loads a world, so attach doesn't wait for one.
+`ticks` is the `ITickCounter` of your host. `GWorld` is a path that starts at the world. A path doesn't read until its watcher does. Each hop looks the member up on the real class of the object, so `FixtureData` shows up on the game mode even though `AuthorityGameMode` is declared as `AGameModeBase`. Attach doesn't wait for a world. A null object on the way, like a world that isn't loaded yet, fails the read and the watcher follows its `FailAction`. With the default `Clear` it shows 0.
+
+A script writes the same path through `dynamic`. A misspelled member fails when the watcher reads.
+
+```cs
+IWatcherSource hp = game.GWorldChain.AuthorityGameMode.FixtureData.Hp;
+```
+
+`ClassOf` returns the real class of an object and `FindClass` finds a loaded class by name. `UnrealGame` keeps each class and its properties after the 1st read. It isn't thread-safe. `ReadInt32` reads `IntProperty` values and `ReadObject` reads `ObjectProperty` and `ClassProperty` values. For other kinds, `UnrealProperty.Accept` calls `VisitUnsupported` of your `IPropertyVisitor<TResult>`.
 
 `AslHelp.Engines` is what the engine libraries share. `MemberChain<THop>` lets a script write a path of members through `dynamic`, like `root.Player.Health`. Each name goes to the engine's `IMemberResolver<THop>`, which returns the hop for it or throws if the type can't have that member. The resolver also creates the watcher, so it can type the watcher after the member at the end:
 

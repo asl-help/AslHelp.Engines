@@ -1,6 +1,7 @@
 using AslHelp.Memory;
 using NUnit.Framework;
 using System.Linq;
+using static AslHelp.Engines.Unreal.Tests.FakeGame;
 using static AslHelp.Engines.Unreal.Tests.JsonEdits;
 
 namespace AslHelp.Engines.Unreal.Tests;
@@ -10,23 +11,31 @@ public sealed class UnrealGameTests(
     MemoryLayout memoryLayout,
     Address start)
 {
-    private const string GUObjectArrayLocator = $$"""{ "4.0": {{GUObjectArrayRoute}} }""";
-    private const string GUObjectArrayRoute = """[{ "forward": "B1 B2 B3 ????????", "offset": 3 }, { "read": "global" }]""";
-    private const string GWorldLocator = """{ "4.0": [{ "forward": "C1 C2 C3 ????????", "offset": 3 }, { "read": "global" }] }""";
+    private const int DataId = 3;
+    private const int DataOffset = 0x80;
+    private const int DataPoolId = 0x18;
+    private const int HpId = 4;
+    private const int HpOffset = 0x88;
     private const int HpPoolId = 0x10;
+    private const int IntPropertyId = 5;
+    private const int IntPropertyPoolId = 0x20;
     private const int LevelId = 2;
     private const string MissingLocator = $$"""{ "4.0": {{MissingRoute}} }""";
     private const string MissingRoute = """[{ "forward": "D1 D2 D3 ????????", "offset": 3 }, { "read": "global" }]""";
     private const string ModuleName = "game.exe";
     private const int ModuleSize = 0x1000;
-    private const string NamesLocator = """{ "4.0": [{ "forward": "A1 A2 A3 ????????", "offset": 3 }, { "read": "global" }] }""";
+    private const int ObjectPropertyId = 6;
+    private const int ObjectPropertyPoolId = 0x28;
     private const int ObjObjects = 0x10;
+    private const int PropertyId = 7;
     private const int WorldId = 1;
     private const int WorldPoolId = 8;
 
     private static readonly ChunkedObjectArrayLayout _chunkedLayout = new(0x0, 0x14, 0x1C, 0x10000);
     private static readonly NameEntryLayout _entryLayout = new(0x0, 0x10);
+    private static readonly FieldClassLayout _fieldClassLayout = new(0x8);
     private static readonly FieldPropertyLayout _fieldLayout = new(0x8, 0x18, 0x20);
+    private static readonly FieldStructLayout _fieldStructLayout = new(0x50);
 
     // Starts every address above the signed 4-byte range on x86 and above 4 GB on x64,
     // so an operand read as signed or a pointer read as 4 bytes misses.
@@ -36,25 +45,31 @@ public sealed class UnrealGameTests(
         new(MemoryLayout.X64, new Address(0x7FF6_0000_0000)),
     ];
 
-    private static readonly byte[] _gUObjectArrayCode = [0xB1, 0xB2, 0xB3];
-    private static readonly byte[] _gWorldCode = [0xC1, 0xC2, 0xC3];
     private static readonly IndirectObjectArrayLayout _indirectLayout = new(0x0, 0x1000, 0x1004);
     private static readonly ObjectItemLayout _item = new(0x8, 0x18);
     private static readonly ItemObjectArrayLayout _itemLayout = new(0x0, 0xC);
-    private static readonly byte[] _namesCode = [0xA1, 0xA2, 0xA3];
     private static readonly ObjectLayout _objectLayout = new(0x20, 0x18, 0x10);
+    private static readonly PropertyLayout _propertyLayout = new(0x30, 0x34, 0x44);
+    private static readonly StructLayout _structLayout = new(0x30, 0x38);
 
     private readonly Address _chunk = start + 0x42_0000;
+    private readonly Address _data = start + 0x21_0000;
+    private readonly Address _dataClass = start + 0x21_1000;
+    private readonly Address _dataProperty = start + 0x60_1000;
     private readonly Address _entries = start + 0x31_0000;
     private readonly Address _field = start + 0x60_0000;
     private readonly Address _gUObjectArray = start + 0x11_0000;
     private readonly Address _gWorld = start + 0x12_0000;
+    private readonly Address _hpProperty = start + 0x60_2000;
+    private readonly Address _intPropertyClass = start + 0x61_0000;
     private readonly Address _items = start + 0x40_0000;
     private readonly Address _module = start;
     private readonly Address _nameChunk = start + 0x30_1000;
     private readonly Address _names = start + 0x10_0000;
     private readonly Address _nameTable = start + 0x30_0000;
+    private readonly Address _objectPropertyClass = start + 0x61_1000;
     private readonly Address _poolBlock = start + 0x50_0000;
+    private readonly Address _propertyClass = start + 0x61_2000;
     private readonly Address _table = start + 0x41_0000;
     private readonly Address _world = start + 0x20_0000;
     private readonly Address _worldClass = start + 0x20_1000;
@@ -76,7 +91,7 @@ public sealed class UnrealGameTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(world, Is.EqualTo(_world));
-            Assert.That(game.Objects.NameOf(game.Objects.ClassOf(world).Unwrap()).Unwrap(), Is.EqualTo("World"));
+            Assert.That(game.ObjectReader.NameOf(game.ObjectReader.ClassOf(world).Unwrap()).Unwrap(), Is.EqualTo("World"));
             Assert.That(ReadObjects(game), Is.EqualTo(ArrayObjects));
         }
     }
@@ -85,23 +100,16 @@ public sealed class UnrealGameTests(
     [Test]
     public void Attach_ChunkedArrayChunkedNamesAndFields_BuildsThoseReaders()
     {
-        var memory = MemoryWithModule();
-        memory.AddNamePool(_names, _poolBlock);
-        memory.AddPoolEntry(_poolBlock + (WorldPoolId * 2), wide: false, "World");
-        memory.AddPoolEntry(_poolBlock + (HpPoolId * 2), wide: false, "Hp");
-        memory.AddObject(_world, _objectLayout, WorldPoolId, klass: _worldClass);
-        memory.AddObject(_worldClass, _objectLayout, WorldPoolId);
-        memory.AddChunkedObjectArray(Array, _chunkedLayout, _table, 2, _chunk);
-        memory.AddObjectItems(_chunk, _item, _worldClass, _world);
+        var memory = MemoryWithChunkedGame();
         memory.AddField(_field, _fieldLayout, HpPoolId);
 
         var game = Attach(memory, Document("ffield", "chunked", "chunked"));
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(game.Objects.NameOf(_worldClass).Unwrap(), Is.EqualTo("World"));
+            Assert.That(game.ObjectReader.NameOf(_worldClass).Unwrap(), Is.EqualTo("World"));
             Assert.That(ReadObjects(game), Is.EqualTo(ArrayObjects));
-            Assert.That(game.Properties.NameOf(_field).Unwrap(), Is.EqualTo("Hp"));
+            Assert.That(game.PropertyReader.NameOf(_field).Unwrap(), Is.EqualTo("Hp"));
         }
     }
 
@@ -182,7 +190,7 @@ public sealed class UnrealGameTests(
     public void Attach_RouteReachesTwoAddresses_Fails()
     {
         var memory = MemoryWithGame();
-        memory.WriteGlobalReference(_module + 0x400, _gWorldCode, _gWorld + 0x100);
+        memory.WriteGlobalReference(_module + 0x400, GWorldCode, _gWorld + 0x100);
 
         Assert.That(
             UnrealGame.Attach(memory, Module, UnrealProfile.Parse(Document("uproperty", "indirect", "flat")).Unwrap()).UnwrapErr().Message,
@@ -211,38 +219,38 @@ public sealed class UnrealGameTests(
             Is.EqualTo("ElementsPerChunk is 0, which is below 1."));
     }
 
-    // Writes a document with every offset that any shape reads, so a test only picks the shapes.
-    // The layout fields of this class use the same offsets.
-    private static string Document(string field, string names, string array)
+    // Reads Hp from GWorld through public members only, with the property shape of the profile.
+    [TestCase("uproperty")]
+    [TestCase("ffield")]
+    public void ReadInt32_PropertyThroughGWorld_ReadsTheValue(string field)
     {
-        string namesGlobal = names == "chunked" ? "NamePoolData" : "NameTable";
+        var game = field == "ffield"
+            ? Attach(MemoryWithChunkedData(), Document(field, "chunked", "chunked"))
+            : Attach(MemoryWithData(), Document(field, "indirect", "flat"));
 
-        return $$"""
-            {
-              "versions": ["4.0"],
-              "shapes": { "FField": "{{field}}", "FNameEntry": "{{names}}", "FUObjectArray": "{{array}}" },
-              "offsets": {
-                "FChunkedFixedUObjectArray": { "Objects": "0x0", "NumElements": "0x14", "NumChunks": "0x1C", "NumElementsPerChunk": "0x10000" },
-                "FField": { "ClassPrivate": "0x8", "Next": "0x18", "NamePrivate": "0x20" },
-                "FFieldClass": { "Name": "0x8" },
-                "FFixedUObjectArray": { "Objects": "0x0", "NumElements": "0xC" },
-                "FNameEntry": { "Index": "0x0", "AnsiName": "0x10" },
-                "FProperty": { "ArrayDim": "0x30", "ElementSize": "0x34", "Offset_Internal": "0x44" },
-                "FUObjectArray": { "ObjObjects": "0x10" },
-                "FUObjectItem": { "Object": "0x8", "sizeof": "0x18" },
-                "TStaticIndirectArrayThreadSafeRead<UObjectBase,8388608,16384>": { "Chunks": "0x0", "NumElements": "0x1000", "NumChunks": "0x1004" },
-                "UField": { "Next": "0x28" },
-                "UObjectBase": { "ClassPrivate": "0x10", "NamePrivate": "0x18", "OuterPrivate": "0x20" },
-                "UProperty": { "ArrayDim": "0x30", "ElementSize": "0x34", "Offset_Internal": "0x44" },
-                "UStruct": { "SuperStruct": "0x30", "Children": "0x38", "ChildProperties": "0x50" }
-              },
-              "globals": {
-                "{{namesGlobal}}": {{NamesLocator}},
-                "GUObjectArray": {{GUObjectArrayLocator}},
-                "GWorld": {{GWorldLocator}}
-              }
-            }
-            """;
+        var world = game.GWorld.Read().Unwrap();
+        var data = game.ReadObject(world, game.ClassOf(world).Unwrap().FindProperty("Data").Unwrap()).Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(data, Is.EqualTo(_data));
+            Assert.That(game.ReadInt32(data, game.ClassOf(data).Unwrap().FindProperty("Hp").Unwrap()).Unwrap(), Is.EqualTo(995));
+        }
+    }
+
+    // A null name is a mistake of the caller, so it throws and doesn't fail as a result.
+    [Test]
+    public void FindClass_NullName_Throws()
+    {
+        var game = Attach(MemoryWithGame(), Document("uproperty", "indirect", "flat"));
+
+        Assert.That(() => game.FindClass(null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("name"));
+    }
+
+    private static void AddStruct(FakeMemory memory, Address type, int nameId, Address super)
+    {
+        memory.AddObject(type, _objectLayout, nameId);
+        memory.WritePointer(type + _structLayout.SuperStruct, super);
     }
 
     private static Address[] ReadObjects(UnrealGame game)
@@ -260,18 +268,16 @@ public sealed class UnrealGameTests(
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.Add(_module, new byte[ModuleSize]);
-        memory.WriteGlobalReference(_module + 0x100, _namesCode, _names);
-        memory.WriteGlobalReference(_module + 0x200, _gUObjectArrayCode, _gUObjectArray);
-        memory.WriteGlobalReference(_module + 0x300, _gWorldCode, _gWorld);
+        WriteGlobalReferences(memory, _module, _names, _gUObjectArray, _gWorld);
         memory.AddPointers(_gWorld, _world);
 
         return memory;
     }
 
-    // Adds the indirect names None, World and Level and the world with its class.
+    // Adds the indirect names that the tests read and the world with its class.
     private FakeMemory MemoryWithNames()
     {
-        string[] names = ["None", "World", "Level"];
+        string[] names = ["None", "World", "Level", "Data", "Hp", "IntProperty", "ObjectProperty", "Property"];
         var entries = Enumerable.Range(0, names.Length).Select(id => _entries + (id * 0x100)).ToArray();
 
         var memory = MemoryWithModule();
@@ -298,5 +304,71 @@ public sealed class UnrealGameTests(
         memory.AddObjectItems(_items, _item, _worldClass, _world);
 
         return memory;
+    }
+
+    // Gives the class of the world the property Data, which points at an object whose Hp is 995, with properties as objects.
+    private FakeMemory MemoryWithData()
+    {
+        var memory = MemoryWithGame();
+        AddStruct(memory, _propertyClass, PropertyId, Address.Zero);
+        AddStruct(memory, _intPropertyClass, IntPropertyId, _propertyClass);
+        AddStruct(memory, _objectPropertyClass, ObjectPropertyId, _propertyClass);
+        AddStruct(memory, _dataClass, DataId, Address.Zero);
+        memory.AddObject(_data, _objectLayout, DataId, klass: _dataClass);
+
+        memory.AddObject(_dataProperty, _objectLayout, DataId, outer: _worldClass, klass: _objectPropertyClass);
+        memory.WritePointer(_worldClass + _structLayout.Children, _dataProperty);
+        memory.AddObject(_hpProperty, _objectLayout, HpId, outer: _dataClass, klass: _intPropertyClass);
+        memory.WritePointer(_dataClass + _structLayout.Children, _hpProperty);
+        WriteValues(memory);
+
+        return memory;
+    }
+
+    // Adds the names World and Hp in a pool, the world with its class and a chunked array of the world class and the world.
+    private FakeMemory MemoryWithChunkedGame()
+    {
+        var memory = MemoryWithModule();
+        memory.AddNamePool(_names, _poolBlock);
+        memory.AddPoolEntry(_poolBlock + (WorldPoolId * 2), wide: false, "World");
+        memory.AddPoolEntry(_poolBlock + (HpPoolId * 2), wide: false, "Hp");
+        memory.AddObject(_world, _objectLayout, WorldPoolId, klass: _worldClass);
+        memory.AddObject(_worldClass, _objectLayout, WorldPoolId);
+        memory.AddChunkedObjectArray(Array, _chunkedLayout, _table, 2, _chunk);
+        memory.AddObjectItems(_chunk, _item, _worldClass, _world);
+
+        return memory;
+    }
+
+    // Adds the same Data and Hp as MemoryWithData, with properties as fields.
+    private FakeMemory MemoryWithChunkedData()
+    {
+        var memory = MemoryWithChunkedGame();
+        memory.AddPoolEntry(_poolBlock + (DataPoolId * 2), wide: false, "Data");
+        memory.AddPoolEntry(_poolBlock + (IntPropertyPoolId * 2), wide: false, "IntProperty");
+        memory.AddPoolEntry(_poolBlock + (ObjectPropertyPoolId * 2), wide: false, "ObjectProperty");
+        memory.AddFieldClass(_intPropertyClass, _fieldClassLayout, IntPropertyPoolId);
+        memory.AddFieldClass(_objectPropertyClass, _fieldClassLayout, ObjectPropertyPoolId);
+        memory.AddObject(_dataClass, _objectLayout, DataPoolId);
+        memory.AddObject(_data, _objectLayout, DataPoolId, klass: _dataClass);
+
+        memory.AddField(_dataProperty, _fieldLayout, DataPoolId, _objectPropertyClass);
+        memory.WritePointer(_worldClass + _fieldStructLayout.ChildProperties, _dataProperty);
+        memory.AddField(_hpProperty, _fieldLayout, HpPoolId, _intPropertyClass);
+        memory.WritePointer(_dataClass + _fieldStructLayout.ChildProperties, _hpProperty);
+        WriteValues(memory);
+
+        return memory;
+    }
+
+    // Writes the offsets and the sizes of Data and Hp, the pointer to the data object and its Hp.
+    private void WriteValues(FakeMemory memory)
+    {
+        memory.WriteInt32(_dataProperty + _propertyLayout.ElementSize, memoryLayout.PointerSize);
+        memory.WriteInt32(_dataProperty + _propertyLayout.Offset, DataOffset);
+        memory.WriteInt32(_hpProperty + _propertyLayout.ElementSize, sizeof(int));
+        memory.WriteInt32(_hpProperty + _propertyLayout.Offset, HpOffset);
+        memory.WritePointer(_world + DataOffset, _data);
+        memory.WriteInt32(_data + HpOffset, 995);
     }
 }

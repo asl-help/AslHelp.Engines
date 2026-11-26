@@ -352,14 +352,14 @@ public sealed class UnrealProfileTests
     {
         FakeMemory memory = new() { Layout = MemoryLayout.X64 };
         var names = profile.NameTableShape.Create(memory, Address.Zero);
-        ObjectReader objects = new(memory, names, profile.ObjectLayout);
-        StructReader structs = new(memory, objects, profile.StructLayout, profile.ChildLayout);
+        ObjectReader objectReader = new(memory, names, profile.ObjectLayout);
+        StructReader structReader = new(memory, objectReader, profile.StructLayout, profile.ChildLayout);
 
         return
         [
             names.GetType(),
             profile.ObjectArrayShape.Create(memory, Address.Zero).Unwrap().GetType(),
-            profile.PropertyShape.Create(memory, names, objects, structs).GetType(),
+            profile.PropertyShape.Create(memory, names, objectReader, structReader).GetType(),
         ];
     }
 }

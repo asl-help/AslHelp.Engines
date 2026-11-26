@@ -271,6 +271,27 @@ internal sealed class FakeMemory : IMemoryReader
     }
 
     /// <summary>
+    ///     Writes an instruction that references a global, as a <c>read global</c> step of a locator reads it.
+    /// </summary>
+    /// <remarks>
+    ///     Writes the operand relative to the end of the instruction for 8-byte pointers and as the absolute address for 4-byte pointers.
+    /// </remarks>
+    /// <param name="instruction">The address of the 1st byte of the instruction.</param>
+    /// <param name="opcode">The bytes in front of the 4-byte operand.</param>
+    /// <param name="global">The address of the global.</param>
+    /// <exception cref="ArgumentOutOfRangeException">No block contains the instruction.</exception>
+    public void WriteGlobalReference(Address instruction, byte[] opcode, Address global)
+    {
+        opcode.CopyTo(BytesAt(instruction, opcode.Length));
+
+        var operand = instruction + opcode.Length;
+
+        WriteInt32(
+            operand,
+            Layout.PointerSize == sizeof(ulong) ? checked((int)(global - (operand + sizeof(int)))) : unchecked((int)global.Value));
+    }
+
+    /// <summary>
     ///     Writes a 4-byte value into the block that contains <paramref name="address"/>.
     /// </summary>
     /// <param name="address">The address of the value.</param>

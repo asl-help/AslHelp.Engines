@@ -56,6 +56,9 @@ internal interface IEngineMeasurer
     /// <summary>
     ///     Gets the key of the versions that can share a group with <paramref name="version"/>.
     /// </summary>
+    /// <remarks>
+    ///     A keyed version ends with <c>-</c> and the key. The profile documents cut that end off.
+    /// </remarks>
     /// <param name="version">The version of a player.</param>
     /// <returns>
     ///     The key or <see langword="null"/> if a group needs nothing but equal offsets.

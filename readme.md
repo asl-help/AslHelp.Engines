@@ -9,6 +9,17 @@ This repo contains the libraries that read game engines from memory and the tool
 
 `AslHelp.Engines.Unreal` reads names, objects, structs and properties from Unreal Engine 3, 4 and 5 games. You pick the storage shape and pass in its layouts. For properties you use `ObjectPropertyReader` up to 4.24 and `FieldPropertyReader` from 4.25 on. The readers return `Result<T>` and the name tables aren't thread-safe.
 
+`UnrealProfile.Parse` reads a profile document from `just measure --profiles` (see [Profiles](#profiles)). `UnrealGame.Attach` finds the globals of that profile in the game and picks the readers for its shapes:
+
+```cs
+var profile = UnrealProfile.Parse(File.ReadAllText("unreal4-4.18.3-win-x64-shipping.json")).Unwrap();
+var game = UnrealGame.Attach(memory, module, profile).Unwrap();
+
+var world = game.GWorld.Read();
+```
+
+`GWorld` reads the pointer again on each call. It's 0 until the game loads a world, so attach doesn't wait for one.
+
 `AslHelp.Engines` is what the engine libraries share. `MemberChain<THop>` lets a script write a path of members through `dynamic`, like `root.Player.Health`. Each name goes to the engine's `IMemberResolver<THop>`, which returns the hop for it or throws if the type can't have that member. The resolver also creates the watcher, so it can type the watcher after the member at the end:
 
 ```cs
@@ -139,7 +150,7 @@ Each version's row in `releases.json` declares what's different for that version
 ## Measuring
 
 ```
-just measure <engine> <players> --output <file> [--targets <file>] [--jobs <n>]
+just measure <engine> <players> --output <file> [--profiles <folder>] [--targets <file>] [--jobs <n>]
 ```
 
 | Argument | Value |
@@ -147,6 +158,7 @@ just measure <engine> <players> --output <file> [--targets <file>] [--jobs <n>]
 | `<engine>` | The engine's subcommand, `unreal3` or `unreal4`. `just measure <engine> --help` lists its options. |
 | `<players>` | The folder with the players from `just fixtures build`. |
 | `--output` | The file to write the JSON report to. |
+| `--profiles` | The folder to write 1 profile document per group to. Leave it out to skip them. |
 | `--jobs`, `-j` | How many players to measure at once. The default is the engine's limit, which is 4 for `unreal4` and 1 for `unreal3`. Lower it if you run short on memory. |
 | `--targets` | The file with the values to find. It replaces the built-in list, so you can change it without a rebuild. |
 
@@ -226,6 +238,25 @@ After `players` comes `groups`. 2 versions are in the same group when the offset
 ```
 
 Each group lists `routes` for the globals of its versions. A route finds a global with a signature search through the code of the executable and then reads the global from the operand at `offset`. `forward` uses the same format as the `forward` step of a `LocatorRoute` in AslHelp.Memory, with `?` for the bytes of address operands and branch targets. A route only counts for a version when every match in that version's image reaches the same RVA, which `reached` lists. `uncovered` gives the reason for each version that no route covers.
+
+### Profiles
+
+The run also writes 1 JSON file per group when you pass `--profiles`. Each file has what an engine library needs to attach to a game of that group. The file name is `<engine>-<1st version>-<key>.json`, like `unreal4-4.18.3-win-x64-shipping.json`. A group without a key gets `<engine>-<1st version>.json`, like `unreal3-2010-09.json`. Use an empty folder because the run doesn't delete the files of an older run. `globals` gives a locator per global in the JSON form that `MemoryLocator` in AslHelp.Memory reads. Each route of the report becomes 1 locator route, listed under the 1st version it covers.
+
+```json
+{
+  "engine": "unreal4",
+  "key": "win-x64-shipping",
+  "versions": ["4.18.3", "4.19.2"],
+  "shapes": { "FNameEntry": "indirect" },
+  "offsets": { "UObjectBase": { "ClassPrivate": "0x10" } },
+  "globals": {
+    "GWorld": {
+      "4.18.3": [{ "forward": "48 89 05 ???????? 0F 28 D6", "offset": 3 }, { "read": "global" }]
+    }
+  }
+}
+```
 
 ### Unreal Engine 3 targets
 

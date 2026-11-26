@@ -12,6 +12,9 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="AttachGlobalNotLocated" xml:space="preserve">
+    <value>Can't find {0} in {1}. {2}</value>
+  </data>
   <data name="NameArrayHeaderUnreadable" xml:space="preserve">
     <value>Can't read the header of the name array at {0}: reading {1} failed. {2}</value>
   </data>
@@ -137,6 +140,21 @@
   </data>
   <data name="ObjectOuterUnreadable" xml:space="preserve">
     <value>Can't read the outer object of the object at {0}: reading {1} failed. {2} Check ObjectLayout.Outer (0x{3}).</value>
+  </data>
+  <data name="ProfileGlobalUnreadable" xml:space="preserve">
+    <value>The profile's globals.{0} isn't a locator. {1}</value>
+  </data>
+  <data name="ProfileInvalid" xml:space="preserve">
+    <value>The profile isn't valid. {0}</value>
+  </data>
+  <data name="ProfileMissing" xml:space="preserve">
+    <value>The profile doesn't have {0}.</value>
+  </data>
+  <data name="ProfileOffsetNegative" xml:space="preserve">
+    <value>The profile's {0} is {1}, which is below 0.</value>
+  </data>
+  <data name="ProfileShapeUnknown" xml:space="preserve">
+    <value>The profile's {0} shape '{1}' isn't 1 of {2}.</value>
   </data>
   <data name="PropertyArrayDimUnreadable" xml:space="preserve">
     <value>Can't read the array size of the property at {0}: reading {1} failed. {2} Check PropertyLayout.ArrayDim (0x{3}).</value>

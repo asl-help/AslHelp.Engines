@@ -3,7 +3,7 @@ using AslHelp.Memory;
 namespace AslHelp.Engines.Unreal.Errors;
 
 /// <summary>
-///     Represents a part of an <see cref="IObjectArray"/> that did not read.
+///     Represents a part of an <see cref="IObjectArray"/> that did not read or a layout that doesn't fit it.
 /// </summary>
 /// <remarks>
 ///     Each failure is a <see langword="file"/> record that stores its values and formats <see cref="ResultError.Message"/> on get,
@@ -138,6 +138,45 @@ internal abstract record ObjectArrayError : ResultError
     public static ObjectArrayError DataUnreadable(Address array, Address address, ResultError cause)
     {
         return new DataUnreadableError(array, address, cause);
+    }
+
+    /// <summary>
+    ///     Creates the error for a chunk without room for an item.
+    /// </summary>
+    /// <param name="elementsPerChunk">The number of items in 1 chunk.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static ObjectArrayError ElementsPerChunkBelowOne(int elementsPerChunk)
+    {
+        return new ElementsPerChunkBelowOneError(elementsPerChunk);
+    }
+
+    /// <summary>
+    ///     Creates the error for an item larger than the 1024-byte limit of an item.
+    /// </summary>
+    /// <param name="size">The size of 1 item in bytes.</param>
+    /// <param name="max">The largest size of an item in bytes.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static ObjectArrayError ItemTooLarge(int size, int max)
+    {
+        return new ItemTooLargeError(size, max);
+    }
+
+    /// <summary>
+    ///     Creates the error for an item without room for a pointer at its object offset.
+    /// </summary>
+    /// <param name="size">The size of 1 item in bytes.</param>
+    /// <param name="pointerSize">The pointer size of the memory.</param>
+    /// <param name="offset">The offset of the object pointer in an item.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static ObjectArrayError ItemTooSmall(int size, int pointerSize, int offset)
+    {
+        return new ItemTooSmallError(size, pointerSize, offset);
     }
 
     /// <summary>
@@ -295,6 +334,27 @@ file sealed record DataUnreadableError(
     /// <inheritdoc/>
     public override string Message
         => SR.FormatObjectArrayDataUnreadable(Array, Address, Cause.Message);
+}
+
+file sealed record ElementsPerChunkBelowOneError(
+    int ElementsPerChunk) : ObjectArrayError
+{
+    public override string Message => SR.FormatObjectArrayElementsPerChunkBelowOne(ElementsPerChunk);
+}
+
+file sealed record ItemTooLargeError(
+    int Size,
+    int Max) : ObjectArrayError
+{
+    public override string Message => SR.FormatObjectItemTooLarge(Size, Max);
+}
+
+file sealed record ItemTooSmallError(
+    int Size,
+    int PointerSize,
+    int Offset) : ObjectArrayError
+{
+    public override string Message => SR.FormatObjectItemTooSmall(Size, PointerSize, Offset);
 }
 
 /// <summary>

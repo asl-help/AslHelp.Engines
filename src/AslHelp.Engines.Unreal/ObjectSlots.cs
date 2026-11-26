@@ -39,17 +39,9 @@ internal static class ObjectSlots
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        if (item.ObjectPointer < 0 || item.Size < (long)item.ObjectPointer + pointerSize)
-        {
-            throw new ArgumentOutOfRangeException(nameof(item), item, SR.FormatObjectItemTooSmall(item.Size, pointerSize, item.ObjectPointer));
-        }
-
-        if (item.Size > MaxItemSize)
-        {
-            throw new ArgumentOutOfRangeException(nameof(item), item, SR.FormatObjectItemTooLarge(item.Size, MaxItemSize));
-        }
-
-        return item;
+        return ValidateItem(item, pointerSize).TryUnwrapErr(out var error)
+            ? throw new ArgumentOutOfRangeException(nameof(item), item, error.Message)
+            : item;
     }
 
     /// <summary>
@@ -119,6 +111,40 @@ internal static class ObjectSlots
         ObjectItemLayout item)
     {
         return Enumerate(memory, array, null, start, count, count, item);
+    }
+
+    /// <summary>
+    ///     Checks that a chunk of the array has room for at least 1 item.
+    /// </summary>
+    /// <param name="layout">The offsets inside the array.</param>
+    /// <returns>
+    ///     A success or a failure with the number of items per chunk when it's below 1.
+    /// </returns>
+    public static Result ValidateChunks(ChunkedObjectArrayLayout layout)
+    {
+        return layout.ElementsPerChunk < 1
+            ? ObjectArrayError.ElementsPerChunkBelowOne(layout.ElementsPerChunk)
+            : Result.Ok();
+    }
+
+    /// <summary>
+    ///     Checks that an item has room for a pointer at its object offset and fits in the 1024-byte limit of an item.
+    /// </summary>
+    /// <param name="item">The offsets inside an item.</param>
+    /// <param name="pointerSize">The size of a pointer in bytes.</param>
+    /// <returns>
+    ///     A success or a failure with the size of the item when a pointer at its object offset doesn't fit in it or it's larger than 1024 bytes.
+    /// </returns>
+    public static Result ValidateItem(ObjectItemLayout item, int pointerSize)
+    {
+        if (item.ObjectPointer < 0 || item.Size < (long)item.ObjectPointer + pointerSize)
+        {
+            return ObjectArrayError.ItemTooSmall(item.Size, pointerSize, item.ObjectPointer);
+        }
+
+        return item.Size > MaxItemSize
+            ? ObjectArrayError.ItemTooLarge(item.Size, MaxItemSize)
+            : Result.Ok();
     }
 
     /// <summary>

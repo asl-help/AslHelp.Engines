@@ -1,3 +1,4 @@
+using AslHelp.Engines.Measuring.Cli.Profiles;
 using AslHelp.Engines.Measuring.Cli.Routes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Console;
@@ -66,6 +67,7 @@ internal static class CommandLine
     {
         Argument<string> playersArgument = new("players") { Description = SR.PlayersDescription };
         Option<string> outputOption = new("--output") { Description = SR.OutputDescription, Required = true };
+        Option<string?> profilesOption = new("--profiles") { Description = SR.ProfilesDescription };
         Option<string?> targetsOption = new("--targets") { Description = SR.TargetsDescription };
         Option<int?> jobsOption = new("--jobs", "-j") { Description = SR.JobsDescription };
         jobsOption.Validators.Add(static result =>
@@ -86,6 +88,7 @@ internal static class CommandLine
                 with(measurer.Name, SR.FormatEngineDescription(measurer.Name)),
                 playersArgument,
                 outputOption,
+                profilesOption,
                 targetsOption,
                 jobsOption,
                 .. measurer.Options,
@@ -95,6 +98,7 @@ internal static class CommandLine
                 measurer,
                 parseResult.GetRequiredValue(playersArgument),
                 parseResult.GetRequiredValue(outputOption),
+                parseResult.GetValue(profilesOption),
                 parseResult.GetValue(targetsOption),
                 JobsOf(measurer, parseResult.GetValue(jobsOption), logger),
                 parseResult,
@@ -147,24 +151,27 @@ internal static class CommandLine
 
     /// <summary>
     ///     Measures the players of the engine in <paramref name="playersDirectory"/> that the measurer picks,
-    ///     logs the groups of versions with equal offsets and the routes they share and writes the report.
+    ///     logs the groups of versions with equal offsets and the routes they share.
+    ///     Then it writes the report and the profile documents.
     /// </summary>
     /// <param name="measurer">The measurer of the engine.</param>
     /// <param name="playersDirectory">The folder with the players.</param>
     /// <param name="reportPath">The file for the report.</param>
+    /// <param name="profilesDirectory">The folder for the profile documents or <see langword="null"/> to skip them.</param>
     /// <param name="targetsPath">The file with the values to find or <see langword="null"/> for the list built into the measurer.</param>
     /// <param name="maxDegreeOfParallelism">The number of players to measure at once, from 1 to the limit of the measurer.</param>
     /// <param name="parseResult">The parsed command line with the values of the options of the measurer.</param>
     /// <param name="logger">The logger for the steps and the failures of the run.</param>
     /// <param name="cancellationToken">The token that stops the run.</param>
     /// <returns>
-    ///     0 if every player was measured or 1 otherwise.
+    ///     0 if every player was measured and the profile documents were written or 1 otherwise.
     /// </returns>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     private static async Task<int> MeasureAsync(
         IEngineMeasurer measurer,
         string playersDirectory,
         string reportPath,
+        string? profilesDirectory,
         string? targetsPath,
         int maxDegreeOfParallelism,
         ParseResult parseResult,
@@ -201,8 +208,13 @@ internal static class CommandLine
 
             logger.PlayersFound(players.Count, playersDirectory);
 
-            // Create the report folder first, because the rows live only in memory until the end of a run that takes minutes.
+            // Create the report and profiles folders first, because the rows live only in memory until the end of a run that takes minutes.
             _ = Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(reportPath))!);
+
+            if (profilesDirectory is not null)
+            {
+                _ = Directory.CreateDirectory(profilesDirectory);
+            }
 
             List<PlayerRow> rows = [];
             Dictionary<string, PlayerMeasurement> measurements = [with(StringComparer.Ordinal)];
@@ -285,6 +297,20 @@ internal static class CommandLine
 
             int measured = rows.Count(static row => row.Error is null);
             logger.ReportWritten(reportPath, measured, rows.Count);
+
+            if (profilesDirectory is not null)
+            {
+                var result = await ProfileDocuments.WriteAsync(report, profilesDirectory, cancellationToken).ConfigureAwait(false);
+
+                if (!result.TryUnwrap(out int documents, out var error))
+                {
+                    logger.RunFailed(error.Message);
+
+                    return 1;
+                }
+
+                logger.ProfilesWritten(documents, profilesDirectory);
+            }
 
             return measured == rows.Count ? 0 : 1;
         }

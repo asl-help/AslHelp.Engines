@@ -39,9 +39,9 @@ public sealed class ChunkedObjectArray : IObjectArray
         _memory = memory ?? throw new ArgumentNullException(nameof(memory));
         _layout = layout ?? throw new ArgumentNullException(nameof(layout));
 
-        if (layout.ElementsPerChunk < 1)
+        if (ObjectSlots.ValidateChunks(layout).TryUnwrapErr(out var error))
         {
-            throw new ArgumentOutOfRangeException(nameof(layout), layout, SR.FormatObjectArrayElementsPerChunkBelowOne(layout.ElementsPerChunk));
+            throw new ArgumentOutOfRangeException(nameof(layout), layout, error.Message);
         }
 
         _item = ObjectSlots.CheckItem(item, memory.Layout.PointerSize);

@@ -111,6 +111,15 @@
   <data name="PlayersSameVersion" xml:space="preserve">
     <value>Version {0} has more than 1 player folder: {1}. Keep 1 of them.</value>
   </data>
+  <data name="ProfileSameFileName" xml:space="preserve">
+    <value>Groups [{1}] and [{2}] get the same profile file '{0}'. Rename 1 of the versions.</value>
+  </data>
+  <data name="ProfileSameRouteName" xml:space="preserve">
+    <value>{0} of group [{1}] gets 2 routes with the name '{2}'. Rename 1 of the versions.</value>
+  </data>
+  <data name="ProfilesDescription" xml:space="preserve">
+    <value>The folder to write 1 profile document per group to.</value>
+  </data>
   <data name="RootDescription" xml:space="preserve">
     <value>Measures the fixture players of an engine and writes a report.</value>
   </data>

@@ -106,4 +106,7 @@ internal static partial class MeasureLog
 
     [LoggerMessage(EventId = 18, Level = LogLevel.Warning, Message = "jobs: {Jobs}, requested: {Requested}")]
     public static partial void JobsLowered(this ILogger logger, int jobs, int requested);
+
+    [LoggerMessage(EventId = 19, Level = LogLevel.Information, Message = "profiles: {Profiles} in '{Folder}'")]
+    public static partial void ProfilesWritten(this ILogger logger, int profiles, string folder);
 }

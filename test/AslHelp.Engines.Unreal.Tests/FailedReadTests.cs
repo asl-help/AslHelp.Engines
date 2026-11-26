@@ -204,11 +204,11 @@ public sealed class FailedReadTests
             ("IndirectObjectArray.Read", () => indirectObjects.Read(1).First().IsErr),
             ("ItemObjectArray.Read", () => itemObjects.Read(1).First().IsErr),
             ("ChunkedObjectArray.Read", () => chunkedObjects.Read(1).First().IsErr),
-            ("ObjectPropertyReader.KindOf", () => objectProperties.KindOf(_unreadable).IsErr),
+            ("ObjectPropertyReader.ClassNameOf", () => objectProperties.ClassNameOf(_unreadable).IsErr),
             ("ObjectPropertyReader.OffsetOf", () => objectProperties.OffsetOf(_unreadable).IsErr),
             ("FieldPropertyReader.PropertiesOf", () => fieldProperties.PropertiesOf(_unreadable).First().IsErr),
             ("FieldPropertyReader.NameOf", () => fieldProperties.NameOf(_unreadable).IsErr),
-            ("FieldPropertyReader.KindOf", () => fieldProperties.KindOf(_unreadable).IsErr),
+            ("FieldPropertyReader.ClassNameOf", () => fieldProperties.ClassNameOf(_unreadable).IsErr),
             ("FieldPropertyReader.ArrayDimOf", () => fieldProperties.ArrayDimOf(_unreadable).IsErr),
         ];
     }

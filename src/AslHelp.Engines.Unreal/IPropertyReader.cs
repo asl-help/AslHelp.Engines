@@ -36,13 +36,13 @@ public interface IPropertyReader
     Result<string> NameOf(Address prop);
 
     /// <summary>
-    ///     Reads the kind of <paramref name="prop"/>, without a prefix, such as <c>IntProperty</c>.
+    ///     Reads the class name of <paramref name="prop"/>, without a prefix, such as <c>IntProperty</c>.
     /// </summary>
     /// <param name="prop">The address of the property.</param>
     /// <returns>
-    ///     The kind or a failure with the property and the failed read.
+    ///     The class name or a failure with the property and the failed read.
     /// </returns>
-    Result<string> KindOf(Address prop);
+    Result<string> ClassNameOf(Address prop);
 
     /// <summary>
     ///     Reads the number of elements of <paramref name="prop"/>.

@@ -118,19 +118,6 @@ internal abstract record PropertyError : ResultError
     }
 
     /// <summary>
-    ///     Creates the error for a property whose class or class name did not read.
-    /// </summary>
-    /// <param name="property">The address of the property.</param>
-    /// <param name="cause">The error of the read.</param>
-    /// <returns>
-    ///     The error.
-    /// </returns>
-    public static PropertyError KindUnreadable(Address property, ResultError cause)
-    {
-        return new KindUnreadableError(property, cause);
-    }
-
-    /// <summary>
     ///     Creates the error for a property chain that goes on past the limit.
     /// </summary>
     /// <param name="type">The address of the struct.</param>
@@ -203,6 +190,19 @@ internal abstract record PropertyError : ResultError
     public static PropertyError NextUnreadable(Address property, Address address, int offset, ResultError cause)
     {
         return new NextUnreadableError(property, address, offset, cause);
+    }
+
+    /// <summary>
+    ///     Creates the error for a property whose class or class name did not read.
+    /// </summary>
+    /// <param name="property">The address of the property.</param>
+    /// <param name="cause">The error of the read.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static PropertyError ObjectClassUnreadable(Address property, ResultError cause)
+    {
+        return new ObjectClassUnreadableError(property, cause);
     }
 
     /// <summary>
@@ -339,19 +339,6 @@ file sealed record FieldClassUnreadableError(
 }
 
 /// <summary>
-///     Represents a property whose class or class name did not read.
-/// </summary>
-/// <param name="Property">The address of the property.</param>
-/// <param name="Cause">The error of the read.</param>
-file sealed record KindUnreadableError(
-    Address Property,
-    ResultError Cause) : PropertyError
-{
-    /// <inheritdoc/>
-    public override string Message => SR.FormatPropertyKindUnreadable(Property, Cause.Message);
-}
-
-/// <summary>
 ///     Represents a property chain that goes on past the limit.
 /// </summary>
 /// <param name="Type">The address of the struct.</param>
@@ -431,6 +418,19 @@ file sealed record NextUnreadableError(
     /// <inheritdoc/>
     public override string Message
         => SR.FormatPropertyNextUnreadable(Property, Address, Cause.Message, Offset.ToString("X", CultureInfo.InvariantCulture));
+}
+
+/// <summary>
+///     Represents a property whose class or class name did not read.
+/// </summary>
+/// <param name="Property">The address of the property.</param>
+/// <param name="Cause">The error of the read.</param>
+file sealed record ObjectClassUnreadableError(
+    Address Property,
+    ResultError Cause) : PropertyError
+{
+    /// <inheritdoc/>
+    public override string Message => SR.FormatPropertyObjectClassUnreadable(Property, Cause.Message);
 }
 
 /// <summary>

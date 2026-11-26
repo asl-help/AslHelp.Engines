@@ -344,21 +344,21 @@ public sealed class FieldPropertyReaderTests(
                 + $"Check FieldPropertyLayout.Name (0x{fieldLayout.Name:X})."));
     }
 
-    // The kind is the name of the field class, read at its own offset, which doesn't have an F in front.
+    // The class name is the name of the field class, read at its own offset, which doesn't have an F in front.
     [Test]
-    public void KindOf_IntProperty_ReturnsClassNameWithoutPrefix()
+    public void ClassNameOf_IntProperty_ReturnsClassNameWithoutPrefix()
     {
-        Assert.That(CreateReader(MemoryWithChain()).KindOf(_property1).Unwrap(), Is.EqualTo("IntProperty"));
+        Assert.That(CreateReader(MemoryWithChain()).ClassNameOf(_property1).Unwrap(), Is.EqualTo("IntProperty"));
     }
 
     // A failed read of the class pointer fails with the property and the class offset.
     [Test]
-    public void KindOf_UnreadableClassPointer_FailsWithClassOffset()
+    public void ClassNameOf_UnreadableClassPointer_FailsWithClassOffset()
     {
         var address = _property1 + fieldLayout.Class;
 
         Assert.That(
-            CreateReader(MemoryWithNames()).KindOf(_property1).UnwrapErr().Message,
+            CreateReader(MemoryWithNames()).ClassNameOf(_property1).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the class of the property at {_property1}: reading {address} failed. No block contains {address}. "
                 + $"Check FieldPropertyLayout.Class (0x{fieldLayout.Class:X})."));
@@ -366,7 +366,7 @@ public sealed class FieldPropertyReaderTests(
 
     // A class pointer of 0 fails with the class offset and doesn't read address 0.
     [Test]
-    public void KindOf_ZeroClass_FailsWithClassNull()
+    public void ClassNameOf_ZeroClass_FailsWithClassNull()
     {
         var memory = MemoryWithChain();
         memory.WritePointer(_property1 + fieldLayout.Class, Address.Zero);
@@ -374,7 +374,7 @@ public sealed class FieldPropertyReaderTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                CreateReader(memory).KindOf(_property1).UnwrapErr().Message,
+                CreateReader(memory).ClassNameOf(_property1).UnwrapErr().Message,
                 Is.EqualTo(
                     $"The class pointer of the property at {_property1} is 0. "
                     + $"Check FieldPropertyLayout.Class (0x{fieldLayout.Class:X})."));
@@ -384,13 +384,13 @@ public sealed class FieldPropertyReaderTests(
 
     // A wrong name offset of the field class fails with the class, the property and that offset.
     [Test]
-    public void KindOf_WrongClassNameOffset_FailsWithFieldClassName()
+    public void ClassNameOf_WrongClassNameOffset_FailsWithFieldClassName()
     {
         var address = _class + PastBlock;
         var reader = CreateReader(MemoryWithChain(), structLayout, fieldLayout, new FieldClassLayout(PastBlock));
 
         Assert.That(
-            reader.KindOf(_property1).UnwrapErr().Message,
+            reader.ClassNameOf(_property1).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the name of the class at {_class} of the property at {_property1} from {address}. No block contains {address}. "
                 + $"Check FieldClassLayout.Name (0x{PastBlock:X})."));
@@ -398,7 +398,7 @@ public sealed class FieldPropertyReaderTests(
 
     // A negative number on the field class fails with the number and the name offset of the field class.
     [Test]
-    public void KindOf_NegativeClassNameNumber_FailsWithNumber()
+    public void ClassNameOf_NegativeClassNameNumber_FailsWithNumber()
     {
         var memory = MemoryWithChain();
         memory.WriteInt32(_class + classLayout.Name + sizeof(int), -1);
@@ -406,7 +406,7 @@ public sealed class FieldPropertyReaderTests(
         var address = _class + classLayout.Name;
 
         Assert.That(
-            CreateReader(memory).KindOf(_property1).UnwrapErr().Message,
+            CreateReader(memory).ClassNameOf(_property1).UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read the name of the class at {_class} of the property at {_property1} from {address}. "
                 + $"The name at {address} has the number -1, which is below 0. "
@@ -474,7 +474,7 @@ public sealed class FieldPropertyReaderTests(
                 Throws.ArgumentNullException.With.Property("ParamName").EqualTo("memory"));
             Assert.That(
                 () => new FieldPropertyReader(memory, null!, structLayout, fieldLayout, classLayout, layout),
-                Throws.ArgumentNullException.With.Property("ParamName").EqualTo("names"));
+                Throws.ArgumentNullException.With.Property("ParamName").EqualTo("nameTable"));
             Assert.That(
                 () => new FieldPropertyReader(memory, names, null!, fieldLayout, classLayout, layout),
                 Throws.ArgumentNullException.With.Property("ParamName").EqualTo("structLayout"));
@@ -486,7 +486,7 @@ public sealed class FieldPropertyReaderTests(
                 Throws.ArgumentNullException.With.Property("ParamName").EqualTo("classLayout"));
             Assert.That(
                 () => new FieldPropertyReader(memory, names, structLayout, fieldLayout, classLayout, null!),
-                Throws.ArgumentNullException.With.Property("ParamName").EqualTo("layout"));
+                Throws.ArgumentNullException.With.Property("ParamName").EqualTo("propertyLayout"));
         }
     }
 

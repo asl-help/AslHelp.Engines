@@ -15,6 +15,21 @@
   <data name="AttachGlobalNotLocated" xml:space="preserve">
     <value>Can't find {0} in {1}. {2}</value>
   </data>
+  <data name="ClassMetaclassNotFound" xml:space="preserve">
+    <value>The class chain of the object at {0} doesn't end at Class. Check ObjectLayout.Class (0x{1}).</value>
+  </data>
+  <data name="ClassNotFound" xml:space="preserve">
+    <value>Can't find a loaded class called {0}.</value>
+  </data>
+  <data name="ClassNull" xml:space="preserve">
+    <value>The class pointer of the object at {0} is 0. Check ObjectLayout.Class (0x{1}).</value>
+  </data>
+  <data name="ClassPropertyNotFound" xml:space="preserve">
+    <value>Class {0} doesn't have a property {1}.</value>
+  </data>
+  <data name="ClassSearchFailed" xml:space="preserve">
+    <value>Can't search the object array for the class {0}. {1}</value>
+  </data>
   <data name="NameArrayHeaderUnreadable" xml:space="preserve">
     <value>Can't read the header of the name array at {0}: reading {1} failed. {2}</value>
   </data>
@@ -141,6 +156,21 @@
   <data name="ObjectOuterUnreadable" xml:space="preserve">
     <value>Can't read the outer object of the object at {0}: reading {1} failed. {2} Check ObjectLayout.Outer (0x{3}).</value>
   </data>
+  <data name="PathFailed" xml:space="preserve">
+    <value>Can't read {0}. {1}</value>
+  </data>
+  <data name="PathGlobalUnwatchable" xml:space="preserve">
+    <value>Can't watch {0}: it isn't an IntProperty.</value>
+  </data>
+  <data name="PathInt32Watcher" xml:space="preserve">
+    <value>Int32 at {0}</value>
+  </data>
+  <data name="PathNullObject" xml:space="preserve">
+    <value>Can't read {0}: {1} is null.</value>
+  </data>
+  <data name="PathSegmentFailed" xml:space="preserve">
+    <value>Can't read {0} at {1}. {2}</value>
+  </data>
   <data name="ProfileGlobalUnreadable" xml:space="preserve">
     <value>The profile's globals.{0} isn't a locator. {1}</value>
   </data>
@@ -177,9 +207,6 @@
   <data name="PropertyFieldClassUnreadable" xml:space="preserve">
     <value>Can't read the class of field {0} of the struct at {1}. {2}</value>
   </data>
-  <data name="PropertyKindUnreadable" xml:space="preserve">
-    <value>Can't read the kind of the property at {0}. {1}</value>
-  </data>
   <data name="PropertyListPastLimit" xml:space="preserve">
     <value>The struct at {0} has more than {1} properties. Check FieldPropertyLayout.Next (0x{2}).</value>
   </data>
@@ -194,6 +221,9 @@
   </data>
   <data name="PropertyNextUnreadable" xml:space="preserve">
     <value>Can't read the next property after the property at {0}: reading {1} failed. {2} Check FieldPropertyLayout.Next (0x{3}).</value>
+  </data>
+  <data name="PropertyObjectClassUnreadable" xml:space="preserve">
+    <value>Can't read the class name of the property at {0}. {1}</value>
   </data>
   <data name="PropertyOffsetUnreadable" xml:space="preserve">
     <value>Can't read the offset of the property at {0}: reading {1} failed. {2} Check PropertyLayout.Offset (0x{3}).</value>
@@ -221,5 +251,11 @@
   </data>
   <data name="StructSuperUnreadable" xml:space="preserve">
     <value>Can't read the super struct of the struct at {0}: reading {1} failed. {2} Check StructLayout.SuperStruct (0x{3}).</value>
+  </data>
+  <data name="ValueUnreadable" xml:space="preserve">
+    <value>Can't read {1} of the object at {0}: reading {2} failed. {3}</value>
+  </data>
+  <data name="ValueWrongKind" xml:space="preserve">
+    <value>{0} is {1}, not {2}.</value>
   </data>
 </root>

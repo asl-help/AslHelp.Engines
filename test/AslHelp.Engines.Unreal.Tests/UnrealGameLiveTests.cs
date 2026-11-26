@@ -1,5 +1,6 @@
 using AslHelp.Memory;
 using AslHelp.Memory.Remote;
+using AslHelp.Memory.Watching;
 using NUnit.Framework;
 using System;
 using System.Diagnostics;
@@ -27,6 +28,92 @@ public sealed class UnrealGameLiveTests
     [Test]
     public void Attach_RealPlayer_ReadsWorldAsTheClassOfGWorld()
     {
+        WithAttachedPlayer(game =>
+        {
+            var world = game.GWorld.Read().Unwrap();
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(world, Is.Not.EqualTo(Address.Zero));
+                Assert.That(game.ObjectReader.NameOf(game.ObjectReader.ClassOf(world).Unwrap()).Unwrap(), Is.EqualTo("World"));
+                Assert.That(game.ObjectArray.ReadCount().Unwrap(), Is.GreaterThan(0));
+            }
+        });
+    }
+
+    // AuthorityGameMode is declared as AGameModeBase, so FixtureData only shows up on the real class of the game mode.
+    [Test]
+    public void ReadInt32_RealPlayer_ReadsIntValueAndHpThroughTheGameMode()
+    {
+        WithAttachedPlayer(game =>
+        {
+            var world = game.GWorld.Read().Unwrap();
+            var gameMode = game.ReadObject(world, game.ClassOf(world).Unwrap().FindProperty("AuthorityGameMode").Unwrap()).Unwrap();
+            var gameModeClass = game.ClassOf(gameMode).Unwrap();
+            var data = game.ReadObject(gameMode, gameModeClass.FindProperty("FixtureData").Unwrap()).Unwrap();
+            var dataClass = game.ClassOf(data).Unwrap();
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(gameModeClass.Name, Is.EqualTo("FixtureGameMode"));
+                Assert.That(game.ReadInt32(data, dataClass.FindProperty("IntValue").Unwrap()).Unwrap(), Is.EqualTo(1337));
+                Assert.That(game.ReadInt32(data, dataClass.FindProperty("Hp").Unwrap()).Unwrap(), Is.InRange(1, 1000));
+                Assert.That(game.FindClass("FixtureData").Unwrap(), Is.SameAs(dataClass));
+            }
+        });
+    }
+
+    // Paths read Hp and IntValue of the real player and their watchers still read them on the 2nd tick.
+    [Test]
+    public void CreateWatcher_RealPlayer_WatchesHpAndIntValueThroughThePath()
+    {
+        WithAttachedPlayer(game =>
+        {
+            var data = game.GWorld.ObjectMember("AuthorityGameMode").ObjectMember("FixtureData");
+            ManualTicks ticks = new();
+            var hp = data.Int32Member("Hp").CreateWatcher(ticks);
+            var intValue = data.Int32Member("IntValue").CreateWatcher(ticks);
+
+            int firstHp = hp.Current;
+            _ = intValue.Current;
+            ticks.Value++;
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(data.Int32Member("IntValue").Read().Unwrap(), Is.EqualTo(1337));
+                Assert.That(data.Int32Member("Hp").Read().Unwrap(), Is.InRange(1, 1000));
+                Assert.That(firstHp, Is.InRange(1, 1000));
+                Assert.That(hp.Current, Is.InRange(1, 1000));
+                Assert.That(intValue.Current, Is.EqualTo(1337));
+                Assert.That(intValue.Changed, Is.False);
+            }
+        });
+    }
+
+    // A chain written through dynamic watches Hp of the real player.
+    [Test]
+    public void GWorldChain_RealPlayer_WatchesHpThroughTheChain()
+    {
+        WithAttachedPlayer(game =>
+        {
+            IWatcherSource hp = game.GWorldChain.AuthorityGameMode.FixtureData.Hp;
+            ManualTicks ticks = new();
+            var watcher = (Watcher<int>)hp.CreateWatcher(ticks);
+
+            int first = watcher.Current;
+            ticks.Value++;
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(first, Is.InRange(1, 1000));
+                Assert.That(watcher.Current, Is.InRange(1, 1000));
+            }
+        });
+    }
+
+    // Start the player, wait for its ready file, attach and run the test, then kill the player.
+    private static void WithAttachedPlayer(Action<UnrealGame> test)
+    {
         string? player = Environment.GetEnvironmentVariable(PlayerVariable);
         string? profilePath = Environment.GetEnvironmentVariable(ProfileVariable);
 
@@ -49,15 +136,7 @@ public sealed class UnrealGameLiveTests
             WaitForReadyFile(process, readyPath, started);
 
             using RemoteProcessMemory memory = new(process);
-            var game = UnrealGame.Attach(memory, memory.GetModule(ExecutableName).Unwrap(), profile).Unwrap();
-            var world = game.GWorld.Read().Unwrap();
-
-            using (Assert.EnterMultipleScope())
-            {
-                Assert.That(world, Is.Not.EqualTo(Address.Zero));
-                Assert.That(game.Objects.NameOf(game.Objects.ClassOf(world).Unwrap()).Unwrap(), Is.EqualTo("World"));
-                Assert.That(game.ObjectArray.ReadCount().Unwrap(), Is.GreaterThan(0));
-            }
+            test(UnrealGame.Attach(memory, memory.GetModule(ExecutableName).Unwrap(), profile).Unwrap());
         }
         finally
         {

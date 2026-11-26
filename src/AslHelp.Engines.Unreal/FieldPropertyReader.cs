@@ -12,30 +12,30 @@ namespace AslHelp.Engines.Unreal;
 ///     Reads the memory on every call, because the game can free a property and reuse its address.
 /// </remarks>
 /// <param name="memory">The memory to read from.</param>
-/// <param name="names">The table that the name ids of the properties and their field classes point into, in any storage shape.</param>
+/// <param name="nameTable">The table that the name ids of the properties and their field classes point into, in any storage shape.</param>
 /// <param name="structLayout">The offsets inside a struct.</param>
 /// <param name="fieldLayout">The offsets inside a property that come from its base field.</param>
 /// <param name="classLayout">The offsets inside a field class.</param>
-/// <param name="layout">The offsets inside a property.</param>
+/// <param name="propertyLayout">The offsets inside a property.</param>
 /// <exception cref="ArgumentNullException">
-///     <paramref name="memory"/>, <paramref name="names"/>, <paramref name="structLayout"/>, <paramref name="fieldLayout"/>,
-///     <paramref name="classLayout"/> or <paramref name="layout"/> is <see langword="null"/>.
+///     <paramref name="memory"/>, <paramref name="nameTable"/>, <paramref name="structLayout"/>, <paramref name="fieldLayout"/>,
+///     <paramref name="classLayout"/> or <paramref name="propertyLayout"/> is <see langword="null"/>.
 /// </exception>
 public sealed class FieldPropertyReader(
     IMemoryReader memory,
-    INameTable names,
+    INameTable nameTable,
     FieldStructLayout structLayout,
     FieldPropertyLayout fieldLayout,
     FieldClassLayout classLayout,
-    PropertyLayout layout) : IPropertyReader
+    PropertyLayout propertyLayout) : IPropertyReader
 {
     private const int MaxProperties = 4096;
 
     private readonly FieldClassLayout _classLayout = classLayout ?? throw new ArgumentNullException(nameof(classLayout));
     private readonly FieldPropertyLayout _fieldLayout = fieldLayout ?? throw new ArgumentNullException(nameof(fieldLayout));
-    private readonly PropertyLayout _layout = layout ?? throw new ArgumentNullException(nameof(layout));
     private readonly IMemoryReader _memory = memory ?? throw new ArgumentNullException(nameof(memory));
-    private readonly INameTable _names = names ?? throw new ArgumentNullException(nameof(names));
+    private readonly INameTable _nameTable = nameTable ?? throw new ArgumentNullException(nameof(nameTable));
+    private readonly PropertyLayout _propertyLayout = propertyLayout ?? throw new ArgumentNullException(nameof(propertyLayout));
     private readonly FieldStructLayout _structLayout = structLayout ?? throw new ArgumentNullException(nameof(structLayout));
 
     /// <summary>
@@ -104,9 +104,9 @@ public sealed class FieldPropertyReader(
     /// </summary>
     /// <param name="prop">The address of the property.</param>
     /// <returns>
-    ///     The kind or a failure with the property and the failed read when a read fails, the class pointer is 0 or the name number is negative.
+    ///     The class name or a failure with the property and the failed read when a read fails, the class pointer is 0 or the name number is negative.
     /// </returns>
-    public Result<string> KindOf(Address prop)
+    public Result<string> ClassNameOf(Address prop)
     {
         var classAddress = prop + _fieldLayout.Class;
 
@@ -122,27 +122,27 @@ public sealed class FieldPropertyReader(
 
         var nameAddress = klass + _classLayout.Name;
 
-        return ReadName(nameAddress).TryUnwrap(out string? kind, out error)
-            ? kind
+        return ReadName(nameAddress).TryUnwrap(out string? className, out error)
+            ? className
             : PropertyError.ClassNameUnreadable(prop, klass, nameAddress, _classLayout.Name, error);
     }
 
     /// <inheritdoc/>
     public Result<int> ArrayDimOf(Address prop)
     {
-        return PropertyMembers.ReadArrayDim(_memory, prop, _layout);
+        return PropertyMembers.ReadArrayDim(_memory, prop, _propertyLayout);
     }
 
     /// <inheritdoc/>
     public Result<int> ElementSizeOf(Address prop)
     {
-        return PropertyMembers.ReadElementSize(_memory, prop, _layout);
+        return PropertyMembers.ReadElementSize(_memory, prop, _propertyLayout);
     }
 
     /// <inheritdoc/>
     public Result<int> OffsetOf(Address prop)
     {
-        return PropertyMembers.ReadOffset(_memory, prop, _layout);
+        return PropertyMembers.ReadOffset(_memory, prop, _propertyLayout);
     }
 
     private Result<string> ReadName(Address address)
@@ -159,7 +159,7 @@ public sealed class FieldPropertyReader(
             return PropertyError.NameNumberNegative(address, number);
         }
 
-        return _names.Read(id).TryUnwrap(out string? text, out error)
+        return _nameTable.Read(id).TryUnwrap(out string? text, out error)
             ? NameMembers.Join(text, number)
             : error;
     }

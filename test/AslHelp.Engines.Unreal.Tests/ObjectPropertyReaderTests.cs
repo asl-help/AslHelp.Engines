@@ -368,43 +368,43 @@ public sealed class ObjectPropertyReaderTests(
         }
     }
 
-    // The kind is the base name of the class object, which doesn't have a U in front.
+    // The class name is the base name of the class object, which doesn't have a U in front.
     [Test]
-    public void KindOf_IntProperty_ReturnsClassNameWithoutPrefix()
+    public void ClassNameOf_IntProperty_ReturnsClassNameWithoutPrefix()
     {
-        Assert.That(CreateReader(MemoryWithChain()).KindOf(_property1).Unwrap(), Is.EqualTo("IntProperty"));
+        Assert.That(CreateReader(MemoryWithChain()).ClassNameOf(_property1).Unwrap(), Is.EqualTo("IntProperty"));
     }
 
     // A class that doesn't read fails with the property and the class offset.
     [Test]
-    public void KindOf_UnreadableClass_FailsWithKindAndClassOffset()
+    public void ClassNameOf_UnreadableClass_FailsWithPropertyAndClassOffset()
     {
         var address = _property1 + PastBlock;
         var reader = CreateReader(MemoryWithChain(), objectLayout with { Class = PastBlock });
 
         Assert.That(
-            reader.KindOf(_property1).UnwrapErr().Message,
+            reader.ClassNameOf(_property1).UnwrapErr().Message,
             Is.EqualTo(
-                $"Can't read the kind of the property at {_property1}. "
+                $"Can't read the class name of the property at {_property1}. "
                 + $"Can't read the class of the object at {_property1}: reading {address} failed. No block contains {address}. "
                 + $"Check ObjectLayout.Class (0x{PastBlock:X})."));
     }
 
     // A class pointer of 0 fails, because a property always has a class.
     [Test]
-    public void KindOf_ZeroClass_FailsWithNullObject()
+    public void ClassNameOf_ZeroClass_FailsWithNullObject()
     {
         var memory = MemoryWithChain();
         memory.WritePointer(_property1 + objectLayout.Class, Address.Zero);
 
         Assert.That(
-            CreateReader(memory).KindOf(_property1).UnwrapErr().Message,
-            Is.EqualTo($"Can't read the kind of the property at {_property1}. The object pointer is 0."));
+            CreateReader(memory).ClassNameOf(_property1).UnwrapErr().Message,
+            Is.EqualTo($"Can't read the class name of the property at {_property1}. The object pointer is 0."));
     }
 
     // A class whose name doesn't read fails with the property and the name offset.
     [Test]
-    public void KindOf_UnreadableClassName_FailsWithKindAndNameOffset()
+    public void ClassNameOf_UnreadableClassName_FailsWithPropertyAndNameOffset()
     {
         var memory = MemoryWithChain();
         memory.WritePointer(_property1 + objectLayout.Class, _unreadable);
@@ -412,9 +412,9 @@ public sealed class ObjectPropertyReaderTests(
         var address = _unreadable + objectLayout.Name;
 
         Assert.That(
-            CreateReader(memory).KindOf(_property1).UnwrapErr().Message,
+            CreateReader(memory).ClassNameOf(_property1).UnwrapErr().Message,
             Is.EqualTo(
-                $"Can't read the kind of the property at {_property1}. "
+                $"Can't read the class name of the property at {_property1}. "
                 + $"Can't read the name of the object at {_unreadable}: reading {address} failed. No block contains {address}. "
                 + $"Check ObjectLayout.Name (0x{objectLayout.Name:X})."));
     }
@@ -504,13 +504,13 @@ public sealed class ObjectPropertyReaderTests(
                 Throws.ArgumentNullException.With.Property("ParamName").EqualTo("memory"));
             Assert.That(
                 () => new ObjectPropertyReader(memory, null!, structs, layout),
-                Throws.ArgumentNullException.With.Property("ParamName").EqualTo("objects"));
+                Throws.ArgumentNullException.With.Property("ParamName").EqualTo("objectReader"));
             Assert.That(
                 () => new ObjectPropertyReader(memory, objects, null!, layout),
-                Throws.ArgumentNullException.With.Property("ParamName").EqualTo("structs"));
+                Throws.ArgumentNullException.With.Property("ParamName").EqualTo("structReader"));
             Assert.That(
                 () => new ObjectPropertyReader(memory, objects, structs, null!),
-                Throws.ArgumentNullException.With.Property("ParamName").EqualTo("layout"));
+                Throws.ArgumentNullException.With.Property("ParamName").EqualTo("propertyLayout"));
         }
     }
 

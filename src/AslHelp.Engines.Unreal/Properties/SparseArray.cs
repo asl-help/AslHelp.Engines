@@ -1,0 +1,183 @@
+using AslHelp.Engines.Unreal.Errors;
+using AslHelp.Memory;
+using System;
+using System.Buffers.Binary;
+using System.Runtime.InteropServices;
+
+namespace AslHelp.Engines.Unreal.Properties;
+
+/// <summary>
+///     Reads the slots of the sparse array of a set or a map property and the bits that mark which slots are used.
+/// </summary>
+/// <remarks>
+///     Keeps the allocation bits in a buffer, so a read doesn't allocate. Isn't thread-safe.
+/// </remarks>
+internal sealed class SparseArray
+{
+    private const int BitsPerWord = 32;
+
+    private readonly SparseArrayLayout _layout;
+    private readonly UnrealProperty _property;
+    private readonly int _start;
+
+    private uint[] _words = [];
+
+    /// <summary>
+    ///     Initializes a new instance of the <see cref="SparseArray"/> class.
+    /// </summary>
+    /// <param name="property">The set or map property, for the messages.</param>
+    /// <param name="layout">The offsets inside the sparse array.</param>
+    /// <param name="start">The offset of the sparse array in the value of the property.</param>
+    public SparseArray(UnrealProperty property, SparseArrayLayout layout, int start)
+    {
+        _property = property;
+        _layout = layout;
+        _start = start;
+        Count = new SparseCount(property, this);
+    }
+
+    /// <summary>
+    ///     Gets the read of the number of used slots.
+    /// </summary>
+    public ValueAccess<int> Count { get; }
+
+    /// <summary>
+    ///     Checks whether the slot <paramref name="slot"/> of the last <see cref="ReadSlots"/> is used.
+    /// </summary>
+    /// <param name="slot">The slot, below the slot count of the last read.</param>
+    /// <returns>
+    ///     <see langword="true"/> when its allocation bit is set.
+    /// </returns>
+    public bool IsUsed(int slot)
+    {
+        return (_words[slot / BitsPerWord] & (1u << (slot % BitsPerWord))) != 0;
+    }
+
+    /// <summary>
+    ///     Reads the number of used slots, which is the number of slots minus the number of free slots.
+    /// </summary>
+    /// <param name="memory">The memory to read from.</param>
+    /// <param name="container">The address of the object or struct with the property.</param>
+    /// <returns>
+    ///     The number or a failure when a read fails, a number is below 0 or there are more free slots than slots.
+    /// </returns>
+    public Result<int> ReadCount(IMemoryReader memory, Address container)
+    {
+        var start = container + _property.Offset + _start;
+
+        if (!ReadInt32(memory, container, start + _layout.Count).TryUnwrap(out int slots, out var error)
+            || !ReadInt32(memory, container, start + _layout.NumFreeIndices).TryUnwrap(out int free, out error))
+        {
+            return error;
+        }
+
+        if (slots < 0)
+        {
+            return CollectionError.CountNegative(_property.Name, slots);
+        }
+
+        if (free < 0 || free > slots)
+        {
+            return CollectionError.FreeSlotsOutOfRange(_property.Name, free, slots);
+        }
+
+        return slots - free;
+    }
+
+    /// <summary>
+    ///     Reads the pointer to the slots, the number of slots and the allocation bits, which <see cref="IsUsed"/> then tests.
+    /// </summary>
+    /// <remarks>
+    ///     Reads the bits behind the secondary pointer when it isn't 0, otherwise the bits inside the sparse array.
+    /// </remarks>
+    /// <param name="memory">The memory to read from.</param>
+    /// <param name="container">The address of the object or struct with the property.</param>
+    /// <returns>
+    ///     The pointer and the number of slots or a failure when a read fails or the number of slots is below 0 or past the bound.
+    /// </returns>
+    public Result<(Address Data, int SlotCount)> ReadSlots(IMemoryReader memory, Address container)
+    {
+        var start = container + _property.Offset + _start;
+
+        if (!ReadInt32(memory, container, start + _layout.Count).TryUnwrap(out int slots, out var error))
+        {
+            return error;
+        }
+
+        if (slots < 0)
+        {
+            return CollectionError.CountNegative(_property.Name, slots);
+        }
+
+        if (slots > ValueBounds.MaxElements)
+        {
+            return CollectionError.TooManySlots(_property.Name, slots, ValueBounds.MaxElements);
+        }
+
+        if (slots == 0)
+        {
+            return (Address.Zero, 0);
+        }
+
+        if (!ReadPointer(memory, container, start + _layout.Data).TryUnwrap(out var data, out error)
+            || !ReadPointer(memory, container, start + _layout.NumBits - memory.Layout.PointerSize).TryUnwrap(out var secondary, out error))
+        {
+            return error;
+        }
+
+        if (data == Address.Zero)
+        {
+            return CollectionError.DataNull(_property.Name, slots);
+        }
+
+        int wordCount = (slots + BitsPerWord - 1) / BitsPerWord;
+
+        if (_words.Length < wordCount)
+        {
+            _words = new uint[ValueBounds.MaxElements / BitsPerWord];
+        }
+
+        var words = _words.AsSpan(0, wordCount);
+        var bits = secondary == Address.Zero ? start + _layout.InlineBits : secondary;
+
+        if (memory.Read(bits, MemoryMarshal.AsBytes(words)).TryUnwrapErr(out error))
+        {
+            return ValueError.Unreadable(container, _property.Name, bits, error);
+        }
+
+        // Swap the bytes of each word when the game's byte order isn't the host's, because the read copies the bytes as they are.
+        if (BitConverter.IsLittleEndian != (memory.Layout.ByteOrder == ByteOrder.LittleEndian))
+        {
+            for (int i = 0; i < words.Length; i++)
+            {
+                words[i] = BinaryPrimitives.ReverseEndianness(words[i]);
+            }
+        }
+
+        return (data, slots);
+    }
+
+    private Result<int> ReadInt32(IMemoryReader memory, Address container, Address address)
+    {
+        return memory.Read<int>(address).TryUnwrap(out int value, out var error)
+            ? value
+            : ValueError.Unreadable(container, _property.Name, address, error);
+    }
+
+    private Result<Address> ReadPointer(IMemoryReader memory, Address container, Address address)
+    {
+        return memory.ReadPointer(address).TryUnwrap(out var value, out var error)
+            ? value
+            : ValueError.Unreadable(container, _property.Name, address, error);
+    }
+}
+
+file sealed class SparseCount(
+    UnrealProperty property,
+    SparseArray sparseArray) : ValueAccess<int>(property)
+{
+    public override Result<int> Read(IMemoryReader memory, Address container, int last)
+    {
+        return sparseArray.ReadCount(memory, container);
+    }
+}

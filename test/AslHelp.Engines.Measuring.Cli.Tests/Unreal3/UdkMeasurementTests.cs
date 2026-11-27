@@ -58,6 +58,40 @@ public sealed class UdkMeasurementTests(
         }
     }
 
+    // A fixture class without the value fields reports their members unmeasured and still finds ArrayDim.
+    [Test]
+    public void Measure_FixtureWithoutValueFields_ReportsValueMembersUnmeasured()
+    {
+        _image.RemoveValueFields();
+
+        var measurement = Measure();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(measurement.Unmeasured[UdkValueMembers.BitMask], Is.EqualTo(UdkSR.UnmeasuredBitMask));
+            Assert.That(measurement.Unmeasured[UdkValueMembers.Struct], Is.EqualTo(UdkSR.UnmeasuredStruct));
+            Assert.That(measurement.Unmeasured[UdkValueMembers.Inner], Is.EqualTo(UdkSR.UnmeasuredInner));
+            Assert.That(measurement.Unmeasured[UdkValueMembers.Data], Is.EqualTo(UdkSR.UnmeasuredString));
+            Assert.That(measurement.Unmeasured[UdkValueMembers.NameNumber], Is.EqualTo(UdkSR.UnmeasuredName));
+            Assert.That(measurement.Offsets[UdkValueMembers.ArrayDim], Is.EqualTo(layout.ArrayDim));
+        }
+    }
+
+    // Every property with 1 element leaves the element count unproven, so ArrayDim stays unmeasured even at its real offset.
+    [Test]
+    public void Measure_NoStaticArray_ReportsArrayDimUnmeasured()
+    {
+        _image.SetStaticArrayToOneElement();
+
+        var measurement = Measure();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(measurement.Unmeasured[UdkValueMembers.ArrayDim], Is.EqualTo(UdkSR.UnmeasuredArrayDim));
+            Assert.That(measurement.Offsets, Does.Not.ContainKey(UdkValueMembers.ArrayDim));
+        }
+    }
+
     // The arrays are the RVAs of their headers, GEngine is the slot of the engine object and GWorld is the slot of TheWorld and not of OtherWorld.
     [Test]
     public void Measure_FakeImage_FindsEveryGlobal()
@@ -665,12 +699,13 @@ public sealed class UdkMeasurementTests(
         Assert.That(Measure().Offsets[UdkMembers.ObjectName], Is.EqualTo(layout.Name));
     }
 
-    // 2 objects in 27 without a name fall under the 95% limit, so the real offset stops being a candidate.
+    // 3 of the 42 objects without a name fall under the 95% limit, so the real offset stops being a candidate.
     [Test]
-    public void Measure_TwoObjectsWithoutName_DoesNotUseTheNameOffset()
+    public void Measure_ThreeObjectsWithoutName_DoesNotUseTheNameOffset()
     {
         _image.Memory.WriteInt32(_image.Engine + layout.Name, -1);
         _image.Memory.WriteInt32(_image.Core + layout.Name, -1);
+        _image.Memory.WriteInt32(_image.FixtureInstance + layout.Name, -1);
 
         Assert.That(MeasureError(), Is.EqualTo(UdkSR.ClassOffsetNotFound));
     }

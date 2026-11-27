@@ -1,7 +1,12 @@
+using AslHelp.Engines.Unreal.Names;
+using AslHelp.Engines.Unreal.Objects;
+using AslHelp.Engines.Unreal.Properties;
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace AslHelp.Engines.Unreal.Tests;
@@ -289,6 +294,34 @@ internal sealed class FakeMemory : IMemoryReader
         WriteInt32(
             operand,
             Layout.PointerSize == sizeof(ulong) ? checked((int)(global - (operand + sizeof(int)))) : unchecked((int)global.Value));
+    }
+
+    /// <summary>
+    ///     Writes the bytes of a value of <typeparamref name="T"/> in little-endian order into the block that contains <paramref name="address"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of the value.</typeparam>
+    /// <param name="address">The address of the value.</param>
+    /// <param name="value">The value.</param>
+    /// <exception cref="ArgumentOutOfRangeException">No block contains <paramref name="address"/>.</exception>
+    public void Write<T>(Address address, T value)
+        where T : unmanaged
+    {
+        ReadOnlySpan<T> values = [value];
+        var bytes = MemoryMarshal.AsBytes(values);
+
+        bytes.CopyTo(BytesAt(address, bytes.Length));
+    }
+
+    /// <summary>
+    ///     Writes UTF-16 text without a terminator into the block that contains <paramref name="address"/>.
+    /// </summary>
+    /// <param name="address">The address of the 1st character.</param>
+    /// <param name="text">The text.</param>
+    /// <exception cref="ArgumentOutOfRangeException">No block contains <paramref name="address"/>.</exception>
+    public void WriteUtf16(Address address, string text)
+    {
+        byte[] bytes = Encoding.Unicode.GetBytes(text);
+        bytes.CopyTo(BytesAt(address, bytes.Length));
     }
 
     /// <summary>

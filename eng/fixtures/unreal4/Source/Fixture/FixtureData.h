@@ -138,6 +138,9 @@ public:
     FVector Position;
 
     UPROPERTY()
+    FRotator Rotation;
+
+    UPROPERTY()
     TArray<int32> IntArray;
 
     UPROPERTY()
@@ -156,10 +159,20 @@ public:
     UPROPERTY()
     TMap<int32, int32> IntDict;
 
+    UPROPERTY()
+    TMap<FName, int32> NameDict;
+
+    UPROPERTY()
+    TMap<int32, FFixtureCoord> CoordDict;
+
     //@endif
     //@if >=4.13
     UPROPERTY()
     TSet<int32> IntSet;
+
+    // Removes 1 name after adding 3, so the set has a free slot to skip.
+    UPROPERTY()
+    TSet<FName> NameSet;
 
     //@endif
     UPROPERTY()

@@ -16,10 +16,13 @@ namespace AslHelp.Engines.Measuring.Cli.Tests.Unreal3;
 /// <param name="Children">The offset of the 1st field.</param>
 /// <param name="Size">The offset of the property size.</param>
 /// <param name="Next">The offset of the next field.</param>
+/// <param name="ArrayDim">The offset of the element count of a property.</param>
 /// <param name="ElementSize">The offset of the element size of a property.</param>
 /// <param name="Offset">The offset of the offset of a property.</param>
 /// <param name="LinkNext">The offset of the next linked property.</param>
-/// <param name="PropertySize">The size of the class Property, where the class of an object property sits.</param>
+/// <param name="PropertySize">
+///     The size of the class Property, where the class of an object property, the mask of a bool and the struct type sit.
+/// </param>
 /// <param name="FieldSize">The size of the class Field, where the names of an enum sit.</param>
 /// <param name="ObjectSize">The size of the class Object.</param>
 /// <param name="StructSize">The size of the class Struct.</param>
@@ -36,6 +39,7 @@ public sealed record FakeLayout(
     int Children,
     int Size,
     int Next,
+    int ArrayDim,
     int ElementSize,
     int Offset,
     int LinkNext,
@@ -60,6 +64,7 @@ public sealed record FakeLayout(
         Children: 0x4C,
         Size: 0x50,
         Next: 0x3C,
+        ArrayDim: 0x40,
         ElementSize: 0x44,
         Offset: 0x60,
         LinkNext: 0x64,
@@ -71,7 +76,8 @@ public sealed record FakeLayout(
         ClassSize: 0xF0);
 
     /// <summary>
-    ///     Gets a layout with every offset moved, the super struct behind the children and the link below the offset.
+    ///     Gets a layout with every offset moved, the super struct behind the children, the link below the offset
+    ///     and the element count away from the element size.
     /// </summary>
     public static FakeLayout Shifted { get; } = new(
         EntryIndex: 0x04,
@@ -84,6 +90,7 @@ public sealed record FakeLayout(
         Children: 0x54,
         Size: 0x64,
         Next: 0x44,
+        ArrayDim: 0x68,
         ElementSize: 0x4C,
         Offset: 0x70,
         LinkNext: 0x50,
@@ -119,6 +126,14 @@ public sealed record FakeLayout(
             [UdkMembers.PropertyLinkNext] = LinkNext,
             [UdkMembers.PropertySize] = Size,
             [UdkMembers.SuperField] = Super,
+            [UdkValueMembers.ArrayDim] = ArrayDim,
+            [UdkValueMembers.ArrayNum] = sizeof(uint),
+            [UdkValueMembers.BitMask] = PropertySize,
+            [UdkValueMembers.Data] = 0,
+            [UdkValueMembers.Inner] = PropertySize,
+            [UdkValueMembers.NameIndex] = 0,
+            [UdkValueMembers.NameNumber] = sizeof(int),
+            [UdkValueMembers.Struct] = PropertySize,
         };
     }
 }

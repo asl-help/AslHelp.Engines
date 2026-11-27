@@ -1,44 +1,55 @@
 using AslHelp.Engines.Unreal.Errors;
+using AslHelp.Engines.Unreal.Properties;
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using System;
 
 namespace AslHelp.Engines.Unreal;
 
 /// <summary>
-///     Represents a property of a class and the offset of its value in an object of that class.
+///     Represents a property of a class or struct and the offset of its value in an object of that class.
 /// </summary>
+/// <remarks>
+///     Reads what its kind needs, like the mask of a bool, at the 1st read of a value and keeps it,
+///     because the engine doesn't change a loaded property.
+///     Isn't thread-safe.
+/// </remarks>
 public sealed class UnrealProperty
 {
-    // A TSubclassOf property stores a pointer to the class object.
-    private const string ClassPropertyClass = "ClassProperty";
+    private readonly ClassReader _classReader;
 
-    // 5.0 to 5.3 print TObjectPtr properties as ClassPtrProperty and ObjectPtrProperty.
-    private const string ClassPtrPropertyClass = "ClassPtrProperty";
-
-    private const string IntPropertyClass = "IntProperty";
-    private const string ObjectPropertyClass = "ObjectProperty";
-    private const string ObjectPtrPropertyClass = "ObjectPtrProperty";
+    private PropertyAccess? _access;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="UnrealProperty"/> class.
     /// </summary>
+    /// <param name="classReader">The reader of the game, which the kind reads its members with.</param>
+    /// <param name="address">The address of the property.</param>
     /// <param name="name">The name of the property.</param>
     /// <param name="className">The class of the property without a prefix, like <c>IntProperty</c>.</param>
     /// <param name="offset">The offset of the value in an object.</param>
     /// <param name="elementSize">The size in bytes of 1 element of the value.</param>
-    internal UnrealProperty(string name, string className, int offset, int elementSize)
+    internal UnrealProperty(
+        ClassReader classReader,
+        Address address,
+        string name,
+        string className,
+        int offset,
+        int elementSize)
     {
+        _classReader = classReader;
+        Address = address;
         Name = name;
         ClassName = className;
         Offset = offset;
         ElementSize = elementSize;
-        Kind = className switch
-        {
-            IntPropertyClass => PropertyKind.Int32,
-            ClassPropertyClass or ClassPtrPropertyClass or ObjectPropertyClass or ObjectPtrPropertyClass => PropertyKind.Object,
-            _ => PropertyKind.Unsupported,
-        };
+        Kind = PropertyKinds.Find(className);
     }
+
+    /// <summary>
+    ///     Gets the address of the property.
+    /// </summary>
+    public Address Address { get; }
 
     /// <summary>
     ///     Gets the class of the property without a prefix, like <c>IntProperty</c>.
@@ -61,13 +72,16 @@ public sealed class UnrealProperty
     public int Offset { get; }
 
     /// <summary>
-    ///     Gets the kind of the value, mapped from <see cref="ClassName"/>.
+    ///     Gets the kind of the value, found by <see cref="ClassName"/>.
     /// </summary>
     internal PropertyKind Kind { get; }
 
     /// <summary>
     ///     Calls the method of <paramref name="visitor"/> for the kind of this property.
     /// </summary>
+    /// <remarks>
+    ///     Doesn't read memory.
+    /// </remarks>
     /// <typeparam name="TResult">The type of the result of a visit.</typeparam>
     /// <param name="visitor">The visitor.</param>
     /// <returns>
@@ -76,71 +90,74 @@ public sealed class UnrealProperty
     /// <exception cref="ArgumentNullException">
     ///     <paramref name="visitor"/> is <see langword="null"/>.
     /// </exception>
-    public TResult Accept<TResult>(IPropertyVisitor<TResult> visitor)
+    public TResult Accept<TResult>(PropertyVisitor<TResult> visitor)
     {
         ArgumentNullException.ThrowIfNull(visitor);
 
-        return Kind switch
-        {
-            PropertyKind.Int32 => visitor.VisitInt32(this),
-            PropertyKind.Object => visitor.VisitObject(this),
-            _ => visitor.VisitUnsupported(this),
-        };
+        return Kind.Accept(visitor, this);
     }
 
     /// <summary>
-    ///     Reads the value of this property in <paramref name="obj"/> as a 4-byte signed integer.
+    ///     Returns the kind, the name, the offset and the element size of the property.
     /// </summary>
+    /// <returns>
+    ///     The text, like <c>IntProperty Hp @ 0x88 (4 bytes)</c>.
+    /// </returns>
+    public override string ToString()
+    {
+        return FormattableString.Invariant($"{ClassName} {Name} @ 0x{Offset:X} ({ElementSize} bytes)");
+    }
+
+    /// <summary>
+    ///     Returns the access of the kind of this property.
+    /// </summary>
+    /// <remarks>
+    ///     Keeps the access, also one that fails every read for a missing part of the profile.
+    ///     Doesn't keep a failed read of a member of the property, so the next call reads again.
+    /// </remarks>
+    /// <returns>
+    ///     The access or a failure when a member of the property doesn't read.
+    /// </returns>
+    internal Result<PropertyAccess> Bind()
+    {
+        if (_access is not null)
+        {
+            return _access;
+        }
+
+        if (!Kind.Bind(this, _classReader).TryUnwrap(out var access, out var error))
+        {
+            return error;
+        }
+
+        _access = access;
+
+        return access;
+    }
+
+    /// <summary>
+    ///     Reads the value of this property in <paramref name="obj"/> as <typeparamref name="T"/>.
+    /// </summary>
+    /// <typeparam name="T">The type of the value.</typeparam>
     /// <param name="memory">The memory to read from.</param>
     /// <param name="obj">The address of the object.</param>
     /// <returns>
-    ///     The value or a failure when the property isn't an <c>IntProperty</c>, <paramref name="obj"/> is <see cref="Address.Zero"/>
-    ///     or the read fails.
+    ///     The value or a failure when the kind reads another type, <paramref name="obj"/> is <see cref="Address.Zero"/> or a read fails.
     /// </returns>
-    internal Result<int> ReadInt32(IMemoryReader memory, Address obj)
+    internal Result<T> Read<T>(IMemoryReader memory, Address obj)
     {
-        if (Kind != PropertyKind.Int32)
-        {
-            return ValueError.WrongKind(Name, ClassName, IntPropertyClass);
-        }
-
         if (obj == Address.Zero)
         {
             return ObjectError.NullObject();
         }
 
-        var address = obj + Offset;
-
-        return memory.Read<int>(address).TryUnwrap(out int value, out var error)
-            ? value
-            : ValueError.Unreadable(obj, Name, address, error);
-    }
-
-    /// <summary>
-    ///     Reads the value of this property in <paramref name="obj"/> as an object pointer.
-    /// </summary>
-    /// <param name="memory">The memory to read from.</param>
-    /// <param name="obj">The address of the object.</param>
-    /// <returns>
-    ///     The address of the object it points at or a failure when the property isn't an object property,
-    ///     <paramref name="obj"/> is <see cref="Address.Zero"/> or the read fails. A pointer of 0 returns <see cref="Address.Zero"/>.
-    /// </returns>
-    internal Result<Address> ReadObject(IMemoryReader memory, Address obj)
-    {
-        if (Kind != PropertyKind.Object)
+        if (!Bind().TryUnwrap(out var access, out var error))
         {
-            return ValueError.WrongKind(Name, ClassName, ObjectPropertyClass);
+            return error;
         }
 
-        if (obj == Address.Zero)
-        {
-            return ObjectError.NullObject();
-        }
-
-        var address = obj + Offset;
-
-        return memory.ReadPointer(address).TryUnwrap(out var target, out var error)
-            ? target
-            : ValueError.Unreadable(obj, Name, address, error);
+        return access is ValueAccess<T> valueAccess
+            ? valueAccess.Read(memory, obj, default)
+            : access.NotValueOf(typeof(T));
     }
 }

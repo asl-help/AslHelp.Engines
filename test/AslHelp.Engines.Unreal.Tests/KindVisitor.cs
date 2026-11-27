@@ -1,25 +1,33 @@
+using AslHelp.Engines.Unreal.Properties;
+
 namespace AslHelp.Engines.Unreal.Tests;
 
 /// <summary>
-///     Provides a visitor that returns the name of the visit method it reached and the property it got.
+///     Provides a visitor that returns the visit method it reached and the property it got, with the value type for <c>VisitValue</c>.
 /// </summary>
-internal sealed class KindVisitor : IPropertyVisitor<(string Kind, UnrealProperty Property)>
+internal sealed class KindVisitor : PropertyVisitor<(string Kind, UnrealProperty Property)>
 {
     /// <inheritdoc/>
-    public (string Kind, UnrealProperty Property) VisitInt32(UnrealProperty prop)
+    public override (string Kind, UnrealProperty Property) VisitEnum(UnrealProperty prop)
     {
-        return (nameof(VisitInt32), prop);
+        return (nameof(VisitEnum), prop);
     }
 
     /// <inheritdoc/>
-    public (string Kind, UnrealProperty Property) VisitObject(UnrealProperty prop)
+    public override (string Kind, UnrealProperty Property) VisitStruct(UnrealProperty prop)
     {
-        return (nameof(VisitObject), prop);
+        return (nameof(VisitStruct), prop);
     }
 
     /// <inheritdoc/>
-    public (string Kind, UnrealProperty Property) VisitUnsupported(UnrealProperty prop)
+    public override (string Kind, UnrealProperty Property) VisitUnsupported(UnrealProperty prop)
     {
         return (nameof(VisitUnsupported), prop);
+    }
+
+    /// <inheritdoc/>
+    public override (string Kind, UnrealProperty Property) VisitValue<T>(UnrealProperty prop)
+    {
+        return ($"{nameof(VisitValue)}<{typeof(T).Name}>", prop);
     }
 }

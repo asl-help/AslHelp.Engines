@@ -19,10 +19,12 @@ public sealed class UnrealGameEdgeTests(
         new(MemoryLayout.X64, new Address(0x7FF6_0000_0000)),
     ];
 
+    private static readonly byte[] _gEngineCode = [0xE1, 0xE2, 0xE3];
     private static readonly byte[] _gUObjectArrayCode = [0xB1, 0xB2, 0xB3];
     private static readonly byte[] _gWorldCode = [0xC1, 0xC2, 0xC3];
     private static readonly byte[] _namesCode = [0xA1, 0xA2, 0xA3];
 
+    private readonly Address _gEngine = start + 0x12_1000;
     private readonly Address _gUObjectArray = start + 0x11_0000;
     private readonly Address _gWorld = start + 0x12_0000;
     private readonly Address _module = start;
@@ -95,6 +97,7 @@ public sealed class UnrealGameEdgeTests(
         memory.WriteGlobalReference(_module + 0x100, _namesCode, _names);
         memory.WriteGlobalReference(_module + 0x200, _gUObjectArrayCode, _gUObjectArray);
         memory.WriteGlobalReference(_module + 0x300, _gWorldCode, _gWorld);
+        memory.WriteGlobalReference(_module + 0x400, _gEngineCode, _gEngine);
 
         var game = UnrealGame.Attach(memory, Module, Profile("indirect", "pointers")).Unwrap();
 
@@ -108,6 +111,7 @@ public sealed class UnrealGameEdgeTests(
 
         return $$"""
             {
+              "engine": "unreal4",
               "versions": ["4.0"],
               "shapes": { "FField": "uproperty", "FNameEntry": "{{names}}", "FUObjectArray": "{{array}}" },
               "offsets": {
@@ -122,6 +126,7 @@ public sealed class UnrealGameEdgeTests(
               },
               "globals": {
                 "{{namesGlobal}}": { "4.0": [{ "forward": "A1 A2 A3 ????????", "offset": 3 }, { "read": "global" }] },
+                "GEngine": { "4.0": [{ "forward": "E1 E2 E3 ????????", "offset": 3 }, { "read": "global" }] },
                 "GUObjectArray": { "4.0": [{ "forward": "B1 B2 B3 ????????", "offset": 3 }, { "read": "global" }] },
                 "GWorld": { "4.0": [{ "forward": "C1 C2 C3 ????????", "offset": 3 }, { "read": "global" }] }
               }
@@ -134,7 +139,7 @@ public sealed class UnrealGameEdgeTests(
         return UnrealProfile.Parse(Document(names, array)).Unwrap();
     }
 
-    // Adds the module with 1 instruction per global and a GWorld slot of 0.
+    // Adds the module with 1 instruction per global and the slots of GWorld and GEngine at 0.
     private FakeMemory MemoryWithModule(bool names = true)
     {
         FakeMemory memory = new() { Layout = memoryLayout };
@@ -147,7 +152,9 @@ public sealed class UnrealGameEdgeTests(
 
         memory.WriteGlobalReference(_module + 0x200, _gUObjectArrayCode, _gUObjectArray);
         memory.WriteGlobalReference(_module + 0x300, _gWorldCode, _gWorld);
+        memory.WriteGlobalReference(_module + 0x400, _gEngineCode, _gEngine);
         memory.AddPointers(_gWorld, Address.Zero);
+        memory.AddPointers(_gEngine, Address.Zero);
 
         return memory;
     }

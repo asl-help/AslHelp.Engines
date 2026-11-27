@@ -1,4 +1,6 @@
 using AslHelp.Engines.Unreal;
+using AslHelp.Engines.Unreal.Objects;
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using Microsoft.Extensions.Logging;
 using System;
@@ -68,10 +70,12 @@ internal static class UdkMeasurement
         logger.OffsetsFound(offsets.Count);
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (UdkFixtureCheck.Run(memory, measured, offsets, logger).TryUnwrapErr(out error))
+        if (!UdkFixtureCheck.Run(memory, measured, offsets, logger).TryUnwrap(out var fixture, out error))
         {
             return error;
         }
+
+        UdkValueMembers.Measure(memory, names, measured, fixture, offsets, unmeasured);
 
         Dictionary<string, IReadOnlyList<uint>> globals = [];
         HashSet<Address> known = [.. objects.Pointers];

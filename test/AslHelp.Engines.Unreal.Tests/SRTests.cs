@@ -1,4 +1,6 @@
 using AslHelp.Engines.Unreal.Errors;
+using AslHelp.Engines.Unreal.Objects;
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using NUnit.Framework;
 using System.Collections;

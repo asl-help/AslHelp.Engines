@@ -1,5 +1,6 @@
 using AslHelp.Engines.Measuring.Cli.Unreal3.Errors;
 using AslHelp.Engines.Unreal;
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using Microsoft.Extensions.Logging;
 using System;
@@ -7,6 +8,15 @@ using System.Collections.Generic;
 using System.Linq;
 
 namespace AslHelp.Engines.Measuring.Cli.Unreal3;
+
+/// <summary>
+///     Represents the fixture class and the spawned object that <see cref="UdkFixtureCheck.Run"/> reads the fixture value from.
+/// </summary>
+/// <param name="Class">The class called FixtureData.</param>
+/// <param name="Instance">The spawned object of the class.</param>
+internal sealed record UdkFixture(
+    Address Class,
+    Address Instance);
 
 /// <summary>
 ///     Checks the offsets found against the value the fixture game sets when play begins.
@@ -39,10 +49,11 @@ internal static class UdkFixtureCheck
     /// <param name="offsets">The offsets found.</param>
     /// <param name="logger">The logger for the value read.</param>
     /// <returns>
-    ///     A failure when Children, Next or Offset was not found, the class, the spawned object or the field does not exist,
+    ///     The fixture class and its spawned object
+    ///     or a failure when Children, Next or Offset was not found, the class, the spawned object or the field does not exist,
     ///     the fields, the offset of the field or the value do not read or the value is not <see cref="ExpectedValue"/>.
     /// </returns>
-    public static Result Run(IMemoryReader memory, UdkMeasuredObjects measured, IReadOnlyDictionary<string, int> offsets, ILogger logger)
+    public static Result<UdkFixture> Run(IMemoryReader memory, UdkMeasuredObjects measured, IReadOnlyDictionary<string, int> offsets, ILogger logger)
     {
         foreach (string member in (string[])[UdkMembers.Children, UdkMembers.Next, UdkMembers.Offset])
         {
@@ -135,6 +146,6 @@ internal static class UdkFixtureCheck
 
         logger.FixtureValueRead(value, instance);
 
-        return Result.Ok();
+        return new UdkFixture(fixtureClass, instance);
     }
 }

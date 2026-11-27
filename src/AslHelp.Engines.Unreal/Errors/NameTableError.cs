@@ -1,3 +1,4 @@
+using AslHelp.Engines.Unreal.Names;
 using AslHelp.Memory;
 using System.Globalization;
 
@@ -332,6 +333,22 @@ internal abstract record NameTableError : ResultError
     {
         return new EntryTextUnreadableError(id, entry, address, offset, cause);
     }
+
+    /// <summary>
+    ///     Creates the error for a text without a terminator within the longest name.
+    /// </summary>
+    /// <param name="id">The id of the name.</param>
+    /// <param name="entry">The address of the entry.</param>
+    /// <param name="address">The address of the text.</param>
+    /// <param name="offset">The offset of the text in the entry.</param>
+    /// <param name="maxLength">The largest number of chars in front of the terminator.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static NameTableError TextUnterminated(int id, Address entry, Address address, int offset, int maxLength)
+    {
+        return new EntryTextUnterminatedError(id, entry, address, offset, maxLength);
+    }
 }
 
 /// <summary>
@@ -558,6 +575,18 @@ file sealed record EntryTextUnreadableError(
     /// <inheritdoc/>
     public override string Message
         => SR.FormatNameEntryTextUnreadable(Id, Entry, Address, Cause.Message, Offset.ToString("X", CultureInfo.InvariantCulture));
+}
+
+file sealed record EntryTextUnterminatedError(
+    int Id,
+    Address Entry,
+    Address Address,
+    int Offset,
+    int MaxLength) : NameTableError
+{
+    /// <inheritdoc/>
+    public override string Message
+        => SR.FormatNameEntryTextUnterminated(Id, Entry, Address, MaxLength, Offset.ToString("X", CultureInfo.InvariantCulture));
 }
 
 /// <summary>

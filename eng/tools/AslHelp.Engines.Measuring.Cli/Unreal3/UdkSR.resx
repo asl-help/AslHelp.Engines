@@ -90,11 +90,23 @@
   <data name="TargetsNeedsOneObjectArray" xml:space="preserve">
     <value>'{0}' needs exactly 1 target of the type objectArray.</value>
   </data>
+  <data name="UnmeasuredArrayDim" xml:space="preserve">
+    <value>No int reads as the element count of every property.</value>
+  </data>
+  <data name="UnmeasuredArrayDimAmbiguous" xml:space="preserve">
+    <value>The ints at {0} and {1} both read as the element count of every property.</value>
+  </data>
+  <data name="UnmeasuredBitMask" xml:space="preserve">
+    <value>No int of the properties BoolValue, bFirst, bSecond and bThird reads as 1 bit that gives their fixture values.</value>
+  </data>
   <data name="UnmeasuredChildren" xml:space="preserve">
     <value>No pointer of the class Object starts a chain of 5 fields with Outer, Name and Class.</value>
   </data>
   <data name="UnmeasuredElementSize" xml:space="preserve">
     <value>No int of the properties Outer, Name and Class reads as their element sizes.</value>
+  </data>
+  <data name="UnmeasuredName" xml:space="preserve">
+    <value>No int of NameValue reads as fixture-name with a number next to it.</value>
   </data>
   <data name="UnmeasuredNeeds" xml:space="preserve">
     <value>Needs {0}.</value>
@@ -113,6 +125,15 @@
   </data>
   <data name="UnmeasuredSlot" xml:space="preserve">
     <value>No static points at a fitting object of the class {0}.</value>
+  </data>
+  <data name="UnmeasuredString" xml:space="preserve">
+    <value>No pointer and count of StringValue read as hello-fixture.</value>
+  </data>
+  <data name="UnmeasuredInner" xml:space="preserve">
+    <value>No pointer of the properties IntArray and StringArray points at an IntProperty and a StrProperty.</value>
+  </data>
+  <data name="UnmeasuredStruct" xml:space="preserve">
+    <value>No pointer of the property Coord points at the struct FixtureCoord.</value>
   </data>
   <data name="UnmeasuredSuperField" xml:space="preserve">
     <value>No pointer connects the classes Class, State, Struct, Field and Object.</value>

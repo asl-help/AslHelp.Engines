@@ -1,40 +1,65 @@
 using AslHelp.Engines.Unreal.Errors;
+using AslHelp.Engines.Unreal.Names;
+using AslHelp.Engines.Unreal.Objects;
+using AslHelp.Engines.Unreal.Paths;
+using AslHelp.Engines.Unreal.Properties;
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using AslHelp.Memory.Locating;
 using System;
+using System.Collections.Generic;
 
 namespace AslHelp.Engines.Unreal;
 
 /// <summary>
 ///     Represents a running game with the readers and globals of 1 profile.
 /// </summary>
+/// <remarks>
+///     Isn't thread-safe.
+/// </remarks>
 public sealed class UnrealGame
 {
     private readonly ClassReader _classReader;
+    private readonly UnrealRoot _engine;
+    private readonly bool _hasSubsystems;
+    private readonly UnrealRoot _world;
 
     private UnrealGame(
         IMemoryReader memory,
-        INameTable nameTable,
         ObjectReader objectReader,
-        StructReader structReader,
         IPropertyReader propertyReader,
         IObjectArray objectArray,
         ClassReader classReader,
-        GlobalSlot gWorldSlot)
+        GlobalPointer gWorldSlot,
+        GlobalPointer gEngineSlot,
+        bool hasSubsystems)
     {
         Memory = memory;
-        NameTable = nameTable;
         ObjectReader = objectReader;
-        StructReader = structReader;
         PropertyReader = propertyReader;
         ObjectArray = objectArray;
         _classReader = classReader;
-
-        // Create the hop of the global once, because the path and the chain start at the same global.
-        var gWorldHop = MemberHop.Global(UnrealProfile.WorldGlobal);
-        GWorld = new UnrealObjectPath(new MemberPath(this, gWorldSlot, [gWorldHop]));
-        GWorldChain = new MemberChain<MemberHop>(new MemberResolver(this, gWorldSlot), gWorldHop);
+        _world = new UnrealRoot(classReader, PathRoot.Global(gWorldSlot), UnrealProfile.WorldGlobal);
+        _engine = new UnrealRoot(classReader, PathRoot.Global(gEngineSlot), UnrealProfile.EngineGlobal);
+        _hasSubsystems = hasSubsystems;
     }
+
+    /// <summary>
+    ///     Gets the path that starts at the <c>GEngine</c> global, the engine object of the game.
+    /// </summary>
+    /// <remarks>
+    ///     Getting the path doesn't read memory.
+    ///     Each read of a longer path reads the pointer in the slot again, so an engine that the game creates later shows up.
+    /// </remarks>
+    public UnrealPath GEngine => _engine.Path;
+
+    /// <summary>
+    ///     Gets the member chain that starts at the <c>GEngine</c> global, like <c>GEngineChain.GameViewport.World</c>.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="GWorldChain"/> lists what a chain takes.
+    /// </remarks>
+    public dynamic GEngineChain => _engine.Chain;
 
     /// <summary>
     ///     Gets the path that starts at the <c>GWorld</c> global.
@@ -42,29 +67,30 @@ public sealed class UnrealGame
     /// <remarks>
     ///     Getting the path doesn't read memory.
     ///     Each read of a longer path reads the pointer in the slot again, so a world that the game loads later shows up.
+    ///     On Unreal Engine 3 the class <c>World</c> doesn't have any reflected properties, so start at <see cref="GEngine"/>
+    ///     or at an object of <see cref="UnrealClass.GetInstances"/>.
     /// </remarks>
-    public UnrealObjectPath GWorld { get; }
+    public UnrealPath GWorld => _world.Path;
 
     /// <summary>
     ///     Gets the member chain that starts at the <c>GWorld</c> global, for a script that writes members through <see langword="dynamic"/>.
     /// </summary>
     /// <remarks>
-    ///     Every chain is an <see cref="IWatcherSource"/> that reads its end as an <c>IntProperty</c>, like
-    ///     <c>GWorldChain.AuthorityGameMode.FixtureData.Hp</c>.
-    ///     A misspelled member or another kind fails when the watcher reads and not on the script line,
-    ///     because the class of an object is only there at read time.
+    ///     Every chain is an <see cref="IWatcherSource"/>, like <c>GWorldChain.AuthorityGameMode.FixtureData.Hp</c>.
+    ///     Its watcher is a <see cref="Memory.Watching.Watcher{T}"/> of <see cref="object"/> whose value has the type of the kind at the end,
+    ///     like an <see cref="int"/> for an <c>IntProperty</c> or a <see cref="string"/> for a <c>StrProperty</c>.
+    ///     A hop goes through an object property and into a struct property the same way, like <c>FixtureData.Coord.X</c>.
+    ///     An index goes into an array, a set or a map, like <c>FixtureData.Items[1].Count</c> or <c>FixtureData.Dict["two"]</c>.
+    ///     <c>Count</c> after a collection reads its number of elements.
+    ///     A misspelled member or a kind without a value fails when the watcher reads and not on the script line,
+    ///     because a read finds the class of the object. An index of another type than an integer, a bool or a string throws on the script line.
     /// </remarks>
-    public dynamic GWorldChain { get; }
+    public dynamic GWorldChain => _world.Chain;
 
     /// <summary>
     ///     Gets the memory of the game.
     /// </summary>
     internal IMemoryReader Memory { get; }
-
-    /// <summary>
-    ///     Gets the name table.
-    /// </summary>
-    internal INameTable NameTable { get; }
 
     /// <summary>
     ///     Gets the object array.
@@ -82,16 +108,11 @@ public sealed class UnrealGame
     internal IPropertyReader PropertyReader { get; }
 
     /// <summary>
-    ///     Gets the reader of structs.
-    /// </summary>
-    internal StructReader StructReader { get; }
-
-    /// <summary>
     ///     Attaches to a game by finding the globals of <paramref name="profile"/> in <paramref name="module"/>.
     /// </summary>
     /// <remarks>
     ///     Searches the module once per global and doesn't read game data, so a game that's still loading attaches too.
-    ///     A <c>GWorld</c> of 0 doesn't fail, because the game sets it once it loads a world.
+    ///     A <c>GWorld</c> or <c>GEngine</c> of 0 doesn't fail, because the game sets it later.
     /// </remarks>
     /// <param name="memory">The memory of the game.</param>
     /// <param name="module">The module that the routes of the globals start at, usually the executable.</param>
@@ -116,15 +137,22 @@ public sealed class UnrealGame
 
         if (!profile.ObjectArrayLocator.Locate(memory, module).TryUnwrap(out var objectArrayGlobal, out error))
         {
-            return AttachError.GlobalNotLocated(UnrealProfile.ObjectArrayGlobal, module.Name, error);
+            return AttachError.GlobalNotLocated(profile.ObjectArrayGlobal, module.Name, error);
         }
 
         // Locate the slot now, so a profile that doesn't fit the game fails here and not on the 1st read.
-        GlobalSlot gWorldSlot = new(memory, module, profile.WorldLocator, TimeSpan.Zero);
+        GlobalPointer gWorldSlot = new(memory, module, profile.WorldLocator, TimeSpan.Zero);
 
         if (gWorldSlot.Locate().TryUnwrapErr(out error))
         {
             return AttachError.GlobalNotLocated(UnrealProfile.WorldGlobal, module.Name, error);
+        }
+
+        GlobalPointer gEngineSlot = new(memory, module, profile.EngineLocator, TimeSpan.Zero);
+
+        if (gEngineSlot.Locate().TryUnwrapErr(out error))
+        {
+            return AttachError.GlobalNotLocated(UnrealProfile.EngineGlobal, module.Name, error);
         }
 
         var nameTable = profile.NameTableShape.Create(memory, nameTableGlobal);
@@ -138,9 +166,9 @@ public sealed class UnrealGame
 
         var propertyReader = profile.PropertyShape.Create(memory, nameTable, objectReader, structReader);
 
-        ClassReader classReader = new(objectReader, structReader, propertyReader, objectArray);
+        ClassReader classReader = new(memory, nameTable, objectReader, structReader, propertyReader, objectArray, profile.KindLayouts);
 
-        return new UnrealGame(memory, nameTable, objectReader, structReader, propertyReader, objectArray, classReader, gWorldSlot);
+        return new UnrealGame(memory, objectReader, propertyReader, objectArray, classReader, gWorldSlot, gEngineSlot, profile.HasSubsystems);
     }
 
     /// <summary>
@@ -166,9 +194,9 @@ public sealed class UnrealGame
     /// <remarks>
     ///     Compares ordinally. Returns an object of the object array whose class is <c>Class</c> or derives from it,
     ///     as <c>BlueprintGeneratedClass</c> does. When 2 classes have the name, returns the one a call found 1st, in array order within 1 call.
-    ///     The 1st call reads every object of the array and keeps the name of every class.
-    ///     A later call checks the name and the class of a kept class. A miss only reads the objects in array slots that changed
-    ///     and the name of each kept Blueprint class.
+    ///     The 1st call reads every object of the array and keeps the name of every class and every package.
+    ///     A later call checks the name and the class of a kept class. A miss reads the array again,
+    ///     the objects in array slots that changed and the name of each kept Blueprint class.
     ///     Skips an object that doesn't read and fails with that read only when nothing matches.
     ///     A miss doesn't get kept, so a class that loads later shows up on the next call.
     ///     A new class that takes both the slot and the address of a freed object that wasn't a Blueprint class isn't found
@@ -187,40 +215,93 @@ public sealed class UnrealGame
     }
 
     /// <summary>
-    ///     Reads the value of <paramref name="property"/> in <paramref name="obj"/> as a 4-byte signed integer.
+    ///     Finds the loaded package called <paramref name="name"/>.
     /// </summary>
-    /// <param name="obj">The address of the object.</param>
-    /// <param name="property">The property, which has to be an <c>IntProperty</c>.</param>
+    /// <remarks>
+    ///     Ignores case, like the engine. Searches the object array and keeps what it finds like <see cref="FindClass"/>.
+    ///     Finds only packages without an outer object, so the groups inside an Unreal Engine 3 package don't match.
+    /// </remarks>
+    /// <param name="name">The name of the package, like <c>/Script/Engine</c> or <c>Engine</c> on Unreal Engine 3.</param>
     /// <returns>
-    ///     The value or a failure when <paramref name="property"/> is another kind, <paramref name="obj"/> is <see cref="Address.Zero"/>
-    ///     or the read fails.
+    ///     The package or a failure when no loaded package has the name or a read of the search fails.
     /// </returns>
     /// <exception cref="ArgumentNullException">
-    ///     <paramref name="property"/> is <see langword="null"/>.
+    ///     <paramref name="name"/> is <see langword="null"/>.
     /// </exception>
-    public Result<int> ReadInt32(Address obj, UnrealProperty property)
+    public Result<UnrealPackage> FindPackage(string name)
     {
-        ArgumentNullException.ThrowIfNull(property);
-
-        return property.ReadInt32(Memory, obj);
+        return _classReader.FindPackage(name);
     }
 
     /// <summary>
-    ///     Reads the value of <paramref name="property"/> in <paramref name="obj"/> as an object pointer.
+    ///     Creates a root at the 1st live object of the class called <paramref name="className"/>, like a game instance subsystem.
     /// </summary>
-    /// <param name="obj">The address of the object.</param>
-    /// <param name="property">The property, which has to be an object property like <c>ObjectProperty</c> or <c>ClassProperty</c>.</param>
+    /// <remarks>
+    ///     Doesn't read memory and doesn't check that the class is a subsystem. A read of a path from the root finds the object and keeps it,
+    ///     so a subsystem that the game creates later shows up and a read finds a replaced subsystem again.
+    /// </remarks>
+    /// <param name="className">The name of the class without a prefix, like <c>MySubsystem</c>.</param>
     /// <returns>
-    ///     The address of the object it points at or a failure when <paramref name="property"/> isn't an object property,
-    ///     <paramref name="obj"/> is <see cref="Address.Zero"/> or the read fails. A pointer of 0 returns <see cref="Address.Zero"/>.
+    ///     The root or a failure when the profile doesn't have <c>UGameInstance.SubsystemCollection</c>, like a profile before 4.22.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="className"/> is <see langword="null"/>.
+    /// </exception>
+    public Result<UnrealRoot> FindSubsystem(string className)
+    {
+        ArgumentNullException.ThrowIfNull(className);
+
+        if (!_hasSubsystems)
+        {
+            return RootError.SubsystemsUnavailable();
+        }
+
+        return new UnrealRoot(_classReader, PathRoot.FirstObject(_classReader, className), className);
+    }
+
+    /// <summary>
+    ///     Lists the loaded packages.
+    /// </summary>
+    /// <remarks>
+    ///     Searches the object array like <see cref="FindPackage"/>.
+    /// </remarks>
+    /// <returns>
+    ///     The packages in array order or a failure when the array doesn't read or an object doesn't read and the list is empty.
+    /// </returns>
+    public Result<IReadOnlyList<UnrealPackage>> GetPackages()
+    {
+        return _classReader.GetPackages();
+    }
+
+    /// <summary>
+    ///     Reads the value of <paramref name="property"/> in <paramref name="obj"/> as <typeparamref name="T"/>.
+    /// </summary>
+    /// <remarks>
+    ///     The 1st read of a property reads what its kind needs and keeps it, like the mask of a bool.
+    /// </remarks>
+    /// <typeparam name="T">
+    ///     The type that the kind of <paramref name="property"/> reads: <see cref="sbyte"/>, <see cref="short"/>, <see cref="int"/>,
+    ///     <see cref="long"/>, <see cref="ushort"/>, <see cref="uint"/>, <see cref="ulong"/>, <see cref="float"/> and <see cref="double"/>
+    ///     for the number properties, <see cref="byte"/> for <c>ByteProperty</c>, <see cref="bool"/> for <c>BoolProperty</c>,
+    ///     the type of the underlying property for <c>EnumProperty</c>, <see cref="string"/> for <c>NameProperty</c> and <c>StrProperty</c>,
+    ///     <see cref="Address"/> for the object properties and <c>WeakObjectProperty</c>, an array of the element type for <c>ArrayProperty</c>,
+    ///     a <see cref="HashSet{T}"/> for <c>SetProperty</c>,
+    ///     a <see cref="Dictionary{TKey, TValue}"/> for <c>MapProperty</c>
+    ///     and an array of the number type for a <c>StructProperty</c> whose members are numbers of 1 class.
+    /// </typeparam>
+    /// <param name="obj">The address of the object.</param>
+    /// <param name="property">The property.</param>
+    /// <returns>
+    ///     The value or a failure when the kind reads another type or doesn't have a value, <paramref name="obj"/> is <see cref="Address.Zero"/>,
+    ///     the profile doesn't have the offsets of the kind or a read fails. An object pointer of 0 returns <see cref="Address.Zero"/>.
     /// </returns>
     /// <exception cref="ArgumentNullException">
     ///     <paramref name="property"/> is <see langword="null"/>.
     /// </exception>
-    public Result<Address> ReadObject(Address obj, UnrealProperty property)
+    public Result<T> Read<T>(Address obj, UnrealProperty property)
     {
         ArgumentNullException.ThrowIfNull(property);
 
-        return property.ReadObject(Memory, obj);
+        return property.Read<T>(Memory, obj);
     }
 }

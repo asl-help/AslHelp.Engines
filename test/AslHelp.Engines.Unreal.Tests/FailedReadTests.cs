@@ -1,3 +1,7 @@
+using AslHelp.Engines.Unreal.Names;
+using AslHelp.Engines.Unreal.Objects;
+using AslHelp.Engines.Unreal.Properties;
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using NUnit.Framework;
 using System;
@@ -131,9 +135,9 @@ public sealed class FailedReadTests
                 + $"Check ObjectLayout.Name (0x{_objectLayout.Name:X})."));
     }
 
-    // A text past the limit keeps the entry, the address of the text and the layout field around the failure of the string read.
+    // A text past the limit fails with the entry, the address of the text, the limit and the layout field.
     [Test]
-    public void Read_TextWithoutTerminator_KeepsEntryAddressAndCause()
+    public void Read_TextWithoutTerminator_FailsWithEntryAddressAndLimit()
     {
         FakeMemory memory = new();
         memory.AddNameArray(_array, _data, 1, _entry);
@@ -141,9 +145,9 @@ public sealed class FailedReadTests
 
         Assert.That(
             new FlatNameTable(memory, _array, _entryLayout).Read(0).UnwrapErr().Message,
-            Does.StartWith($"Can't read the text of name 0 from its entry at {_entry}: reading {_entry + _entryLayout.Name} failed.")
-                .And.Contain("no terminator within 1024 characters")
-                .And.EndWith($"Check NameEntryLayout.Name (0x{_entryLayout.Name:X})."));
+            Is.EqualTo(
+                $"Can't read the text of name 0 from its entry at {_entry}: the text at {_entry + _entryLayout.Name} doesn't have a "
+                + $"terminator within 1024 characters. Check NameEntryLayout.Name (0x{_entryLayout.Name:X})."));
     }
 
     private static long BytesPerProbe(string name, Func<bool> probe)

@@ -54,6 +54,38 @@ public class MemberChainTests
         Assert.That(() => chain.Read(), Throws.InvalidOperationException.With.Message.Contains("'Read'"));
     }
 
+    // An index written after a chain goes to the resolver with the last hop and the key.
+    [Test]
+    public void GetIndex_OneIndex_AppendsTheHopOfTheResolver()
+    {
+        RecordingResolver resolver = new();
+        dynamic chain = new MemberChain<string>(resolver, "root");
+
+        object longer = chain.Items[2];
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(longer.ToString(), Is.EqualTo("root.Items[2]"));
+            Assert.That(resolver.Tails, Is.EqualTo(["root", ".Items"]));
+        }
+    }
+
+    // 2 indexes or a null index throw before the chain calls the resolver, because an index hop is 1 element.
+    [Test]
+    public void GetIndex_TwoOrNullIndexes_ThrowsWithoutTheResolver()
+    {
+        RecordingResolver resolver = new();
+        dynamic chain = new MemberChain<string>(resolver, "root");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(() => { object _ = chain[1, 2]; }, Throws.InvalidOperationException.With.Message.EqualTo(
+                "Can't index root: write 1 index that isn't null, like [2] or [\"two\"]."));
+            Assert.That(() => { object _ = chain[null]; }, Throws.InvalidOperationException);
+            Assert.That(resolver.Tails, Is.Empty);
+        }
+    }
+
     // 2 chains that continue the same chain don't get each other's hops.
     [Test]
     public void GetMember_TwoNamesAfterTheSameChain_LeavesTheSharedChainAsItWas()
@@ -146,6 +178,13 @@ file sealed class RecordingResolver : IMemberResolver<string>
         Tails.Add(tail);
 
         return $".{name}";
+    }
+
+    public string ResolveIndex(string tail, object index)
+    {
+        Tails.Add(tail);
+
+        return $"[{index}]";
     }
 }
 

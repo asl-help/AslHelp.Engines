@@ -24,15 +24,22 @@ internal sealed class FakeImage
 
     private const int ArrayHeaderSize = 3 * sizeof(int);
     private const uint ArraysRva = 0x3000;
+    private const int BitsAt = 0xC0;
     private const int BlockSize = 0x100;
+    private const int CoordAt = 0xD8;
     private const int DecoyArrayAt = 0x10;
     private const int DecoyCount = 32;
     private const uint DecoyRva = 0x1000;
     private const int ExtraHeaderAt = 0x180;
     private const int NameArrayAt = 0x100;
+    private const int NameValueAt = 0xD0;
     private const int ObjectArrayAt = 0x200;
     private const int PageSize = 0x1000;
     private const int SlotsAt = 0x300;
+    private const int StaticArrayAt = 0xA0;
+    private const int StaticArrayDim = 4;
+    private const string StringText = "hello-fixture";
+    private const int StringValueAt = 0xC4;
     private const int UnreadableOffset = 0x1000;
 
     private static readonly Address _decoyPointers = new(0x0300_0000);
@@ -42,6 +49,7 @@ internal sealed class FakeImage
     private static readonly Address _namePointers = new(0x0310_0000);
     private static readonly Address _objectPointers = new(0x0320_0000);
     private static readonly Address _objectsStart = new(0x0200_0000);
+    private static readonly Address _stringData = new(0x0400_0000);
     private static readonly Address _unreadable = new(0x0700_0000);
 
     private readonly byte[] _arrays = new byte[2 * PageSize];
@@ -55,6 +63,7 @@ internal sealed class FakeImage
     private readonly Dictionary<string, Address> _properties = [];
 
     private int _nextSlot = SlotsAt;
+    private Address _staticArrayField;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="FakeImage"/> class and builds the graph.
@@ -88,10 +97,17 @@ internal sealed class FakeImage
         LinkProperties();
 
         _fixtureField = AddFixtureField();
+        AddValueFields();
 
         // Give the class default object the value too, so a check that accepts it passes where it must fail.
         _fixtureDefault = AddFixtureObject($"Default__{UdkFixtureCheck.ClassName}", core);
         FixtureInstance = AddFixtureObject(UdkFixtureCheck.ClassName, core);
+        AddValues(FixtureInstance);
+
+        // Add objects whose element count reads 0, because the search for ArrayDim must skip class default objects
+        // and classes that only end with Property.
+        _ = AddObjectOfClass("Default__IntProperty", "IntProperty", core);
+        _ = AddObjectOfClass("AnimNodeBlendByProperty_0", "AnimNodeBlendByProperty", core);
 
         var engine = AddObjectOfClass("GameEngine_0", "GameEngine", core);
         var world = AddObjectOfClass("TheWorld", "World", core);
@@ -397,6 +413,22 @@ internal sealed class FakeImage
     }
 
     /// <summary>
+    ///     Ends the fields of the fixture class at <c>IntValue</c>, so the fields of the value kinds are gone.
+    /// </summary>
+    public void RemoveValueFields()
+    {
+        Memory.WritePointer(_fixtureField + _layout.Next, Address.Zero);
+    }
+
+    /// <summary>
+    ///     Writes the element count 1 into the static array of the fixture class, so every property has 1 element.
+    /// </summary>
+    public void SetStaticArrayToOneElement()
+    {
+        Memory.WriteInt32(_staticArrayField + _layout.ArrayDim, 1);
+    }
+
+    /// <summary>
     ///     Removes the class pointer of the property <c>Outer</c>.
     /// </summary>
     public void ClearPropertyClass()
@@ -534,8 +566,13 @@ internal sealed class FakeImage
             ("Property", "Field", _layout.PropertySize),
             ("ObjectProperty", "Property", _layout.PropertySize + sizeof(uint)),
             ("NameProperty", "Property", _layout.PropertySize),
-            (UdkFixtureCheck.ClassName, "Object", _layout.ObjectSize + 0x10),
+            (UdkFixtureCheck.ClassName, "Object", BlockSize),
             ("IntProperty", "Property", _layout.PropertySize),
+            ("BoolProperty", "Property", _layout.PropertySize + sizeof(uint)),
+            ("StrProperty", "Property", _layout.PropertySize),
+            ("StructProperty", "Property", _layout.PropertySize + sizeof(uint)),
+            ("ArrayProperty", "Property", _layout.PropertySize + sizeof(uint)),
+            ("AnimNodeBlendByProperty", "Object", _layout.ObjectSize),
             ("Function", "Struct", _layout.StructSize + sizeof(uint)),
             ("Engine", "Object", _layout.ObjectSize),
             ("GameEngine", "Engine", _layout.ObjectSize + sizeof(uint)),
@@ -565,10 +602,78 @@ internal sealed class FakeImage
 
         Memory.WritePointer(field + _layout.Class, _classes["IntProperty"]);
         Memory.WriteInt32(field + _layout.Offset, FixtureValueAt);
+        Memory.WriteInt32(field + _layout.ArrayDim, 1);
         Memory.WriteInt32(field + _layout.ElementSize, sizeof(int));
         Memory.WritePointer(fixtureClass + _layout.Children, field);
 
         return field;
+    }
+
+    // Adds 4 bools in 1 word, a string, a name, a struct, 2 arrays with their inner properties and a static array of 4 ints
+    // behind IntValue.
+    private void AddValueFields()
+    {
+        var fixtureClass = _classes[UdkFixtureCheck.ClassName];
+        var coordType = AddObject("FixtureCoord", fixtureClass);
+        var intInner = AddInnerProperty("IntArray", "IntProperty", sizeof(int));
+        var stringInner = AddInnerProperty("StringArray", "StrProperty", 3 * sizeof(uint));
+
+        (string Name, string Class, int Offset, int ElementSize, int ArrayDim, Address AtPropertySize)[] fields =
+        [
+            ("BoolValue", "BoolProperty", BitsAt, sizeof(uint), 1, new Address(1)),
+            ("bFirst", "BoolProperty", BitsAt, sizeof(uint), 1, new Address(2)),
+            ("bSecond", "BoolProperty", BitsAt, sizeof(uint), 1, new Address(4)),
+            ("bThird", "BoolProperty", BitsAt, sizeof(uint), 1, new Address(8)),
+            ("StringValue", "StrProperty", StringValueAt, 3 * sizeof(uint), 1, Address.Zero),
+            ("NameValue", "NameProperty", NameValueAt, 2 * sizeof(int), 1, Address.Zero),
+            ("Coord", "StructProperty", CoordAt, 2 * sizeof(int), 1, coordType),
+            ("IntArray", "ArrayProperty", StringValueAt, 3 * sizeof(uint), 1, intInner),
+            ("StringArray", "ArrayProperty", StringValueAt, 3 * sizeof(uint), 1, stringInner),
+            ("Slots", "IntProperty", StaticArrayAt, sizeof(int), StaticArrayDim, Address.Zero),
+        ];
+
+        var previous = _fixtureField;
+
+        foreach ((string name, string klass, int offset, int elementSize, int arrayDim, var atPropertySize) in fields)
+        {
+            var field = AddObject(name, fixtureClass);
+
+            Memory.WritePointer(field + _layout.Class, _classes[klass]);
+            Memory.WriteInt32(field + _layout.Offset, offset);
+            Memory.WriteInt32(field + _layout.ArrayDim, arrayDim);
+            Memory.WriteInt32(field + _layout.ElementSize, elementSize);
+            Memory.WritePointer(field + _layout.PropertySize, atPropertySize);
+            Memory.WritePointer(previous + _layout.Next, field);
+
+            previous = field;
+        }
+
+        _staticArrayField = previous;
+    }
+
+    // Adds the inner property of an array, with the name of the array like in the engine and 1 element so the ArrayDim search accepts it.
+    private Address AddInnerProperty(string name, string klass, int elementSize)
+    {
+        var inner = AddObject(name, _classes[UdkFixtureCheck.ClassName]);
+
+        Memory.WritePointer(inner + _layout.Class, _classes[klass]);
+        Memory.WriteInt32(inner + _layout.ArrayDim, 1);
+        Memory.WriteInt32(inner + _layout.ElementSize, elementSize);
+
+        return inner;
+    }
+
+    // Writes the values the fixture game sets: BoolValue, bFirst and bThird, the string with its terminator in the count and the name.
+    private void AddValues(Address instance)
+    {
+        Memory.Add(_stringData, Encoding.Unicode.GetBytes(StringText + '\0'));
+        Memory.WriteInt32(instance + BitsAt, 0b1011);
+        Memory.WritePointer(instance + StringValueAt, _stringData);
+        Memory.WriteInt32(instance + StringValueAt + sizeof(uint), StringText.Length + 1);
+        Memory.WriteInt32(instance + NameValueAt, NameId("fixture-name"));
+
+        // Give the spawned object the name number 1, which the game prints as FixtureData_0.
+        Memory.WriteInt32(instance + _layout.Name + sizeof(int), 1);
     }
 
     private Address AddFixtureObject(string name, Address outer)
@@ -672,6 +777,7 @@ internal sealed class FakeImage
             if (klass.EndsWith("Property", StringComparison.Ordinal))
             {
                 Memory.WriteInt32(child + _layout.Offset, offset);
+                Memory.WriteInt32(child + _layout.ArrayDim, 1);
                 Memory.WriteInt32(child + _layout.ElementSize, elementSize);
 
                 if (previousProperty != Address.Zero)

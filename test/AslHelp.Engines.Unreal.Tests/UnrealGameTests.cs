@@ -1,3 +1,7 @@
+using AslHelp.Engines.Unreal.Names;
+using AslHelp.Engines.Unreal.Objects;
+using AslHelp.Engines.Unreal.Properties;
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using NUnit.Framework;
 using System.Linq;
@@ -58,6 +62,7 @@ public sealed class UnrealGameTests(
     private readonly Address _dataProperty = start + 0x60_1000;
     private readonly Address _entries = start + 0x31_0000;
     private readonly Address _field = start + 0x60_0000;
+    private readonly Address _gEngine = start + 0x12_1000;
     private readonly Address _gUObjectArray = start + 0x11_0000;
     private readonly Address _gWorld = start + 0x12_0000;
     private readonly Address _hpProperty = start + 0x60_2000;
@@ -163,6 +168,7 @@ public sealed class UnrealGameTests(
     }
 
     // A signature that isn't in the module fails with the global, the module and the route.
+    [TestCase("GEngine")]
     [TestCase("GWorld")]
     [TestCase("GUObjectArray")]
     [TestCase("NameTable")]
@@ -190,7 +196,7 @@ public sealed class UnrealGameTests(
     public void Attach_RouteReachesTwoAddresses_Fails()
     {
         var memory = MemoryWithGame();
-        memory.WriteGlobalReference(_module + 0x400, GWorldCode, _gWorld + 0x100);
+        memory.WriteGlobalReference(_module + 0x500, GWorldCode, _gWorld + 0x100);
 
         Assert.That(
             UnrealGame.Attach(memory, Module, UnrealProfile.Parse(Document("uproperty", "indirect", "flat")).Unwrap()).UnwrapErr().Message,
@@ -222,19 +228,19 @@ public sealed class UnrealGameTests(
     // Reads Hp from GWorld through public members only, with the property shape of the profile.
     [TestCase("uproperty")]
     [TestCase("ffield")]
-    public void ReadInt32_PropertyThroughGWorld_ReadsTheValue(string field)
+    public void Read_PropertyThroughGWorld_ReadsTheValue(string field)
     {
         var game = field == "ffield"
             ? Attach(MemoryWithChunkedData(), Document(field, "chunked", "chunked"))
             : Attach(MemoryWithData(), Document(field, "indirect", "flat"));
 
         var world = game.GWorld.Read().Unwrap();
-        var data = game.ReadObject(world, game.ClassOf(world).Unwrap().FindProperty("Data").Unwrap()).Unwrap();
+        var data = game.Read<Address>(world, game.ClassOf(world).Unwrap().FindProperty("Data").Unwrap()).Unwrap();
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(data, Is.EqualTo(_data));
-            Assert.That(game.ReadInt32(data, game.ClassOf(data).Unwrap().FindProperty("Hp").Unwrap()).Unwrap(), Is.EqualTo(995));
+            Assert.That(game.Read<int>(data, game.ClassOf(data).Unwrap().FindProperty("Hp").Unwrap()).Unwrap(), Is.EqualTo(995));
         }
     }
 
@@ -263,13 +269,14 @@ public sealed class UnrealGameTests(
         return UnrealGame.Attach(memory, Module, UnrealProfile.Parse(json).Unwrap()).Unwrap();
     }
 
-    // Adds the module with 1 instruction per global and the GWorld slot that points at the world.
+    // Adds the module with 1 instruction per global, the GWorld slot that points at the world and a GEngine slot of 0.
     private FakeMemory MemoryWithModule()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.Add(_module, new byte[ModuleSize]);
-        WriteGlobalReferences(memory, _module, _names, _gUObjectArray, _gWorld);
+        WriteGlobalReferences(memory, _module, _names, _gUObjectArray, _gWorld, _gEngine);
         memory.AddPointers(_gWorld, _world);
+        memory.AddPointers(_gEngine, Address.Zero);
 
         return memory;
     }

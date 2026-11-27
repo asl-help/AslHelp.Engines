@@ -337,6 +337,13 @@
       "SerialNumber": {}
     }
   },
+  "FName": {
+    "$type": "layout",
+    "members": {
+      "ComparisonIndex": { "oldName": "Index", "oldNameUntil": "4.4" },
+      "Number": {}
+    }
+  },
   "FNameEntry": {
     "$type": "layout",
     "members": {

@@ -33,6 +33,19 @@ internal abstract record ProfileError : ResultError
     }
 
     /// <summary>
+    ///     Creates the error for a document without the offsets of a value kind, which only fails reads of that kind.
+    /// </summary>
+    /// <param name="className">The property class of the kind, like <c>BoolProperty</c>.</param>
+    /// <param name="paths">The path of each missing offset, like <c>offsets.UBoolProperty.FieldMask</c>.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static ProfileError KindOffsetsMissing(string className, IReadOnlyList<string> paths)
+    {
+        return new KindOffsetsMissingError(className, [.. paths]);
+    }
+
+    /// <summary>
     ///     Creates the error for a document without parts that attach needs.
     /// </summary>
     /// <param name="paths">The path of each missing part, like <c>offsets.UField.Next</c>.</param>
@@ -55,6 +68,19 @@ internal abstract record ProfileError : ResultError
     public static ProfileError OffsetNegative(string path, int offset)
     {
         return new OffsetNegativeError(path, offset);
+    }
+
+    /// <summary>
+    ///     Creates the error for an engine value that the library doesn't read.
+    /// </summary>
+    /// <param name="value">The value of <c>engine</c>.</param>
+    /// <param name="known">The values the library reads, joined for the message.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static ProfileError UnknownEngine(string value, string known)
+    {
+        return new UnknownEngineError(value, known);
     }
 
     /// <summary>
@@ -85,6 +111,13 @@ file sealed record InvalidError(
     public override string Message => SR.FormatProfileInvalid(Reason);
 }
 
+file sealed record KindOffsetsMissingError(
+    string ClassName,
+    IReadOnlyList<string> Paths) : ProfileError
+{
+    public override string Message => SR.FormatProfileKindOffsetsMissing(ClassName, string.Join(", ", Paths));
+}
+
 file sealed record MissingError(
     IReadOnlyList<string> Paths) : ProfileError
 {
@@ -96,6 +129,13 @@ file sealed record OffsetNegativeError(
     int Offset) : ProfileError
 {
     public override string Message => SR.FormatProfileOffsetNegative(Path, Offset);
+}
+
+file sealed record UnknownEngineError(
+    string Value,
+    string Known) : ProfileError
+{
+    public override string Message => SR.FormatProfileEngineUnknown(Value, Known);
 }
 
 file sealed record UnknownShapeError(

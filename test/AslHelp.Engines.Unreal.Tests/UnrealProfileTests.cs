@@ -1,3 +1,7 @@
+using AslHelp.Engines.Unreal.Names;
+using AslHelp.Engines.Unreal.Objects;
+using AslHelp.Engines.Unreal.Properties;
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using NUnit.Framework;
 using System;
@@ -23,6 +27,7 @@ public sealed class UnrealProfileTests
             "UStruct": { "SuperStruct": "0x20", "Children": "0x24", "PropertiesSize": "0x28" }
           },
           "globals": {
+            "GEngine": { "4.0.2": [{ "forward": "A1 ???????? 1B C9", "offset": 1 }, { "read": "global" }] },
             "GUObjectArray": { "4.0.2": [{ "forward": "80 7C 24 04 00 C7 02 ????????", "offset": 7 }, { "read": "global" }] },
             "GWorld": { "4.0.2": [{ "forward": "A3 ???????? 83 CE FF", "offset": 1 }, { "read": "global" }] },
             "NameTable": { "4.0.2": [{ "forward": "83 C4 0C 89 35 ???????? 8B C6", "offset": 5 }, { "read": "global" }] }
@@ -47,6 +52,7 @@ public sealed class UnrealProfileTests
             "UStruct": { "SuperStruct": "0x30", "Children": "0x38", "PropertiesSize": "0x40" }
           },
           "globals": {
+            "GEngine": { "4.8.3": [{ "forward": "32 DB 48 8B 0D ????????", "offset": 5 }, { "read": "global" }] },
             "GUObjectArray": {
               "4.8.3": [{ "forward": "89 15 ???????? 85 D2", "offset": 2 }, { "read": "global" }],
               "4.10.4": [{ "forward": "33 D2 89 1D ????????", "offset": 4 }, { "read": "global" }]
@@ -104,6 +110,7 @@ public sealed class UnrealProfileTests
           },
           "globals": {
             "GUObjectArray": { "5.8.4": [{ "forward": "4C 8B 0D ???????? 8B C1", "offset": 3 }, { "read": "global" }] },
+            "GEngine": { "5.8.4": [{ "forward": "90 48 8B 35 ????????", "offset": 4 }, { "read": "global" }] },
             "GWorld": { "5.8.4": [{ "forward": "4C 0F 44 25 ????????", "offset": 4 }, { "read": "global" }] },
             "NamePoolData": { "5.8.4": [{ "forward": "48 8D 0D ???????? 8B FA", "offset": 3 }, { "read": "global" }] }
           }
@@ -151,6 +158,75 @@ public sealed class UnrealProfileTests
         }
     }
 
+    // The kind offsets map with the prefix of the property shape. The string layout adds FString.Data to the array members.
+    [TestCase("uproperty")]
+    [TestCase("ffield")]
+    public void Parse_KindOffsets_ReadsKindLayouts(string field)
+    {
+        string json = Set(FakeGame.Document(field, "indirect", "flat"), "\"0x10\"", "offsets", "FString", "Data");
+
+        var layouts = UnrealProfile.Parse(json).Unwrap().KindLayouts;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(layouts.Find(Kind<BoolShape>("BoolProperty")).IsOk, Is.True);
+            Assert.That(layouts.Find(Kind<int>("EnumProperty")).Unwrap(), Is.EqualTo(0x70));
+            Assert.That(layouts.Find(Kind<NameValueLayout>("NameProperty")).Unwrap(), Is.EqualTo(new NameValueLayout(0x0, 0x4)));
+            Assert.That(layouts.Find(Kind<StringLayout>("StrProperty")).Unwrap(), Is.EqualTo(new StringLayout(0x10, 0x18)));
+            Assert.That(layouts.Find(Kind<int>("StructProperty")).Unwrap(), Is.EqualTo(0x70));
+        }
+    }
+
+    // A document without the kind offsets still parses and each kind part fails with its class and the paths it needs.
+    [Test]
+    public void Parse_DocumentWithoutKindOffsets_FailsOnlyTheKindParts()
+    {
+        var layouts = UnrealProfile.Parse(Item).Unwrap().KindLayouts;
+
+        Assert.That(
+            layouts.Find(Kind<int>("StructProperty")).UnwrapErr().Message,
+            Is.EqualTo("Can't read StructProperty: the profile doesn't have offsets.UStructProperty.Struct."));
+    }
+
+    // A document without the array offsets still parses and only the array kind fails with every path it needs.
+    [Test]
+    public void Parse_DocumentWithoutCollectionOffsets_FailsOnlyTheCollectionKinds()
+    {
+        var layouts = UnrealProfile.Parse(Item).Unwrap().KindLayouts;
+
+        Assert.That(
+            layouts.Find(Kind<ArrayPropertyLayout>("ArrayProperty")).UnwrapErr().Message,
+            Is.EqualTo(
+                "Can't read ArrayProperty: the profile doesn't have offsets.UArrayProperty.Inner, offsets.FScriptArray.Data, "
+                + "offsets.FScriptArray.ArrayNum."));
+    }
+
+    // A field document reads the collection members with the F prefix, so FArrayProperty.Inner and not UArrayProperty.Inner.
+    [Test]
+    public void Parse_FieldShape_ReadsCollectionOffsetsWithTheFPrefix()
+    {
+        string json = Set(FakeGame.Document("ffield", "indirect", "flat"), """{ "Inner": "0x78" }""", "offsets", "FArrayProperty");
+
+        Assert.That(UnrealProfile.Parse(json).Unwrap().KindLayouts.Find(Kind<ArrayPropertyLayout>("ArrayProperty")).Unwrap().Inner, Is.EqualTo(0x78));
+    }
+
+    // A 5.7 document has the set offsets under FScriptSparseSetLayout and TScriptSparseSet, which read like FScriptSetLayout and FScriptSet.
+    [Test]
+    public void Parse_SparseSetNames_ReadsTheSetOffsets()
+    {
+        string json = FakeGame.Document("ffield", "indirect", "flat");
+        json = Remove(Remove(json, "offsets", "FScriptSetLayout"), "offsets", "FScriptSet");
+        json = Set(json, """{ "Size": "0x1C" }""", "offsets", "FScriptSparseSetLayout");
+        json = Set(json, """{ "Elements": "0x8" }""", "offsets", "TScriptSparseSet<FDefaultSetAllocator>");
+
+        var set = UnrealProfile.Parse(json).Unwrap().KindLayouts.Find(Kind<SetPropertyLayout>("SetProperty")).Unwrap().Set;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(set.Size, Is.EqualTo(0x1C));
+            Assert.That(set.Elements, Is.EqualTo(0x8));
+        }
+    }
     // Each shape requires only its own offsets, so the pointers shape parses without FUObjectItem and FFixedUObjectArray.
     [Test]
     public void Parse_PointerArray_ParsesWithoutItemOffsets()
@@ -206,7 +282,7 @@ public sealed class UnrealProfileTests
     [TestCase("null")]
     public void Parse_RootNotAnObject_FailsWithEveryPart(string json)
     {
-        Assert.That(UnrealProfile.Parse(json).UnwrapErr().Message, Is.EqualTo("The profile doesn't have versions, shapes, offsets, globals."));
+        Assert.That(UnrealProfile.Parse(json).UnwrapErr().Message, Is.EqualTo("The profile doesn't have engine, versions, offsets, globals."));
     }
 
     // Every missing offset comes back in 1 message, so a person fixes the document in 1 go.
@@ -235,6 +311,7 @@ public sealed class UnrealProfileTests
     }
 
     // The global of the name table follows the name shape, so a chunked document with NameTable doesn't have NamePoolData.
+    [TestCase(Item, "GEngine")]
     [TestCase(Item, "GWorld")]
     [TestCase(Item, "GUObjectArray")]
     [TestCase(Item, "NameTable")]
@@ -347,6 +424,13 @@ public sealed class UnrealProfileTests
             Does.StartWith("The profile's globals.GWorld isn't a locator. The route '4.18.3' is invalid. ").And.Contain(reason));
     }
 
+    // Gets a kind of the library as the kind of its layout type.
+    private static LayoutKind<TLayout> Kind<TLayout>(string className)
+        where TLayout : notnull
+    {
+        return (LayoutKind<TLayout>)PropertyKinds.Find(className);
+    }
+
     // Creates the readers of each shape, so a test checks which reader a shape value maps to.
     private static Type[] ReaderTypes(UnrealProfile profile)
     {
@@ -361,5 +445,15 @@ public sealed class UnrealProfileTests
             profile.ObjectArrayShape.Create(memory, Address.Zero).Unwrap().GetType(),
             profile.PropertyShape.Create(memory, names, objectReader, structReader).GetType(),
         ];
+    }
+
+    // Only documents of 4.22 and later have the subsystem collection of the game instance, so it decides whether the game has subsystems.
+    [TestCase(false)]
+    [TestCase(true)]
+    public void Parse_SubsystemCollection_DecidesHasSubsystems(bool present)
+    {
+        string json = present ? Set(Item, """{ "SubsystemCollection": "0x1A0" }""", "offsets", "UGameInstance") : Item;
+
+        Assert.That(UnrealProfile.Parse(json).Unwrap().HasSubsystems, Is.EqualTo(present));
     }
 }

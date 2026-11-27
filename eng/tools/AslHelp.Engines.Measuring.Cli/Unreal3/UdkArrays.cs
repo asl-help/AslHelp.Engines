@@ -1,5 +1,7 @@
 using AslHelp.Engines.Measuring.Cli.Unreal3.Errors;
 using AslHelp.Engines.Unreal;
+using AslHelp.Engines.Unreal.Names;
+using AslHelp.Engines.Unreal.Objects;
 using AslHelp.Memory;
 using System;
 using System.Buffers.Binary;

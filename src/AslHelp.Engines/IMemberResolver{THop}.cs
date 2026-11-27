@@ -23,7 +23,7 @@ public interface IMemberResolver<THop>
     ///     the watcher can keep it.
     /// </param>
     /// <returns>
-    ///     The watcher, typed after the member at the end.
+    ///     The watcher, typed after the member at the end or after the value it reads.
     /// </returns>
     /// <exception cref="InvalidOperationException">The member at the end isn't a value a watcher can read.</exception>
     Watcher CreateWatcher(ITickCounter ticks, IReadOnlyList<THop> hops);
@@ -40,4 +40,17 @@ public interface IMemberResolver<THop>
     ///     The type can't have the member or a chain can't continue past <paramref name="tail"/>.
     /// </exception>
     THop ResolveMember(THop tail, string name);
+
+    /// <summary>
+    ///     Finds the element <paramref name="index"/> of the collection that <paramref name="tail"/> ends on.
+    /// </summary>
+    /// <param name="tail">The last hop of the chain so far.</param>
+    /// <param name="index">The index or key, as the script wrote it, like <c>2</c> or <c>"two"</c>.</param>
+    /// <returns>
+    ///     The hop for the element.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    ///     The engine can't use an index of the type of <paramref name="index"/> or a chain can't continue past <paramref name="tail"/>.
+    /// </exception>
+    THop ResolveIndex(THop tail, object index);
 }

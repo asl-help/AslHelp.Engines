@@ -83,6 +83,7 @@ void AFixtureData::BeginPlay()
     Coord.X = 7;
     Coord.Y = 9;
     Position = FVector(1.0f, 2.0f, 3.0f);
+    Rotation = FRotator(10.0f, 20.0f, 30.0f);
     IntArray.Add(100);
     IntArray.Add(200);
     IntArray.Add(300);
@@ -103,11 +104,17 @@ void AFixtureData::BeginPlay()
     IntDict.Add(4, 40);
     IntDict.Add(5, 50);
     IntDict.Add(6, 60);
+    NameDict.Add(FName(TEXT("fixture-name")), 7);
+    CoordDict.Add(5, Coord);
     //@endif
     //@if >=4.13
     IntSet.Add(11);
     IntSet.Add(22);
     IntSet.Add(33);
+    NameSet.Add(FName(TEXT("alpha")));
+    NameSet.Add(FName(TEXT("beta")));
+    NameSet.Add(FName(TEXT("gamma")));
+    NameSet.Remove(FName(TEXT("beta")));
     //@endif
 
     Item = NewObject<UFixtureItem>(this);

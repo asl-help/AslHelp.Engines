@@ -86,4 +86,32 @@ public sealed class MemberChain<THop> : DynamicObject, IWatcherSource
 
         return true;
     }
+
+    /// <summary>
+    ///     Creates a chain with the element of the index after the last hop of this chain, like <c>chain.Items[2]</c>.
+    /// </summary>
+    /// <param name="binder">The binder of the index.</param>
+    /// <param name="indexes">The indexes the script wrote, which have to be 1 index that isn't <see langword="null"/>.</param>
+    /// <param name="result">The longer chain.</param>
+    /// <returns>
+    ///     <see langword="true"/>, because an index the resolver can't use throws.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="binder"/> or <paramref name="indexes"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">
+    ///     <paramref name="indexes"/> isn't 1 index that isn't <see langword="null"/> or the resolver can't use it.
+    /// </exception>
+    public override bool TryGetIndex(GetIndexBinder binder, object[] indexes, out object result)
+    {
+        ArgumentNullException.ThrowIfNull(binder);
+        ArgumentNullException.ThrowIfNull(indexes);
+
+        if (indexes is not [{ } index])
+        {
+            throw new InvalidOperationException(SR.FormatChainIndexCount(this));
+        }
+
+        result = new MemberChain<THop>(_resolver, [.. _hops, _resolver.ResolveIndex(_hops[^1], index)]);
+
+        return true;
+    }
 }

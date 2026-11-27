@@ -30,6 +30,51 @@
   <data name="ClassSearchFailed" xml:space="preserve">
     <value>Can't search the object array for the class {0}. {1}</value>
   </data>
+  <data name="CollectionCountNegative" xml:space="preserve">
+    <value>{0} has the count {1}, which is below 0.</value>
+  </data>
+  <data name="CollectionDataNull" xml:space="preserve">
+    <value>{0} has {1} elements, but its data pointer is 0.</value>
+  </data>
+  <data name="CollectionElementSizeInvalid" xml:space="preserve">
+    <value>The elements of {0} are {1} bytes. Check {2} in the profile.</value>
+  </data>
+  <data name="CollectionElementsNotValue" xml:space="preserve">
+    <value>{0} is {1} of {2}, which doesn't read as 1 value. Index it or read Count.</value>
+  </data>
+  <data name="CollectionFreeSlotsOutOfRange" xml:space="preserve">
+    <value>{0} has {1} free slots of {2}. Check the NumFreeIndices offset in the profile.</value>
+  </data>
+  <data name="CollectionIndexOutOfRange" xml:space="preserve">
+    <value>{0} doesn't have index {1}. It has {2} elements.</value>
+  </data>
+  <data name="CollectionKeyNotFound" xml:space="preserve">
+    <value>{0} doesn't have the key {1}.</value>
+  </data>
+  <data name="CollectionKeyNotValue" xml:space="preserve">
+    <value>The keys of {0} are {1}, which the library can't compare.</value>
+  </data>
+  <data name="CollectionKeyTypeMismatch" xml:space="preserve">
+    <value>The keys of {0} are {1}, which the key {2} can't match.</value>
+  </data>
+  <data name="CollectionMemberAfterCollection" xml:space="preserve">
+    <value>{0} is a collection, so it takes an index or Count, not {1}.</value>
+  </data>
+  <data name="CollectionMemberNull" xml:space="preserve">
+    <value>The {1} pointer of {0} at {2} is 0. Check {1} in the profile (0x{3}).</value>
+  </data>
+  <data name="CollectionMemberUnreadable" xml:space="preserve">
+    <value>Can't read {1} of {0}: reading {2} failed. {3}</value>
+  </data>
+  <data name="CollectionNotCollection" xml:space="preserve">
+    <value>{0} isn't a collection, so it can't take the index {1}.</value>
+  </data>
+  <data name="CollectionTooLong" xml:space="preserve">
+    <value>{0} has {1} elements, past the limit of {2}.</value>
+  </data>
+  <data name="CollectionTooManySlots" xml:space="preserve">
+    <value>{0} has {1} slots, past the limit of {2}.</value>
+  </data>
   <data name="NameArrayHeaderUnreadable" xml:space="preserve">
     <value>Can't read the header of the name array at {0}: reading {1} failed. {2}</value>
   </data>
@@ -83,6 +128,9 @@
   </data>
   <data name="NameEntryTextUnreadable" xml:space="preserve">
     <value>Can't read the text of name {0} from its entry at {1}: reading {2} failed. {3} Check NameEntryLayout.Name (0x{4}).</value>
+  </data>
+  <data name="NameEntryTextUnterminated" xml:space="preserve">
+    <value>Can't read the text of name {0} from its entry at {1}: the text at {2} doesn't have a terminator within {3} characters. Check NameEntryLayout.Name (0x{4}).</value>
   </data>
   <data name="NameIdNegative" xml:space="preserve">
     <value>Name {0} is below 0.</value>
@@ -156,26 +204,44 @@
   <data name="ObjectOuterUnreadable" xml:space="preserve">
     <value>Can't read the outer object of the object at {0}: reading {1} failed. {2} Check ObjectLayout.Outer (0x{3}).</value>
   </data>
+  <data name="PackageClassNotFound" xml:space="preserve">
+    <value>Package {0} doesn't have a class {1}.</value>
+  </data>
+  <data name="PackageNotLoaded" xml:space="preserve">
+    <value>Package {0} isn't loaded.</value>
+  </data>
+  <data name="PackageSearchFailed" xml:space="preserve">
+    <value>Can't search the object array for the package {0}. {1}</value>
+  </data>
   <data name="PathFailed" xml:space="preserve">
     <value>Can't read {0}. {1}</value>
   </data>
-  <data name="PathGlobalUnwatchable" xml:space="preserve">
-    <value>Can't watch {0}: it isn't an IntProperty.</value>
-  </data>
-  <data name="PathInt32Watcher" xml:space="preserve">
-    <value>Int32 at {0}</value>
+  <data name="PathIndexTypeUnsupported" xml:space="preserve">
+    <value>Can't index {0} with a {1}. Use an integer, a bool or a string.</value>
   </data>
   <data name="PathNullObject" xml:space="preserve">
     <value>Can't read {0}: {1} is null.</value>
   </data>
+  <data name="PathRootUnwatchable" xml:space="preserve">
+    <value>Can't watch {0}: it isn't a property.</value>
+  </data>
   <data name="PathSegmentFailed" xml:space="preserve">
     <value>Can't read {0} at {1}. {2}</value>
+  </data>
+  <data name="PathValueWatcher" xml:space="preserve">
+    <value>{0} at {1}</value>
+  </data>
+  <data name="ProfileEngineUnknown" xml:space="preserve">
+    <value>The profile's engine '{0}' isn't 1 of {1}.</value>
   </data>
   <data name="ProfileGlobalUnreadable" xml:space="preserve">
     <value>The profile's globals.{0} isn't a locator. {1}</value>
   </data>
   <data name="ProfileInvalid" xml:space="preserve">
     <value>The profile isn't valid. {0}</value>
+  </data>
+  <data name="ProfileKindOffsetsMissing" xml:space="preserve">
+    <value>Can't read {0}: the profile doesn't have {1}.</value>
   </data>
   <data name="ProfileMissing" xml:space="preserve">
     <value>The profile doesn't have {0}.</value>
@@ -228,6 +294,15 @@
   <data name="PropertyOffsetUnreadable" xml:space="preserve">
     <value>Can't read the offset of the property at {0}: reading {1} failed. {2} Check PropertyLayout.Offset (0x{3}).</value>
   </data>
+  <data name="RootNoLiveObject" xml:space="preserve">
+    <value>Can't find a live object of the class {0}.</value>
+  </data>
+  <data name="RootObjectGone" xml:space="preserve">
+    <value>The {0} object at {1} was freed.</value>
+  </data>
+  <data name="RootSubsystemsUnavailable" xml:space="preserve">
+    <value>Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile.</value>
+  </data>
   <data name="StructChainPastLimit" xml:space="preserve">
     <value>The super chain of the struct at {0} goes on past {1} levels. Check StructLayout.SuperStruct (0x{2}).</value>
   </data>
@@ -252,10 +327,49 @@
   <data name="StructSuperUnreadable" xml:space="preserve">
     <value>Can't read the super struct of the struct at {0}: reading {1} failed. {2} Check StructLayout.SuperStruct (0x{3}).</value>
   </data>
+  <data name="ValueBoolMaskUnreadable" xml:space="preserve">
+    <value>Can't read the bool mask of {0}: reading {1} failed. {2}</value>
+  </data>
+  <data name="ValueEnumUnderlyingNotNumber" xml:space="preserve">
+    <value>The underlying property of {0} is {1}, which isn't a number. Check UnderlyingProp of EnumProperty in the profile (0x{2}).</value>
+  </data>
+  <data name="ValueEnumUnderlyingNull" xml:space="preserve">
+    <value>The underlying property pointer of {0} at {1} is 0. Check UnderlyingProp of EnumProperty in the profile (0x{2}).</value>
+  </data>
+  <data name="ValueEnumUnderlyingUnreadable" xml:space="preserve">
+    <value>Can't read the underlying property of {0}: reading {1} failed. {2}</value>
+  </data>
+  <data name="ValueNotContainer" xml:space="preserve">
+    <value>{0} is {1}, which doesn't have members.</value>
+  </data>
+  <data name="ValueStringCountNegative" xml:space="preserve">
+    <value>{0} has the count {1}, which is below 0.</value>
+  </data>
+  <data name="ValueStringDataNull" xml:space="preserve">
+    <value>{0} has {1} characters, but its data pointer is 0.</value>
+  </data>
+  <data name="ValueStringTooLong" xml:space="preserve">
+    <value>{0} has {1} characters, past the limit of {2}.</value>
+  </data>
+  <data name="ValueStructEnd" xml:space="preserve">
+    <value>{0} is the struct {1}. Continue the path into 1 of its fields.</value>
+  </data>
+  <data name="ValueStructTypeNull" xml:space="preserve">
+    <value>The struct pointer of {0} at {1} is 0. Check Struct of StructProperty in the profile (0x{2}).</value>
+  </data>
+  <data name="ValueStructTypeUnreadable" xml:space="preserve">
+    <value>Can't read the struct pointer of {0}: reading {1} failed. {2}</value>
+  </data>
   <data name="ValueUnreadable" xml:space="preserve">
     <value>Can't read {1} of the object at {0}: reading {2} failed. {3}</value>
   </data>
-  <data name="ValueWrongKind" xml:space="preserve">
-    <value>{0} is {1}, not {2}.</value>
+  <data name="ValueUnsupported" xml:space="preserve">
+    <value>{0} is {1}, which the library doesn't read.</value>
+  </data>
+  <data name="ValueWeakSerialNumbersMissing" xml:space="preserve">
+    <value>Can't resolve {0}: the object array doesn't have serial numbers.</value>
+  </data>
+  <data name="ValueWrongType" xml:space="preserve">
+    <value>{0} is {1}, which reads as {2}, not {3}.</value>
   </data>
 </root>

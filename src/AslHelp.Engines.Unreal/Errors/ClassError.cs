@@ -1,3 +1,4 @@
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using System.Globalization;
 

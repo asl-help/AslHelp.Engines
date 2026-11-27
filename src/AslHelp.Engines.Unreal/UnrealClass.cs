@@ -1,4 +1,5 @@
 using AslHelp.Engines.Unreal.Errors;
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using System;
 using System.Collections.Generic;
@@ -9,13 +10,15 @@ namespace AslHelp.Engines.Unreal;
 ///     Represents a class of a running game with its own and its inherited properties.
 /// </summary>
 /// <remarks>
-///     Reads the properties at the 1st <see cref="FindProperty"/> and keeps them, because the engine doesn't change a loaded class.
+///     Reads the properties at the 1st <see cref="FindProperty"/> or <see cref="GetProperties"/> and keeps them,
+///     because the engine doesn't change a loaded class.
 ///     <see cref="UnrealGame"/> replaces the instance when the game frees the class and another class takes its address.
 ///     Isn't thread-safe.
 /// </remarks>
 public sealed class UnrealClass
 {
     private readonly ClassReader _classReader;
+    private UnrealProperty[]? _ownProperties;
     private Dictionary<string, UnrealProperty>? _properties;
 
     /// <summary>
@@ -50,7 +53,7 @@ public sealed class UnrealClass
     /// <param name="name">The name of the property.</param>
     /// <returns>
     ///     The property or a failure when no class on the chain declares it or a read of the properties fails.
-    ///     A failed read doesn't get kept, so the next call reads again.
+    ///     Doesn't keep a failed read, so the next call reads again.
     /// </returns>
     /// <exception cref="ArgumentNullException">
     ///     <paramref name="name"/> is <see langword="null"/>.
@@ -65,6 +68,80 @@ public sealed class UnrealClass
         }
 
         return property is null ? ClassError.PropertyNotFound(Name, name) : property;
+    }
+
+    /// <summary>
+    ///     Lists the properties that this class declares itself, without the properties of its super classes.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="FindProperty"/> also finds the properties of the super classes.
+    /// </remarks>
+    /// <returns>
+    ///     The properties in declaration order or a failure when a read of the properties fails.
+    ///     Doesn't keep a failed read, so the next call reads again.
+    /// </returns>
+    public Result<IReadOnlyList<UnrealProperty>> GetProperties()
+    {
+        if (_ownProperties is null)
+        {
+            List<UnrealProperty> properties = [];
+
+            foreach (var item in _classReader.OwnPropertiesOf(Address))
+            {
+                if (!item.TryUnwrap(out var property, out var error))
+                {
+                    return error;
+                }
+
+                properties.Add(property);
+            }
+
+            _ownProperties = [.. properties];
+        }
+
+        return _ownProperties;
+    }
+
+    /// <summary>
+    ///     Lists the live objects of exactly this class.
+    /// </summary>
+    /// <remarks>
+    ///     Leaves out objects of derived classes and the class default object, whose name starts with <c>Default__</c>.
+    ///     Searches the object array like <see cref="UnrealGame.FindClass"/>, then reads the class pointer and the name of each object of the class.
+    ///     A path from an object fails once the game frees it.
+    /// </remarks>
+    /// <returns>
+    ///     The objects in array order, an empty list for a class without objects
+    ///     or a failure when the array doesn't read or an object doesn't read and the list is empty.
+    /// </returns>
+    public Result<IReadOnlyList<UnrealObject>> GetInstances()
+    {
+        return _classReader.InstancesOf(this);
+    }
+
+    /// <summary>
+    ///     Lists the loaded classes that derive from this class directly or over other classes, without this class.
+    /// </summary>
+    /// <remarks>
+    ///     Searches the object array like <see cref="UnrealGame.FindClass"/> and reads the super class of each class once.
+    /// </remarks>
+    /// <returns>
+    ///     The classes in array order or a failure when the array doesn't read or an object doesn't read and the list is empty.
+    /// </returns>
+    public Result<IReadOnlyList<UnrealClass>> GetDerivedClasses()
+    {
+        return _classReader.DerivedFrom(Address);
+    }
+
+    /// <summary>
+    ///     Returns the name of the class.
+    /// </summary>
+    /// <returns>
+    ///     The name.
+    /// </returns>
+    public override string ToString()
+    {
+        return Name;
     }
 
     /// <summary>

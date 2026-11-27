@@ -1,3 +1,5 @@
+using AslHelp.Engines.Unreal.Objects;
+using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using NUnit.Framework;
 using System.Linq;
@@ -10,6 +12,7 @@ public sealed class UnrealProfileEdgeTests
     // Trimmed from the 4.18.3 win-x64-shipping profile.
     private const string Item = """
         {
+          "engine": "unreal4",
           "key": "win-x64-shipping",
           "versions": ["4.18.3", "4.19.2"],
           "shapes": { "FField": "uproperty", "FNameEntry": "indirect", "FUObjectArray": "flat" },
@@ -24,6 +27,7 @@ public sealed class UnrealProfileEdgeTests
             "UStruct": { "SuperStruct": "0x30", "Children": "0x38" }
           },
           "globals": {
+            "GEngine": { "4.18.3": [{ "forward": "32 DB 48 8B 0D ????????", "offset": 5 }, { "read": "global" }] },
             "GUObjectArray": { "4.18.3": [{ "forward": "89 1D ???????? 85 FF", "offset": 2 }, { "read": "global" }] },
             "GWorld": { "4.18.3": [{ "forward": "48 89 05 ???????? 0F 28 D6", "offset": 3 }, { "read": "global" }] },
             "NameTable": { "4.18.3": [{ "forward": "E8 ???????? 48 8B C3 48 89 1D ????????", "offset": 11 }, { "read": "global" }] }
@@ -109,6 +113,7 @@ public sealed class UnrealProfileEdgeTests
         string route = """[{ "forward": "48 89 05 ????????", "offset": 3 }, { "read": "global" }]""";
         string globals = $$"""
             "globals": {
+              "GEngine": { "4.18.3": {{route}} },
               "GUObjectArray": { "4.18.3": {{route}} },
               "GWorld": { "4.18.3": {{route}}, "4.18.3": {{route}} },
               "NameTable": { "4.18.3": {{route}} }

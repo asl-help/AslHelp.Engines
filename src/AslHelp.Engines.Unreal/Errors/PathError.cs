@@ -1,3 +1,4 @@
+using AslHelp.Engines.Unreal.Paths;
 using AslHelp.Memory;
 
 namespace AslHelp.Engines.Unreal.Errors;
@@ -24,7 +25,7 @@ internal abstract record PathError : ResultError
     ///     Creates the error for a segment of a path whose read failed.
     /// </summary>
     /// <param name="path">The path.</param>
-    /// <param name="segment">The segment that failed, 0 for the global the path starts at.</param>
+    /// <param name="segment">The segment that failed, 0 for the root the path starts at.</param>
     /// <param name="cause">The error of the read.</param>
     /// <returns>
     ///     The error.

@@ -9,27 +9,85 @@ This repo contains the libraries that read game engines from memory and the tool
 
 `AslHelp.Engines.Unreal` reads names, objects, structs and properties from Unreal Engine 3, 4 and 5 games. You pick the storage shape and pass in its layouts. For properties you use `ObjectPropertyReader` up to 4.24 and `FieldPropertyReader` from 4.25 on. The readers return `Result<T>` and the name tables aren't thread-safe.
 
-`UnrealProfile.Parse` reads a profile document from `just measure --profiles` (see [Profiles](#profiles)). `UnrealGame.Attach` finds the globals of that profile in the game and picks the readers for its shapes:
+`UnrealProfile.Parse` reads an `unreal3` or `unreal4` profile document from `just measure --profiles` (see [Profiles](#profiles)). `UnrealGame.Attach` finds the globals of that profile in the game and picks the readers for its shapes:
 
 ```cs
 var profile = UnrealProfile.Parse(File.ReadAllText("unreal4-4.18.3-win-x64-shipping.json")).Unwrap();
 var game = UnrealGame.Attach(memory, module, profile).Unwrap();
 
-var hp = game.GWorld.ObjectMember("AuthorityGameMode").ObjectMember("FixtureData").Int32Member("Hp");
-var watcher = hp.CreateWatcher(ticks);
+var data = game.GWorld.Member("AuthorityGameMode").Member("FixtureData");
+var hp = data.Member<int>("Hp").CreateWatcher(ticks);
+var x = data.Member("Coord").Member<int>("X").CreateWatcher(ticks);
 ```
 
-`ticks` is the `ITickCounter` of your host. `GWorld` is a path that starts at the world. A path doesn't read until its watcher does. Each hop looks the member up on the real class of the object, so `FixtureData` shows up on the game mode even though `AuthorityGameMode` is declared as `AGameModeBase`. Attach doesn't wait for a world. A null object on the way, like a world that isn't loaded yet, fails the read and the watcher follows its `FailAction`. With the default `Clear` it shows 0.
+`ticks` is the `ITickCounter` of your host. `GWorld` is a path that starts at the world. A path doesn't read until its watcher does. Each hop looks the member up on the real class of the object, so `FixtureData` shows up on the game mode even though `AuthorityGameMode` is declared as `AGameModeBase`. `Member(name)` goes through an object pointer or into a struct, picked by the kind of the property. `Member<T>(name)` ends the path on a value. Attach doesn't wait for a world. A null object on the way, like a world that isn't loaded yet, fails the read and the watcher follows its `FailAction`. With the default `Clear` it shows the default of `T`.
 
-A script writes the same path through `dynamic`. A misspelled member fails when the watcher reads.
+| Property | `T` and what a chain watcher gives |
+|---|---|
+| `Int8Property`, `Int16Property`, `IntProperty`, `Int64Property` | `sbyte`, `short`, `int`, `long` |
+| `ByteProperty` (also `TEnumAsByte`), `UInt16Property`, `UInt32Property`, `UInt64Property` | `byte`, `ushort`, `uint`, `ulong` |
+| `FloatProperty`, `DoubleProperty`, `LargeWorldCoordinatesRealProperty` | `float`, `double`, `double` |
+| `BoolProperty` (also bitfields) | `bool` |
+| `EnumProperty` | the type of its underlying property, like `byte` |
+| `NameProperty`, `StrProperty` | `string`, a name with its number like `Actor_4` |
+| `ObjectProperty`, `ClassProperty`, `ComponentProperty`, `ObjectPtrProperty`, `ClassPtrProperty` | `Address`, a path goes on through it |
+| `WeakObjectProperty` (4.11 and later) | `Address` or 0 when the object is gone. A path goes on through it |
+| `StructProperty` | no value, a path goes on into it |
+| `StructProperty` with only numbers of 1 class, like `FVector` | an array of that number, like `float[]` (`double[]` on 5.x) |
+| `ArrayProperty` | an array of the element type, like `int[]` |
+| `SetProperty` | `HashSet<T>` of the element type |
+| `MapProperty` | `Dictionary<TKey, TValue>` |
+
+After a collection, an index or key goes into 1 element and `Count` reads the number of elements:
+
+```cs
+var second = data.Member("IntArray").Element<int>(1).CreateWatcher(ticks);
+var two = data.Member("Dict").Element<int>("two").CreateWatcher(ticks);
+var shieldCount = data.Member("Items")[1].Member<int>("Count").CreateWatcher(ticks);
+var items = data.Member("Items").Count.CreateWatcher(ticks);
+```
+
+- an index is an `int` or `long`, a key is an `int`, `long` or `string` and `Element<T>` also takes a `bool` key
+- a string key matches name and string keys, an integer matches any integer or enum key
+- `Element<bool>(key)` on a set reads whether the set has the key
+- an array or map of mixed structs doesn't read as 1 value, so index it
+- a missing key or an index past the count fails the read
+
+Any other kind fails with the property and its class, like `TextProperty` or `SoftObjectProperty`. A `T` that doesn't match the kind fails when the watcher reads. A string with more than 512 characters fails. A whole array with more than 1024 elements fails too. A whole read or a key lookup fails on a set or map with more than 1024 slots, used or free. A watcher of a collection keeps its instance while the elements don't change. A profile without the offsets of a kind still attaches and only reads of that kind fail with the missing offsets. Unreal Engine 3 documents don't have the set, map and weak pointer offsets, so those kinds fail there.
+
+The path types are in `AslHelp.Engines.Unreal.Paths`.
+
+A script writes the same path through `dynamic`. Its watcher is a `Watcher<object?>` whose value has the type from the table, picked from the property at read time. Before the 1st good read `Current` and `Old` are null. When another class has a member with that name and another kind, `Old` keeps the old type for 1 tick and `Changed` is true. A misspelled member fails when the watcher reads.
 
 ```cs
 IWatcherSource hp = game.GWorldChain.AuthorityGameMode.FixtureData.Hp;
+IWatcherSource x = game.GWorldChain.AuthorityGameMode.FixtureData.Coord.X;
+IWatcherSource shield = game.GWorldChain.AuthorityGameMode.FixtureData.Items[1].ItemName;
 ```
 
-`ClassOf` returns the real class of an object and `FindClass` finds a loaded class by name. `UnrealGame` keeps each class and its properties after the 1st read. It isn't thread-safe. `ReadInt32` reads `IntProperty` values and `ReadObject` reads `ObjectProperty` and `ClassProperty` values. For other kinds, `UnrealProperty.Accept` calls `VisitUnsupported` of your `IPropertyVisitor<TResult>`.
+Paths and chains can start at other objects too:
 
-`AslHelp.Engines` is what the engine libraries share. `MemberChain<THop>` lets a script write a path of members through `dynamic`, like `root.Player.Health`. Each name goes to the engine's `IMemberResolver<THop>`, which returns the hop for it or throws if the type can't have that member. The resolver also creates the watcher, so it can type the watcher after the member at the end:
+```cs
+var engineHp = game.GEngine.Member("GameViewport").Member("World").Member("AuthorityGameMode").Member("FixtureData").Member<int>("Hp");
+
+var item = game.FindPackage("/Script/Fixture").Unwrap().FindClass("FixtureItem").Unwrap().GetInstances().Unwrap()[0];
+var itemName = item.Path.Member<string>("ItemName");
+IWatcherSource count = item.Chain.Count;
+
+var subsystem = game.FindSubsystem("MySubsystem").Unwrap();
+var score = subsystem.Path.Member<int>("Score");
+```
+
+- `GEngine` and `GEngineChain` start at the engine object, like `GWorld` and `GWorldChain`. A profile needs `globals.GEngine`.
+- `FindPackage` takes a path like `/Script/Engine` in any case. On Unreal Engine 3 it takes a bare name like `Engine`. `GetPackages` lists the packages.
+- A package has `FindClass` and `GetClasses`. A class has `FindProperty` (through its bases), `GetProperties` (its own), `GetInstances` and `GetDerivedClasses`.
+- `GetInstances` lists the live objects of exactly that class without the `Default__` object. It searches the object array like `FindClass`. An object's path fails once the game frees it.
+- `FindSubsystem` gives a root at the 1st live object of a subsystem class. It needs a profile of 4.22 or later. A read finds the object again when it's missing or replaced.
+- `World` doesn't have any reflected properties on Unreal Engine 3, so start at `GEngine` or at an object from `GetInstances` on that engine.
+
+`ClassOf` returns the real class of an object and `FindClass` finds a loaded class by name. A miss reads the object array again, but only the objects in slots that changed. `UnrealGame` keeps each class with its properties and each package after the 1st read. It isn't thread-safe. `Read<T>` reads the value of 1 property of an object with the types from the table. `UnrealProperty.Accept` calls `VisitValue<T>`, `VisitEnum`, `VisitStruct`, `VisitCollection` or `VisitUnsupported` of your `PropertyVisitor<TResult>`.
+
+`AslHelp.Engines` is what the engine libraries share. `MemberChain<THop>` lets a script write a path of members through `dynamic`, like `root.Player.Health`. Each name goes to the engine's `IMemberResolver<THop>`, which returns the hop for it or throws if the type can't have that member. An index like `root.Items[2]` goes to `ResolveIndex` the same way. The resolver also creates the watcher, so it can type the watcher after the member at the end or after the value it reads:
 
 ```cs
 dynamic root = new MemberChain<Hop>(resolver, rootHop);

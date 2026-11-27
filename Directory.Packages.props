@@ -7,8 +7,9 @@
 
   <!-- AslHelp packages. -->
   <ItemGroup>
-    <PackageVersion Include="AslHelp.Memory" Version="0.1.0-alpha.1" />
-    <PackageVersion Include="AslHelp.Memory.Remote" Version="0.1.0-alpha.1" />
+    <PackageVersion Include="AslHelp.Memory" Version="0.1.0-alpha.2" />
+    <PackageVersion Include="AslHelp.Memory.Remote" Version="0.1.0-alpha.2" />
+    <PackageVersion Include="AslHelp.Shared" Version="0.1.0-alpha.3" />
   </ItemGroup>
 
   <!-- Shared package versions. -->

@@ -74,30 +74,31 @@ public sealed class UdkFixtureCheckTests(
     }
 
     // The game spawns the instance under the class name, so the search does not read the class of any other object.
+    // Run the check alone, because the value members after it read the class of every object.
     [Test]
-    public void Measure_InstanceWithTheClassName_ReadsNoClassOfOtherObjects()
+    public void Run_InstanceWithTheClassName_DoesNotReadTheClassOfOtherObjects()
     {
         // Use a filler behind the 512 sampled objects, because the search for the name offset reads every sampled object at each offset.
         _image = new FakeImage(layout, FirstNames, fillers: 600);
 
         var filler = _image.Memory.ReadPointer(FakeImage.ObjectPointerAt(FakeImage.FirstFillerPosition + 599)).UnwrapOr(Address.Zero);
 
-        _ = Measure().Unwrap();
+        _ = RunAndLog();
 
         Assert.That(_image.Memory.ReadsAt(filler + layout.Class), Is.Zero);
     }
 
     // The game spawns the instance as the class name with a number, such as FixtureData_0, so the search finds it by its base name
-    // and still reads no class of other objects.
+    // and still doesn't read the class of other objects.
     [Test]
-    public void Measure_InstanceWithANumber_ReadsNoClassOfOtherObjects()
+    public void Run_InstanceWithANumber_DoesNotReadTheClassOfOtherObjects()
     {
         _image = new FakeImage(layout, FirstNames, fillers: 600);
         _image.Memory.WriteInt32(_image.FixtureInstance + layout.Name + sizeof(int), 1);
 
         var filler = _image.Memory.ReadPointer(FakeImage.ObjectPointerAt(FakeImage.FirstFillerPosition + 599)).UnwrapOr(Address.Zero);
 
-        string log = MeasureAndLog();
+        string log = RunAndLog();
 
         using (Assert.EnterMultipleScope())
         {
@@ -363,6 +364,22 @@ public sealed class UdkFixtureCheckTests(
             "file.bin",
             new WriterLogger(output, error),
             CancellationToken.None).Unwrap();
+
+        return output.ToString();
+    }
+
+    // Find the arrays and the members, then run the fixture check alone and return its log.
+    private string RunAndLog()
+    {
+        var names = UdkArrays.FindNames(_image.Memory, FakeImage.Base, _image.Sections, FirstNames).Unwrap();
+        var objects = UdkArrays.FindObjects(_image.Memory, FakeImage.Base, _image.Sections, names.Rvas).Unwrap();
+        Dictionary<string, int> offsets = [];
+        var measured = UdkMembers.Measure(_image.Memory, names, objects, offsets, []).Unwrap();
+
+        using StringWriter output = new();
+        using StringWriter error = new();
+
+        _ = UdkFixtureCheck.Run(_image.Memory, measured, offsets, new WriterLogger(output, error)).Unwrap();
 
         return output.ToString();
     }

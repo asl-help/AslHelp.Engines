@@ -44,11 +44,14 @@ public sealed class UnrealFixtureManifestTests
         "TextValue",
         "Coord",
         "Position",
+        "Rotation",
         "IntArray",
         "StringArray",
         "CoordArray",
         "VecArray",
     ];
+
+    private static readonly string[] _collectionProperties = ["Dict", "IntDict", "NameDict", "CoordDict", "IntSet", "NameSet"];
 
     private static readonly string[] _fixtureDataOnly = ["FixtureData"];
 
@@ -90,7 +93,7 @@ public sealed class UnrealFixtureManifestTests
             Assert.That(manifest.Player, Is.EqualTo(Player));
             Assert.That(manifest.Configuration, Is.EqualTo(Configuration));
             Assert.That(manifest.Classes, Is.EqualTo(_allClasses));
-            Assert.That(manifest.Properties, Is.EqualTo(_baseProperties.Concat(["Dict", "IntDict", "IntSet"]).Concat(_objectProperties)));
+            Assert.That(manifest.Properties, Is.EqualTo(_baseProperties.Concat(_collectionProperties).Concat(_objectProperties)));
         }
     }
 
@@ -103,7 +106,7 @@ public sealed class UnrealFixtureManifestTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(manifest.Classes, Does.Not.Contain("FixtureSubsystem"));
-            Assert.That(manifest.Properties, Is.EqualTo(_baseProperties.Concat(["Dict", "IntDict", "IntSet"]).Concat(_objectProperties)));
+            Assert.That(manifest.Properties, Is.EqualTo(_baseProperties.Concat(_collectionProperties).Concat(_objectProperties)));
         }
     }
 

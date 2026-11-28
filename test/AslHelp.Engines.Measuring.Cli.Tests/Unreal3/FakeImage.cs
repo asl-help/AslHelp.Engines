@@ -53,6 +53,7 @@ internal sealed class FakeImage
     private static readonly Address _unreadable = new(0x0700_0000);
 
     private readonly byte[] _arrays = new byte[2 * PageSize];
+    private readonly Dictionary<string, Address> _arrayInners = [];
     private readonly Dictionary<string, Address> _classes = [];
     private readonly List<Address> _entries = [];
     private readonly Address _fixtureDefault;
@@ -61,6 +62,7 @@ internal sealed class FakeImage
     private readonly List<string> _names = [];
     private readonly List<Address> _objects = [];
     private readonly Dictionary<string, Address> _properties = [];
+    private readonly Dictionary<string, Address> _valueFields = [];
 
     private int _nextSlot = SlotsAt;
     private Address _staticArrayField;
@@ -429,6 +431,19 @@ internal sealed class FakeImage
     }
 
     /// <summary>
+    ///     Writes a pointer at <paramref name="at"/> of each array property to its inner property, like the hash chain of names
+    ///     in UDK 2011-05 and later, which links the array to the inner property of the same name.
+    /// </summary>
+    /// <param name="at">The offset of the pointer in the array property.</param>
+    public void ChainArraysToTheirInners(int at)
+    {
+        foreach (var (name, inner) in _arrayInners)
+        {
+            Memory.WritePointer(_valueFields[name] + at, inner);
+        }
+    }
+
+    /// <summary>
     ///     Removes the class pointer of the property <c>Outer</c>.
     /// </summary>
     public void ClearPropertyClass()
@@ -644,6 +659,7 @@ internal sealed class FakeImage
             Memory.WriteInt32(field + _layout.ElementSize, elementSize);
             Memory.WritePointer(field + _layout.PropertySize, atPropertySize);
             Memory.WritePointer(previous + _layout.Next, field);
+            _valueFields[name] = field;
 
             previous = field;
         }
@@ -659,6 +675,7 @@ internal sealed class FakeImage
         Memory.WritePointer(inner + _layout.Class, _classes[klass]);
         Memory.WriteInt32(inner + _layout.ArrayDim, 1);
         Memory.WriteInt32(inner + _layout.ElementSize, elementSize);
+        _arrayInners[name] = inner;
 
         return inner;
     }

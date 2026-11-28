@@ -66,10 +66,11 @@ public sealed class InstallEngineScriptTests
         using EnvironmentVariableScope environment = new(LegendaryConfigVariable);
         Environment.SetEnvironmentVariable(LegendaryConfigVariable, _folder.NewFolder());
 
-        UnrealEngine engine = new(TextWriter.Null) { FreeBytes = _ => long.MaxValue };
+        UnrealEngine engine = new(TextWriter.Null);
+        string output = _folder.NewFolder();
 
         Assert.That(
-            async () => await engine.InstallAsync(EmbeddedReleases<UnrealRelease>.Find("4.19"), _folder.NewFolder(), CancellationToken.None),
+            async () => await engine.InstallAsync(EmbeddedReleases<UnrealRelease>.Find("4.19"), output, new DriveRoom(output, _ => long.MaxValue, TextWriter.Null), CancellationToken.None),
             Throws.InvalidOperationException
                 .With.Message.Contains("just legendary auth")
                 .And.Message.Contains("No saved credentials"));

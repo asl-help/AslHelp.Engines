@@ -9,23 +9,10 @@ namespace AslHelp.Engines.Fixtures.Cli.Tests.Unreal4;
 
 public sealed class UnrealReleaseReadmeTests
 {
-    private const long Gib = 1L << 30;
     private const string ReadmeResource = "readme.md";
     private const string TableHeader = "| Versions | `players` |";
 
     private static readonly string[] _allPlayers = ["win-x64-shipping", "win-x64-development", "win-x86-shipping", "win-x86-development"];
-
-    // The sizes in the readme come from the rows, so a changed row without a changed readme fails here.
-    [Test]
-    public void All_InstallBytes_MatchTheSizesOfTheReadme()
-    {
-        var biggest = EmbeddedReleases<UnrealRelease>.All.MaxBy(row => row.InstallBytes)!;
-        long total = EmbeddedReleases<UnrealRelease>.All.Sum(row => row.InstallBytes) / Gib;
-        int count = EmbeddedReleases<UnrealRelease>.All.Count;
-        string sizes = $"All {count} engines take {total} GiB together and the biggest one is {biggest.Minor} at {biggest.InstallBytes / Gib} GiB.";
-
-        Assert.That(ReadReadme(), Does.Contain(sizes));
-    }
 
     // Each row renders to the columns of the 1 table line that covers its minor, so a changed row without a changed table fails
     // here. The toolset column stays out, because it comes from the build logs and not from the row.

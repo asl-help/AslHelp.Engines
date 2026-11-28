@@ -55,6 +55,29 @@ internal static class SelfExtractingZip
     }
 
     /// <summary>
+    ///     Adds up the extracted sizes of the entries of the zip in <paramref name="path"/>, from its central directory.
+    /// </summary>
+    /// <param name="path">The self-extracting file or a plain zip.</param>
+    /// <returns>
+    ///     The bytes that <see cref="Extract"/> writes.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="path"/> is <see langword="null"/>.</exception>
+    /// <exception cref="FileNotFoundException"><paramref name="path"/> does not exist.</exception>
+    /// <exception cref="InvalidDataException">The zip cannot be found.</exception>
+    public static long UnpackedBytes(string path)
+    {
+        using var archive = Open(path);
+        long bytes = 0;
+
+        foreach (var entry in archive.Entries)
+        {
+            bytes += entry.Length;
+        }
+
+        return bytes;
+    }
+
+    /// <summary>
     ///     Extracts every entry of the zip in <paramref name="path"/> into <paramref name="destinationDirectory"/>.
     /// </summary>
     /// <remarks>

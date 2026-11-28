@@ -13,7 +13,7 @@ namespace AslHelp.Engines.Fixtures.Unreal4;
 public static class UnrealPlayerOptions
 {
     /// <summary>
-    ///     Creates the <c>--arch</c> option, which takes <c>x64</c> or <c>x86</c>.
+    ///     Creates the <c>--arch</c> option with the short form <c>-a</c>, which takes <c>x64</c> or <c>x86</c>.
     /// </summary>
     /// <param name="description">The description of the option in the help.</param>
     /// <returns>
@@ -21,7 +21,7 @@ public static class UnrealPlayerOptions
     /// </returns>
     public static Option<Architecture?> Arch(string description)
     {
-        Option<Architecture?> option = new("--arch")
+        Option<Architecture?> option = new("--arch", "-a")
         {
             Description = description,
             CustomParser = ParseArch,
@@ -34,7 +34,7 @@ public static class UnrealPlayerOptions
     }
 
     /// <summary>
-    ///     Creates the <c>--config</c> option, which takes <c>development</c> or <c>shipping</c>.
+    ///     Creates the <c>--config</c> option with the short form <c>-c</c>, which takes <c>development</c> or <c>shipping</c>.
     /// </summary>
     /// <param name="description">The description of the option in the help.</param>
     /// <returns>
@@ -42,7 +42,7 @@ public static class UnrealPlayerOptions
     /// </returns>
     public static Option<UnrealConfig?> Config(string description)
     {
-        Option<UnrealConfig?> option = new("--config")
+        Option<UnrealConfig?> option = new("--config", "-c")
         {
             Description = description,
             CustomParser = ParseConfig,

@@ -43,16 +43,22 @@ public sealed class UnrealTargetTests
         }
     }
 
-    // UDK stamps 1.0, the engine build and 0, so the build 7258 is the 2010-09 release.
-    [Test]
-    public void FromFileVersion_Unreal3Numbers_ReadsTheRelease()
+    // UDK stamps 1.0, the engine build and 0, so each measured build reads as its release. Releases that share a build read as the 1st of them.
+    [TestCase(6829, "2010-06-BETA")]
+    [TestCase(7258, "2010-09")]
+    [TestCase(7977, "2011-03-BETA")]
+    [TestCase(8710, "2011-07-BETA")]
+    [TestCase(9375, "2012-01-BETA")]
+    [TestCase(9953, "2012-05-BETA")]
+    [TestCase(12791, "2015-02")]
+    public void FromFileVersion_Unreal3Numbers_ReadsTheRelease(int build, string release)
     {
-        var target = FromFileVersion("1, 0, 7258, 0", new Version(1, 0, 7258, 0), "UDK.exe", 4);
+        var target = FromFileVersion($"1, 0, {build}, 0", new Version(1, 0, build, 0), "UDK.exe", 4);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(target.Engine, Is.EqualTo(UnrealTarget.Unreal3));
-            Assert.That(target.Version.Text, Is.EqualTo("2010-09"));
+            Assert.That(target.Version.Text, Is.EqualTo(release));
             Assert.That(target.Key, Is.EqualTo("win-x86-shipping"));
         }
     }

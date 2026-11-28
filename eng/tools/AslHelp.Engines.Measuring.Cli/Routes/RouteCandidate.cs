@@ -11,4 +11,39 @@ internal sealed record RouteCandidate(
     string Forward,
     int Offset,
     int Instructions,
-    int Bytes);
+    int Bytes)
+{
+    /// <summary>
+    ///     Gets the number of whole bytes that the mask keeps, which a match has to equal.
+    /// </summary>
+    /// <remarks>
+    ///     A byte with 1 masked half, like <c>4?</c>, doesn't count.
+    /// </remarks>
+    public int Literals
+    {
+        get
+        {
+            int literals = 0;
+            int digits = 0;
+            bool kept = true;
+
+            foreach (char digit in Forward)
+            {
+                if (digit == ' ')
+                {
+                    continue;
+                }
+
+                kept &= digit != '?';
+
+                if (++digits % 2 == 0)
+                {
+                    literals += kept ? 1 : 0;
+                    kept = true;
+                }
+            }
+
+            return literals;
+        }
+    }
+}

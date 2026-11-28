@@ -26,7 +26,7 @@ public sealed class UnrealEngineEdgeCaseTests
         _folder = new TestFolder();
         _output = new StringWriter();
         _outputPath = _folder.NewFolder();
-        _enginesPath = Path.Combine(_outputPath, UnrealEngine.EnginesFolder);
+        _enginesPath = Path.Combine(_outputPath, DiskSpace.EnginesFolder);
         _enginePath = Path.Combine(_enginesPath, _release.App);
     }
 
@@ -49,7 +49,7 @@ public sealed class UnrealEngineEdgeCaseTests
         cancellation.Cancel();
 
         Assert.That(
-            async () => await NewEngine(uv, _ => 0).InstallAsync(_release, _outputPath, cancellation.Token),
+            async () => await NewEngine(uv).InstallAsync(_release, _outputPath, Room(), cancellation.Token),
             Throws.InstanceOf<OperationCanceledException>());
 
         using (Assert.EnterMultipleScope())
@@ -68,8 +68,8 @@ public sealed class UnrealEngineEdgeCaseTests
         FakeUv first = new(_folder.NewFolder(), 0, $"mkdir \"{_enginePath}\"");
         FakeUv second = new(_folder.NewFolder(), 99);
 
-        _ = await NewEngine(first).InstallAsync(_release, _outputPath, CancellationToken.None);
-        _ = await NewEngine(second).InstallAsync(_release, _outputPath, CancellationToken.None);
+        _ = await NewEngine(first).InstallAsync(_release, _outputPath, Room(), CancellationToken.None);
+        _ = await NewEngine(second).InstallAsync(_release, _outputPath, Room(), CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -88,7 +88,7 @@ public sealed class UnrealEngineEdgeCaseTests
         FakeUv clean = new(_folder.NewFolder(), 0);
 
         await Assert.ThatAsync(
-            () => NewEngine(failing).InstallAsync(_release, _outputPath, CancellationToken.None),
+            () => NewEngine(failing).InstallAsync(_release, _outputPath, Room(), CancellationToken.None),
             Throws.InvalidOperationException);
 
         using (Assert.EnterMultipleScope())
@@ -97,7 +97,7 @@ public sealed class UnrealEngineEdgeCaseTests
             Assert.That(EngineMarker.Read(_enginePath), Is.Null);
         }
 
-        _ = await NewEngine(clean).InstallAsync(_release, _outputPath, CancellationToken.None);
+        _ = await NewEngine(clean).InstallAsync(_release, _outputPath, Room(), CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -107,22 +107,22 @@ public sealed class UnrealEngineEdgeCaseTests
         }
     }
 
-    // An installed engine on a short drive removes an older engine and returns without starting the tool. The step line has the removed path.
+    // An installed engine on a short drive removes an older engine and keeps its own folder, even with the oldest marker. The step line has the removed path.
     [Test]
     [Platform("Win")]
-    public async Task InstallAsync_MarkerWithPinnedSha1AndShortDrive_RemovesAnotherEngineAndSkipsTheTool()
+    public async Task InstallAsync_InstalledEngineAndShortDrive_RemovesAnotherEngineAndKeepsItsOwn()
     {
         FakeUv uv = new(_folder.NewFolder(), 99);
         _ = NewFinishedEngine(_release.App, _release.Sha1);
         File.SetLastWriteTimeUtc(Path.Combine(_enginePath, EngineMarker.FileName), DateTime.UtcNow.AddDays(-9));
         string sibling = NewFinishedEngine("sibling", OtherSha1);
-        var engine = NewEngine(uv, _ => Directory.Exists(sibling) ? EngineSpace.ScratchBytes - 1 : EngineSpace.ScratchBytes);
+        long needed = DiskSpace.MarginBytes + UnrealEngine.CookBytes;
+        DriveRoom room = new(_outputPath, _ => Directory.Exists(sibling) ? needed - 1 : needed, _output);
 
-        string installed = await engine.InstallAsync(_release, _outputPath, CancellationToken.None);
+        _ = await NewEngine(uv).InstallAsync(_release, _outputPath, room, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(installed, Is.EqualTo(_enginePath));
             Assert.That(sibling, Does.Not.Exist);
             Assert.That(EngineMarker.Read(_enginePath), Is.EqualTo(_release.Sha1));
             Assert.That(_output.ToString(), Does.Contain($"Removed {sibling}"));
@@ -142,9 +142,10 @@ public sealed class UnrealEngineEdgeCaseTests
         string own = Path.Combine(_outputPath, $"unreal4-{_release.Version}-build");
         TestFolder.WriteBytes(stale, "out.bin", [1]);
         TestFolder.WriteBytes(own, "out.bin", [1]);
-        var engine = NewEngine(uv, _ => Directory.Exists(stale) ? EngineSpace.ScratchBytes - 1 : EngineSpace.ScratchBytes);
+        long needed = DiskSpace.MarginBytes + UnrealEngine.CookBytes;
+        DriveRoom room = new(_outputPath, _ => Directory.Exists(stale) ? needed - 1 : needed, _output);
 
-        _ = await engine.InstallAsync(_release, _outputPath, CancellationToken.None);
+        _ = await NewEngine(uv).InstallAsync(_release, _outputPath, room, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -155,17 +156,20 @@ public sealed class UnrealEngineEdgeCaseTests
         }
     }
 
-    // The space of an old pin counts before any other engine goes, so its delete comes before the check.
+    // The files of an old pin go before the measure, so the space they free counts and the other engines stay.
     [Test]
     [Platform("Win")]
-    public async Task InstallAsync_MarkerWithOtherSha1_ChecksTheSpaceAfterItsDelete()
+    public async Task InstallAsync_MarkerWithOtherSha1_FreesItsFilesBeforeTheRoomStep()
     {
-        FakeUv uv = new(_folder.NewFolder(), 0, $"mkdir \"{_enginePath}\"");
+        FakeUv uv = new(_folder.NewFolder(), 100, 0, $"if not exist \"{_enginePath}\" mkdir \"{_enginePath}\"");
         _ = NewFinishedEngine(_release.App, OtherSha1);
+        string oldFile = Path.Combine(_enginePath, "file.bin");
+        await File.WriteAllBytesAsync(oldFile, new byte[60]);
         string sibling = NewFinishedEngine("sibling", OtherSha1);
-        var engine = NewEngine(uv, _ => Directory.Exists(_enginePath) ? 0 : long.MaxValue);
+        long needed = 100 + DiskSpace.MarginBytes + UnrealEngine.CookBytes;
+        DriveRoom room = new(_outputPath, _ => File.Exists(oldFile) ? needed - 1 : needed, _output);
 
-        _ = await engine.InstallAsync(_release, _outputPath, CancellationToken.None);
+        _ = await NewEngine(uv).InstallAsync(_release, _outputPath, room, CancellationToken.None);
 
         Assert.That(sibling, Does.Exist);
     }
@@ -180,7 +184,7 @@ public sealed class UnrealEngineEdgeCaseTests
         string file = Path.Combine(_enginePath, "file.bin");
         await File.WriteAllTextAsync(file, "text");
 
-        _ = await NewEngine(uv).InstallAsync(_release, _outputPath, CancellationToken.None);
+        _ = await NewEngine(uv).InstallAsync(_release, _outputPath, Room(), CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -201,7 +205,7 @@ public sealed class UnrealEngineEdgeCaseTests
         using (File.Open(Path.Combine(_enginePath, "file.bin"), FileMode.Create, FileAccess.Write, FileShare.None))
         {
             Assert.That(
-                async () => await NewEngine(uv).InstallAsync(_release, _outputPath, CancellationToken.None),
+                async () => await NewEngine(uv).InstallAsync(_release, _outputPath, Room(), CancellationToken.None),
                 Throws.InstanceOf<IOException>().Or.InstanceOf<UnauthorizedAccessException>());
         }
 
@@ -218,7 +222,7 @@ public sealed class UnrealEngineEdgeCaseTests
         await File.WriteAllTextAsync(file, "text");
 
         await Assert.ThatAsync(
-            () => NewEngine(uv).InstallAsync(_release, file, CancellationToken.None),
+            () => NewEngine(uv).InstallAsync(_release, file, Room(), CancellationToken.None),
             Throws.InstanceOf<IOException>());
 
         Assert.That(uv.Ran, Is.False);
@@ -233,11 +237,11 @@ public sealed class UnrealEngineEdgeCaseTests
     public async Task InstallAsync_OutputSpelling_PassesTheCleanPaths(string spelling)
     {
         string root = _folder.NewFolder();
-        string engines = Path.Combine(root, "my output", UnrealEngine.EnginesFolder);
+        string engines = Path.Combine(root, "my output", DiskSpace.EnginesFolder);
         string engine = Path.Combine(engines, _release.App);
         FakeUv uv = new(_folder.NewFolder(), 0, $"mkdir \"{engine}\"");
 
-        string installed = await NewEngine(uv).InstallAsync(_release, Path.Combine(root, spelling), CancellationToken.None);
+        string installed = await NewEngine(uv).InstallAsync(_release, Path.Combine(root, spelling), Room(), CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -256,11 +260,11 @@ public sealed class UnrealEngineEdgeCaseTests
     public async Task InstallAsync_OddOutputFolder_WritesTheMarkerThere(string name)
     {
         string output = Path.Combine(_folder.Root, name);
-        string engine = Path.Combine(output, UnrealEngine.EnginesFolder, _release.App);
+        string engine = Path.Combine(output, DiskSpace.EnginesFolder, _release.App);
         _ = Directory.CreateDirectory(engine);
         FakeUv uv = new(_folder.NewFolder(), 0);
 
-        string installed = await NewEngine(uv).InstallAsync(_release, output, CancellationToken.None);
+        string installed = await NewEngine(uv).InstallAsync(_release, output, Room(), CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -283,7 +287,7 @@ public sealed class UnrealEngineEdgeCaseTests
         FakeUv uv = new(folder, 7, $"type \"{outPath}\"", $"type \"{errPath}\" 1>&2");
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => NewEngine(uv).InstallAsync(_release, _outputPath, CancellationToken.None));
+            () => NewEngine(uv).InstallAsync(_release, _outputPath, Room(), CancellationToken.None));
 
         using (Assert.EnterMultipleScope())
         {
@@ -304,7 +308,7 @@ public sealed class UnrealEngineEdgeCaseTests
 
         var exception = await Assert.ThrowsAsync(
             Is.InstanceOf<Exception>(),
-            () => NewEngine(uv).InstallAsync(_release, _outputPath, CancellationToken.None));
+            () => NewEngine(uv).InstallAsync(_release, _outputPath, Room(), CancellationToken.None));
 
         Assert.That(exception!.Message, Does.Contain("{0} {bad} {"));
     }
@@ -317,7 +321,7 @@ public sealed class UnrealEngineEdgeCaseTests
         FakeUv uv = new(_folder.NewFolder(), 10);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => NewEngine(uv).InstallAsync(_release, _outputPath, CancellationToken.None));
+            () => NewEngine(uv).InstallAsync(_release, _outputPath, Room(), CancellationToken.None));
 
         Assert.That(exception!.Message, Is.EqualTo("Legendary isn't logged in. Run 'just legendary auth'."));
     }
@@ -330,7 +334,7 @@ public sealed class UnrealEngineEdgeCaseTests
         FakeUv uv = new(_folder.NewFolder(), -1073741819);
 
         var exception = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => NewEngine(uv).InstallAsync(_release, _outputPath, CancellationToken.None));
+            () => NewEngine(uv).InstallAsync(_release, _outputPath, Room(), CancellationToken.None));
 
         Assert.That(exception!.Message, Does.Contain("UE_4.19").And.Contain("code -1073741819"));
     }
@@ -343,7 +347,7 @@ public sealed class UnrealEngineEdgeCaseTests
         FakeUv uv = new(_folder.NewFolder(), 7);
 
         await Assert.ThatAsync(
-            () => NewEngine(uv).InstallAsync(_release, _outputPath, CancellationToken.None),
+            () => NewEngine(uv).InstallAsync(_release, _outputPath, Room(), CancellationToken.None),
             Throws.InvalidOperationException);
 
         Assert.That(Path.GetDirectoryName(uv.ScriptPath), Does.Not.Exist);
@@ -357,11 +361,10 @@ public sealed class UnrealEngineEdgeCaseTests
         UnrealEngine engine = new(_output)
         {
             UvPath = "file-not-on-path",
-            FreeBytes = _ => long.MaxValue,
         };
 
         Assert.That(
-            async () => await engine.InstallAsync(_release, _outputPath, CancellationToken.None),
+            async () => await engine.InstallAsync(_release, _outputPath, Room(), CancellationToken.None),
             Throws.TypeOf<FileNotFoundException>()
                 .With.Message.Contains("'file-not-on-path'")
                 .And.Message.Contains("winget install astral-sh.uv"));
@@ -374,28 +377,29 @@ public sealed class UnrealEngineEdgeCaseTests
     {
         FakeUv uv = new(_folder.NewFolder(), 7);
         _ = NewFinishedEngine(_release.App, OtherSha1);
-        string manifest = EngineSpace.ManifestPath(_enginePath);
+        string manifest = DiskSpace.ManifestPath(_enginePath);
         await File.WriteAllTextAsync(manifest, "text");
 
         await Assert.ThatAsync(
-            () => NewEngine(uv).InstallAsync(_release, _outputPath, CancellationToken.None),
+            () => NewEngine(uv).InstallAsync(_release, _outputPath, Room(), CancellationToken.None),
             Throws.InvalidOperationException);
 
         Assert.That(manifest, Does.Not.Exist);
     }
 
-    // The biggest pinned engine on a full drive fails with its own numbers, the install rounded up plus the scratch.
+    // A full drive fails before the install with the measured bytes plus the cook and the margin, rounded up to whole GiB.
     [Test]
     [Platform("Win")]
-    public void InstallAsync_BiggestRowOnAFullDrive_ThrowsWithItsNumbers()
+    public void InstallAsync_FullDrive_ThrowsWithTheNeededSpaceRoundedUp()
     {
-        FakeUv uv = new(_folder.NewFolder(), 0);
+        FakeUv uv = new(_folder.NewFolder(), (35L << 30) + 1, 0);
         string drive = Path.GetPathRoot(_outputPath)!;
 
         Assert.That(
-            async () => await NewEngine(uv, _ => 0).InstallAsync(EmbeddedReleases<UnrealRelease>.Find("5.3"), _outputPath, CancellationToken.None),
+            async () => await NewEngine(uv).InstallAsync(_release, _outputPath, Room(0), CancellationToken.None),
             Throws.InstanceOf<IOException>().With.Message.EqualTo(
                 $"Drive {drive} has 0 GiB free and the install needs 76 GiB. Free space on it or pass another --output folder."));
+
         Assert.That(uv.Ran, Is.False);
     }
 
@@ -426,17 +430,17 @@ public sealed class UnrealEngineEdgeCaseTests
         throw new FileNotFoundException("justfile", AppContext.BaseDirectory);
     }
 
-    private UnrealEngine NewEngine(FakeUv uv)
+    // Make room on a drive with the given free space, which by default always has room.
+    private DriveRoom Room(long freeBytes = long.MaxValue)
     {
-        return NewEngine(uv, _ => long.MaxValue);
+        return new DriveRoom(_outputPath, _ => freeBytes, _output);
     }
 
-    private UnrealEngine NewEngine(FakeUv uv, Func<string, long> freeBytes)
+    private UnrealEngine NewEngine(FakeUv uv)
     {
         return new UnrealEngine(_output)
         {
             UvPath = uv.FilePath,
-            FreeBytes = freeBytes,
         };
     }
 

@@ -61,6 +61,9 @@ internal static class CommandLine
     ///     The function gets the writer for the steps, for a line about how to set up the store.
     /// </param>
     /// <param name="projectsDirectory">The folder with 1 player project folder per toolchain name.</param>
+    /// <param name="freeBytes">
+    ///     The source of the free space, given a folder on the drive. <see langword="null"/> picks <see cref="DiskSpace.FreeBytes"/>.
+    /// </param>
     /// <returns>
     ///     The exit code of the run.
     /// </returns>
@@ -70,10 +73,13 @@ internal static class CommandLine
         TextWriter error,
         IReadOnlyList<IToolchain> toolchains,
         Func<TextWriter, ICacheStore?> openStore,
-        string projectsDirectory)
+        string projectsDirectory,
+        Func<string, long>? freeBytes = null)
     {
+        freeBytes ??= DiskSpace.FreeBytes;
+
         Argument<string> versionArgument = new("version") { Description = SR.VersionDescription };
-        Option<string> outputOption = new("--output") { Description = SR.OutputDescription, Required = true };
+        Option<string> outputOption = new("--output", "-o") { Description = SR.OutputDescription, Required = true };
 
         Command build = new("build", SR.BuildDescription);
         build.SetAction(PrintHelpAndFail);
@@ -95,6 +101,7 @@ internal static class CommandLine
                 parseResult,
                 openStore,
                 projectsDirectory,
+                freeBytes,
                 output,
                 error,
                 cancellationToken));
@@ -124,7 +131,8 @@ internal static class CommandLine
 
     /// <summary>
     ///     Restores the players of <paramref name="version"/> of <paramref name="toolchain"/> from the cache. If any are
-    ///     missing, it installs the toolchain once, builds them in 1 pass and checks and caches each in order.
+    ///     missing, it installs the toolchain once with a <see cref="DriveRoom"/> for its steps, builds them in 1 pass and
+    ///     checks and caches each in order.
     /// </summary>
     /// <param name="toolchain">The toolchain.</param>
     /// <param name="version">The version as the user typed it.</param>
@@ -134,6 +142,7 @@ internal static class CommandLine
     ///     The function that opens the cache store with the writer for the steps or returns <see langword="null"/> for none.
     /// </param>
     /// <param name="projectsDirectory">The folder with 1 player project folder per toolchain name.</param>
+    /// <param name="freeBytes">The source of the free space, given a folder on the drive.</param>
     /// <param name="output">The writer for the steps and the player folders.</param>
     /// <param name="error">The writer for a failed step.</param>
     /// <param name="cancellationToken">The token that stops the running step.</param>
@@ -148,6 +157,7 @@ internal static class CommandLine
         ParseResult parseResult,
         Func<TextWriter, ICacheStore?> openStore,
         string projectsDirectory,
+        Func<string, long> freeBytes,
         TextWriter output,
         TextWriter error,
         CancellationToken cancellationToken)
@@ -199,9 +209,10 @@ internal static class CommandLine
                 string first = keys[missing[0]].Version;
                 string installing = SR.FormatInstalling(toolchain.Name, first, outputDirectory);
                 await output.WriteLineAsync(installing.AsMemory(), cancellationToken).ConfigureAwait(false);
+
                 string install = await bars.ShowAsync(
                     $"{toolchain.Name} {first}",
-                    progress => toolchain.InstallAsync(first, outputDirectory, progress, cancellationToken)).ConfigureAwait(false);
+                    progress => toolchain.InstallAsync(first, outputDirectory, new DriveRoom(outputDirectory, freeBytes, output), progress, cancellationToken)).ConfigureAwait(false);
 
                 string[] players = [.. missing.Select(index => keys[index].Version)];
                 string building = SR.FormatBuilding(project, install, string.Join(", ", players));

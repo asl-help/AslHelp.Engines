@@ -15,21 +15,39 @@ using System.Threading;
 
 namespace AslHelp.Engines.Unreal.Tests;
 
-public sealed class UnrealGameLiveTests
+// Starts each player once for all its tests, because a start takes up to a minute and every test only reads.
+[TestFixtureSource(typeof(UnrealLivePlayer), nameof(UnrealLivePlayer.Fixtures))]
+public sealed class UnrealGameLiveTests(
+    UnrealLivePlayer? player)
 {
-    private const string ExecutableName = "Fixture-Win64-Shipping.exe";
-    private const int MaxStarts = 3;
-
-    // Set FIXTURES_UNREAL_PLAYER to the folder of the 4.19.2 x64 shipping player to attach to it.
-    private const string PlayerVariable = "FIXTURES_UNREAL_PLAYER";
-
-    // Set FIXTURES_UNREAL_PROFILE to the profile document of that player.
+    // Set FIXTURES_UNREAL_PROFILE to the profile document of the player of FIXTURES_UNREAL_PLAYER.
     private const string ProfileVariable = "FIXTURES_UNREAL_PROFILE";
 
-    private const string ReadyFileName = "FixtureReady.txt";
+    // Set FIXTURES_UNREAL_PROFILES to the folder of just measure --profiles, so each player attaches with the document that lists it.
+    private const string ProfilesVariable = "FIXTURES_UNREAL_PROFILES";
 
-    private static readonly TimeSpan _readyPollInterval = TimeSpan.FromMilliseconds(250);
-    private static readonly TimeSpan _readyTimeout = TimeSpan.FromMinutes(2);
+    private static readonly ProfileVersion _firstGameModeBase = UnrealTarget.ParseVersion("4.14")!;
+    private static readonly ProfileVersion _firstSet = UnrealTarget.ParseVersion("4.13")!;
+    private static readonly ProfileVersion _firstSubsystem = UnrealTarget.ParseVersion("4.22")!;
+    private static readonly Lazy<ProfileCatalog<UnrealProfile>> _profilesCatalog = new(ReadProfilesCatalog);
+
+    private StartedPlayer? _started;
+
+    private UnrealLivePlayer Player => RequirePlayer(player);
+
+    [OneTimeSetUp]
+    public void StartPlayer()
+    {
+        Assume.That(Environment.Is64BitProcess || !Player.Is64Bit, "Run these tests in a 64-bit process, because the player is x64.");
+
+        _started = new StartedPlayer(Player.ExecutablePath);
+    }
+
+    [OneTimeTearDown]
+    public void StopPlayer()
+    {
+        _started?.Dispose();
+    }
 
     // The real player's GWorld points at an object of the class World once the fixture writes its ready file.
     [Test]
@@ -221,6 +239,8 @@ public sealed class UnrealGameLiveTests
     [Test]
     public void Read_RealPlayer_ReadsCollectionsThroughTypedPaths()
     {
+        Assume.That(Player.Version, Is.GreaterThanOrEqualTo(_firstSet), "The fixture has TMap from 4.8 on and TSet from 4.13 on.");
+
         WithAttachedPlayer(game =>
         {
             var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
@@ -255,6 +275,8 @@ public sealed class UnrealGameLiveTests
     [Test]
     public void CreateWatcher_RealPlayer_WatchesCollectionsBoxed()
     {
+        Assume.That(Player.Version, Is.GreaterThanOrEqualTo(_firstSet), "The fixture has TMap from 4.8 on and TSet from 4.13 on.");
+
         WithAttachedPlayer(game =>
         {
             var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
@@ -334,6 +356,7 @@ public sealed class UnrealGameLiveTests
     }
 
     // FixtureData creates a sword and a shield, so FixtureItem has 2 live objects and FixtureData 1 whose path reads IntValue.
+    // The items come in slot order, which differs between runs because the object array reuses free slots.
     [Test]
     public void GetInstances_RealPlayer_ReturnsBothFixtureItems()
     {
@@ -346,7 +369,7 @@ public sealed class UnrealGameLiveTests
             {
                 Assert.That(
                     items.Select(static item => item.Path.Member("ItemName").Read<string>().Unwrap()),
-                    Is.EqualTo(["sword", "shield"]));
+                    Is.EquivalentTo(["sword", "shield"]));
                 Assert.That(data.Single().Path.Member("IntValue").Read<int>().Unwrap(), Is.EqualTo(1337));
             }
         });
@@ -356,6 +379,8 @@ public sealed class UnrealGameLiveTests
     [Test]
     public void GetDerivedClasses_RealPlayer_ListsFixtureGameModeBelowGameModeBase()
     {
+        Assume.That(Player.Version, Is.GreaterThanOrEqualTo(_firstGameModeBase), "The fixture game mode derives from GameModeBase from 4.14 on.");
+
         WithAttachedPlayer(game =>
         {
             using (Assert.EnterMultipleScope())
@@ -370,7 +395,7 @@ public sealed class UnrealGameLiveTests
         });
     }
 
-    // The GEngine route of the 4.18.3 document reaches the engine of the 4.19.2 player and its viewport has the world of the game.
+    // The GEngine route of the document reaches the engine of the player and its viewport has the world of the game.
     [Test]
     public void GEngine_RealPlayer_ReachesIntValueThroughTheViewportWorld()
     {
@@ -383,19 +408,37 @@ public sealed class UnrealGameLiveTests
         });
     }
 
-    // The 4.18.3 document doesn't have the subsystem collection, so the lookup fails with the version.
+    // A document before 4.22 doesn't have the subsystem collection, so the lookup fails with the version.
     [Test]
-    public void FindSubsystem_RealPlayer_FailsBefore422()
+    public void FindSubsystem_RealPlayerBefore422_FailsWithTheVersion()
     {
+        Assume.That(Player.Version, Is.LessThan(_firstSubsystem), "Players from 4.22 on have subsystems.");
+
         WithAttachedPlayer(game => Assert.That(
             game.FindSubsystem("FixtureSubsystem").UnwrapErr().Message,
             Is.EqualTo("Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile.")));
     }
 
-    // The 4.19.2 player stamps its version, so detection and the shipped catalog pick the document of 4.18.3, which lists 4.19.2.
+    // From 4.22 on the fixture subsystem sets SubsystemValue when the game instance creates it.
     [Test]
-    public void Attach_RealPlayerWithoutAProfile_DetectsTheVersionAndPicksTheDocument()
+    public void FindSubsystem_RealPlayerFrom422_ReadsSubsystemValue()
     {
+        Assume.That(Player.Version, Is.GreaterThanOrEqualTo(_firstSubsystem), "The fixture has a subsystem from 4.22 on.");
+
+        WithAttachedPlayer(game => Assert.That(
+            game.FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Read<int>().Unwrap(),
+            Is.EqualTo(4242)));
+    }
+
+    // A shipping player from 4.8 on stamps its version and detection takes a name without a configuration as shipping, so detection and the shipped catalog pick a document that lists it.
+    [Test]
+    public void Attach_RealShippingPlayerWithoutAProfile_DetectsTheVersionAndPicksADocumentThatListsIt()
+    {
+        var live = Player;
+
+        Assume.That(live.Configuration, Is.EqualTo(UnrealConfiguration.Shipping), "The name of a development player doesn't say development.");
+        Assume.That(live.HasVersionStamp, Is.True, "Players before 4.8 don't stamp their version.");
+
         WithPlayer((memory, module) =>
         {
             var game = UnrealGame.Attach(memory, module, ProfileGuessHandling.Disallow).Unwrap();
@@ -403,11 +446,46 @@ public sealed class UnrealGameLiveTests
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(
-                    game.Selection!.Target,
-                    Is.EqualTo(new ProfileTarget(UnrealTarget.Unreal4, UnrealTarget.ParseVersion("4.19.2")!, "win-x64-shipping")));
-                Assert.That(game.Selection.Entry.Source, Is.EqualTo("Profiles/unreal4-4.18.3-win-x64-shipping.json"));
+                Assert.That(game.Selection!.Target, Is.EqualTo(live.Target));
+                Assert.That(game.Selection.Entry.Versions, Does.Contain(live.Version));
                 Assert.That(game.Selection.Match, Is.EqualTo(ProfileMatch.Listed));
+                Assert.That(game.ClassOf(world).Unwrap().Name, Is.EqualTo("World"));
+            }
+        });
+    }
+
+    // A player before 4.8 doesn't stamp its version, so detection without a passed version fails.
+    [Test]
+    public void Detect_RealPlayerBefore48_FailsWithoutAStamp()
+    {
+        var live = Player;
+
+        Assume.That(live.HasVersionStamp, Is.False, "Players from 4.8 on stamp their version.");
+
+        WithPlayer((memory, module) => Assert.That(
+            UnrealTarget.Detect(memory, module).UnwrapErr().Message,
+            Does.Contain("doesn't have an engine version stamp")));
+    }
+
+    // Detection with the configuration of the player and, before 4.8, its version finds its key,
+    // so the shipped catalog picks a document of that key that lists it.
+    [Test]
+    public void Attach_RealPlayerWithItsConfiguration_PicksADocumentOfItsKeyThatListsIt()
+    {
+        var live = Player;
+
+        WithPlayer((memory, module) =>
+        {
+            var target = UnrealTarget.Detect(memory, module, live.VersionWithoutStamp, live.Configuration).Unwrap();
+            var selection = UnrealProfile.CreateCatalog().Select(target, ProfileGuessHandling.Disallow).Unwrap();
+            var game = UnrealGame.Attach(memory, module, selection).Unwrap();
+            var world = game.GWorld.Path.Read<Address>().Unwrap();
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(target, Is.EqualTo(live.Target));
+                Assert.That(selection.Entry.Key, Is.EqualTo(live.Key));
+                Assert.That(selection.Entry.Versions, Does.Contain(live.Version));
                 Assert.That(game.ClassOf(world).Unwrap().Name, Is.EqualTo("World"));
             }
         });
@@ -432,83 +510,77 @@ public sealed class UnrealGameLiveTests
         };
     }
 
-    // Parse the profile of FIXTURES_UNREAL_PROFILE and attach with it to the started player.
-    private static void WithAttachedPlayer(Action<UnrealGame> test)
+    // Fail when FIXTURES_UNREAL_PLAYERS doesn't have a player, because that variable asks for a run on every player of its folder.
+    // Skip the test when neither variable is set. Throw what Assume throws, because CA1062 only sees a null check.
+    private static UnrealLivePlayer RequirePlayer(UnrealLivePlayer? player)
     {
-        string? profilePath = Environment.GetEnvironmentVariable(ProfileVariable);
+        if (player is not null)
+        {
+            return player;
+        }
 
-        Assume.That(
-            profilePath is not null && File.Exists(profilePath),
-            $"Set {ProfileVariable} to the profile document of that player to run this test.");
+        string? players = Environment.GetEnvironmentVariable(UnrealLivePlayer.PlayersVariable);
 
-        var profile = UnrealProfile.Parse(File.ReadAllText(profilePath!)).Unwrap();
+        if (players is not null)
+        {
+            throw new AssertionException(Directory.Exists(players)
+                ? $"{UnrealLivePlayer.PlayersVariable} is {players}, which doesn't have a player folder."
+                : $"{UnrealLivePlayer.PlayersVariable} is {players}, which doesn't exist.");
+        }
+
+        throw new InconclusiveException(
+            $"Set {UnrealLivePlayer.PlayersVariable} to a players folder or {UnrealLivePlayer.PlayerVariable} to the 4.19.2 x64 shipping player to run this test.");
+    }
+
+    // Pick the document that lists the player from FIXTURES_UNREAL_PROFILES, else parse FIXTURES_UNREAL_PROFILE.
+    private static UnrealProfile ProfileOf(UnrealLivePlayer player)
+    {
+        string? profiles = Environment.GetEnvironmentVariable(ProfilesVariable);
+
+        if (profiles is null)
+        {
+            string? profilePath = Environment.GetEnvironmentVariable(ProfileVariable);
+
+            Assume.That(
+                profilePath is not null && File.Exists(profilePath),
+                $"Set {ProfilesVariable} to a profiles folder or {ProfileVariable} to the profile document of that player to run this test.");
+
+            return UnrealProfile.Parse(File.ReadAllText(profilePath!)).Unwrap();
+        }
+
+        Assume.That(Directory.Exists(profiles), $"Set {ProfilesVariable} to a profiles folder to run this test.");
+
+        bool listed = _profilesCatalog.Value.Select(player.Target, ProfileGuessHandling.Disallow).TryUnwrap(out var selection, out _);
+
+        Assume.That(listed, $"{ProfilesVariable} doesn't have a document that lists {player.Id}.");
+
+        return selection!.Entry.Profile;
+    }
+
+    // Read the documents of FIXTURES_UNREAL_PROFILES once, because every test of every player picks from the same folder.
+    private static ProfileCatalog<UnrealProfile> ReadProfilesCatalog()
+    {
+        ProfileCatalog<UnrealProfile> catalog = new(UnrealProfile.Map, UnrealTarget.ParseVersion);
+
+        foreach (string path in Directory.EnumerateFiles(Environment.GetEnvironmentVariable(ProfilesVariable)!, "*.json"))
+        {
+            _ = catalog.AddFile(path).Unwrap();
+        }
+
+        return catalog;
+    }
+
+    // Attach to the started player with the profile of the player.
+    private void WithAttachedPlayer(Action<UnrealGame> test)
+    {
+        var profile = ProfileOf(Player);
 
         WithPlayer((memory, module) => test(UnrealGame.Attach(memory, module, profile).Unwrap()));
     }
 
-    // Start the player, wait for its ready file, run the test, then kill the player.
-    // Start again up to 3 times, because another test run can use the same player.
-    private static void WithPlayer(Action<IMemoryReader, MemoryModule> test)
+    private void WithPlayer(Action<IMemoryReader, MemoryModule> test)
     {
-        string? player = Environment.GetEnvironmentVariable(PlayerVariable);
-
-        Assume.That(player is not null && Directory.Exists(player), $"Set {PlayerVariable} to the 4.19.2 x64 shipping player to run this test.");
-        Assume.That(Environment.Is64BitProcess, "Run this test in a 64-bit process, because the player is x64.");
-
-        string directory = Path.Combine(player!, "Fixture", "Binaries", "Win64");
-        string readyPath = Path.Combine(directory, ReadyFileName);
-        ProcessStartInfo startInfo = new(Path.Combine(directory, ExecutableName), "-nullrhi -nosound") { UseShellExecute = false };
-
-        for (int attempt = 1; ; attempt++)
-        {
-            var started = DateTime.UtcNow;
-            using var process = Process.Start(startInfo)!;
-
-            try
-            {
-                if (!WaitForReadyFile(process, readyPath, started))
-                {
-                    string message = process.HasExited
-                        ? $"The player exited before it wrote {ReadyFileName}, {MaxStarts} starts."
-                        : $"The player didn't write {ReadyFileName} within {_readyTimeout}, {MaxStarts} starts.";
-
-                    Assert.That(attempt, Is.LessThan(MaxStarts), message);
-                    continue;
-                }
-
-                using RemoteProcessMemory memory = new(process);
-                test(memory, memory.GetModule(ExecutableName).Unwrap());
-                return;
-            }
-            finally
-            {
-                // Skip the kill of a player that already exited, because Kill throws for it on .NET Framework.
-                if (!process.HasExited)
-                {
-                    process.Kill();
-                }
-
-                process.WaitForExit();
-            }
-        }
-    }
-
-    // Wait for a ready file written after the start, because the file of an earlier run stays next to the executable.
-    // Return false when the player exits before it or doesn't write it in time.
-    private static bool WaitForReadyFile(Process process, string readyPath, DateTime started)
-    {
-        var clock = Stopwatch.StartNew();
-
-        while (!File.Exists(readyPath) || File.GetLastWriteTimeUtc(readyPath) < started)
-        {
-            if (process.HasExited || clock.Elapsed > _readyTimeout)
-            {
-                return false;
-            }
-
-            Thread.Sleep(_readyPollInterval);
-        }
-
-        return true;
+        Assert.That(_started, Is.Not.Null, "The player didn't start.");
+        _started!.Run(test);
     }
 }

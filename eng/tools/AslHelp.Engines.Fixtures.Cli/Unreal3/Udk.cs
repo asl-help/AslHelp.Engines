@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.CommandLine;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -32,6 +33,8 @@ internal sealed class Udk(
     ///     every player is built again. Bump the value in <c>AddKeyInputs_PinnedVersion_AddsEveryBuildInput</c> too.
     /// </summary>
     private const int BuildVersion = 2;
+
+    private const string InstallPrefix = "udk-";
 
     /// <inheritdoc/>
     public string Name => "unreal3";
@@ -94,8 +97,11 @@ internal sealed class Udk(
     ///     The install goes to <c>udk-&lt;version&gt;</c> under <paramref name="outputDirectory"/> and the installer to
     ///     <c>downloads</c> next to it. The folder spells the version as in <see cref="EmbeddedReleases{UdkRelease}.All"/>. An existing
     ///     install folder sends no request, so a cached install works offline. A missing one sends 1 request, the pinned
-    ///     download. An install whose redist has the PhysX installer, UDK 2009-11, is refused once it is
-    ///     extracted. An install without a redist passes. The runtime step reports a missing redist if it needs one.
+    ///     download. Room is made before the download for the bytes the server still sends and before the extraction for the sizes
+    ///     in the zip. The installer and its partial download stay. The install folders of other versions may go, because the cached
+    ///     installer gives them back without a download. Only a failed build leaves one, because a built install becomes the player
+    ///     folder. An install whose redist has the PhysX installer, UDK 2009-11, is refused once it is extracted. An install without
+    ///     a redist passes. The runtime step reports a missing redist if it needs one.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     ///     <see cref="EmbeddedReleases{UdkRelease}.All"/> doesn't have a row of <paramref name="player"/> or the install needs the PhysX installer.
@@ -103,17 +109,19 @@ internal sealed class Udk(
     public async Task<string> InstallAsync(
         string player,
         string outputDirectory,
+        DriveRoom room,
         IProgress<TransferProgress>? progress,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(outputDirectory);
+        ArgumentNullException.ThrowIfNull(room);
 
         // Look the version up first, so an unpinned version touches neither the network nor the disk
         // and every spelling of a version shares 1 install folder.
         var release = EmbeddedReleases<UdkRelease>.Find(player);
         string output = Path.GetFullPath(outputDirectory);
-        string installDirectory = Path.Combine(output, $"udk-{release.Version}");
+        string installDirectory = InstallDirectoryOf(output, release);
 
         // Check the install before the download, so a cached install needs no network
         // and no hash of an installer of up to 2 GB.
@@ -125,9 +133,20 @@ internal sealed class Udk(
         }
 
         var file = release.File;
-        string installerPath = Path.Combine(output, "downloads", file.Name);
+        string installerPath = InstallerPathOf(output, release);
+        string[] keep = [installerPath, installerPath + TempPaths.PartialSuffix];
+        string[] otherInstalls = Directory.Exists(output) ? [.. Directory.EnumerateDirectories(output, $"{InstallPrefix}*")] : [];
 
-        await downloader.DownloadAsync(file.Url, installerPath, file.Hash, progress, cancellationToken).ConfigureAwait(false);
+        await downloader.DownloadAsync(
+            file.Url,
+            installerPath,
+            file.Hash,
+            bytes => room.MakeFor(new InstallSpace(bytes, 0, keep, otherInstalls)),
+            progress,
+            cancellationToken).ConfigureAwait(false);
+
+        room.MakeFor(new InstallSpace(SelfExtractingZip.UnpackedBytes(installerPath), 0, keep, otherInstalls));
+
         // Extract the zip after the UnSetup stub directly, so UnSetup never runs and nothing goes into the registry.
         SelfExtractingZip.Extract(installerPath, installDirectory);
 
@@ -204,5 +223,31 @@ internal sealed class Udk(
     public Task CheckAsync(string playerDirectory, CancellationToken cancellationToken)
     {
         return UdkServer.CheckAsync(host, playerDirectory, CheckTimeout, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Gets the install folder <c>udk-&lt;version&gt;</c> of <paramref name="release"/>.
+    /// </summary>
+    /// <param name="outputDirectory">The full path of the output folder.</param>
+    /// <param name="release">The release.</param>
+    /// <returns>
+    ///     The full path of the install folder.
+    /// </returns>
+    private static string InstallDirectoryOf(string outputDirectory, UdkRelease release)
+    {
+        return Path.Combine(outputDirectory, $"{InstallPrefix}{release.Version}");
+    }
+
+    /// <summary>
+    ///     Gets the path of the installer of <paramref name="release"/> in the downloads folder.
+    /// </summary>
+    /// <param name="outputDirectory">The full path of the output folder.</param>
+    /// <param name="release">The release.</param>
+    /// <returns>
+    ///     The full path of the installer.
+    /// </returns>
+    private static string InstallerPathOf(string outputDirectory, UdkRelease release)
+    {
+        return Path.Combine(outputDirectory, DiskSpace.DownloadsFolder, release.File.Name);
     }
 }

@@ -450,7 +450,7 @@ public sealed class CommandLineEdgeCaseTests
 
         string[] arguments = ["build", "player", "1.0", "--output", typed, "--variant", "a", "--variant", "b"];
 
-        int code = await CommandLine.RunAsync(arguments, output, error, [toolchain], OpenStore, _projects);
+        int code = await CommandLine.RunAsync(arguments, output, error, [toolchain], OpenStore, _projects, _ => long.MaxValue);
 
         string first = PlayerPath(toolchain, "1.0-a");
         string second = PlayerPath(toolchain, "1.0-b");
@@ -507,7 +507,7 @@ public sealed class CommandLineEdgeCaseTests
         FakeToolchain toolchain = new("player");
         string[] arguments = [.. CommandLineParser.SplitCommandLine(line).Select(token => token == "OUT" ? _output : token)];
 
-        int code = await CommandLine.RunAsync(arguments, output, error, [toolchain], OpenStore, _projects);
+        int code = await CommandLine.RunAsync(arguments, output, error, [toolchain], OpenStore, _projects, _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -531,7 +531,7 @@ public sealed class CommandLineEdgeCaseTests
 
         string[] arguments = ["build", "second", "1.0", "--output", _output, "--variant", "a"];
 
-        int code = await CommandLine.RunAsync(arguments, output, error, [first, second], OpenStore, _projects);
+        int code = await CommandLine.RunAsync(arguments, output, error, [first, second], OpenStore, _projects, _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -552,7 +552,7 @@ public sealed class CommandLineEdgeCaseTests
 
         string[] arguments = ["build", "player", "1.0", "--output", _output, "--variant", "a"];
 
-        int code = await CommandLine.RunAsync(arguments, output, error, [other, toolchain], OpenStore, _projects);
+        int code = await CommandLine.RunAsync(arguments, output, error, [other, toolchain], OpenStore, _projects, _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -586,7 +586,7 @@ public sealed class CommandLineEdgeCaseTests
     {
         string[] arguments = ["build", toolchain.Name, "1.0", "--output", _output, .. options];
 
-        return CommandLine.RunAsync(arguments, output, error, [toolchain], OpenStore, _projects);
+        return CommandLine.RunAsync(arguments, output, error, [toolchain], OpenStore, _projects, _ => long.MaxValue);
     }
 
     private ICacheStore? OpenStore(TextWriter writer)

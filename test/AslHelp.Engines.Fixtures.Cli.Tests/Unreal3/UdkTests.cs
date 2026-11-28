@@ -49,7 +49,7 @@ public sealed class UdkTests
         FakeHttpHandler handler = new(_ => Status(HttpStatusCode.NotFound));
         using Downloader downloader = new(handler);
 
-        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2015-02", _folder.Root, null, CancellationToken.None);
+        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2015-02", _folder.Root, Room(), null, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -66,7 +66,7 @@ public sealed class UdkTests
         using Downloader downloader = new(handler);
 
         Assert.That(
-            async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2015-02", _folder.Root, null, CancellationToken.None),
+            async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2015-02", _folder.Root, Room(), null, CancellationToken.None),
             Throws.TypeOf<HttpRequestException>());
 
         using (Assert.EnterMultipleScope())
@@ -88,7 +88,7 @@ public sealed class UdkTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("1999-01", _folder.Root, null, CancellationToken.None),
+                async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("1999-01", _folder.Root, Room(), null, CancellationToken.None),
                 Throws.InvalidOperationException);
             Assert.That(handler.Requests, Is.Empty);
             Assert.That(Directory.Exists(Path.Combine(_folder.Root, "udk-1999-01")), Is.False);
@@ -103,7 +103,7 @@ public sealed class UdkTests
         FakeHttpHandler handler = new(_ => Status(HttpStatusCode.NotFound));
         using Downloader downloader = new(handler);
 
-        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2011-03-beta2", _folder.Root, null, CancellationToken.None);
+        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2011-03-beta2", _folder.Root, Room(), null, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -123,7 +123,7 @@ public sealed class UdkTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2009-11-BETA", _folder.Root, null, CancellationToken.None),
+                async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2009-11-BETA", _folder.Root, Room(), null, CancellationToken.None),
                 Throws.InvalidOperationException
                     .With.Message.Contains("UDK 2009-11-BETA")
                     .And.Message.Contains("PhysX"));
@@ -139,7 +139,7 @@ public sealed class UdkTests
         FakeHttpHandler handler = new(_ => Status(HttpStatusCode.NotFound));
         using Downloader downloader = new(handler);
 
-        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2013-07", _folder.Root, null, CancellationToken.None);
+        string install = await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2013-07", _folder.Root, Room(), null, CancellationToken.None);
 
         Assert.That(install, Is.EqualTo(Path.Combine(_folder.Root, "udk-2013-07")));
     }
@@ -163,6 +163,47 @@ public sealed class UdkTests
                 .With.Message.Contains("1999-01")
                 .And.Message.Contains("2015-02")
                 .And.Message.Contains("releases.json"));
+    }
+
+    // A drive without room for the bytes the server sends fails before the 1st byte, so no partial download takes the space.
+    [Test]
+    public void InstallAsync_NoRoomForTheDownload_ThrowsBeforeTheBody()
+    {
+        FakeHttpHandler handler = new(_ => Ok(new byte[100]));
+        using Downloader downloader = new(handler);
+
+        Assert.That(
+            async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2015-02", _folder.Root, Room(100 + DiskSpace.MarginBytes - 1), null, CancellationToken.None),
+            Throws.InstanceOf<IOException>().With.Message.Contains("GiB"));
+
+        Assert.That(Path.Combine(_folder.Root, "downloads", "UDKInstall-2015-02.exe.partial"), Does.Not.Exist);
+    }
+
+    // A short drive removes the installs of failed builds of other versions and stopped extractions first. Other folders stay.
+    [Test]
+    public void InstallAsync_ShortDriveForTheDownload_RemovesOtherInstalls()
+    {
+        string stopped = Directory.CreateDirectory(Path.Combine(_folder.Root, "udk-2014-02.partial")).FullName;
+        string failed = Directory.CreateDirectory(Path.Combine(_folder.Root, "udk-2009-11-BETA")).FullName;
+        string scratch = Directory.CreateDirectory(Path.Combine(_folder.Root, "unreal4-4.19.2-build.partial")).FullName;
+        string player = Directory.CreateDirectory(Path.Combine(_folder.Root, "unreal3-2014-02-0123456789abcdef")).FullName;
+        long needed = 100 + DiskSpace.MarginBytes;
+        DriveRoom room = new(_folder.Root, _ => Directory.Exists(stopped) || Directory.Exists(failed) ? needed - 1 : needed, TextWriter.Null);
+        FakeHttpHandler handler = new(_ => Ok(new byte[100]));
+        using Downloader downloader = new(handler);
+
+        // Fail on the hash after the room step, because the fake body isn't the pinned installer.
+        Assert.That(
+            async () => await new Udk(downloader, new LocalPlayerHost()).InstallAsync("2015-02", _folder.Root, room, null, CancellationToken.None),
+            Throws.InstanceOf<InvalidDataException>());
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(stopped, Does.Not.Exist);
+            Assert.That(failed, Does.Not.Exist);
+            Assert.That(scratch, Does.Exist);
+            Assert.That(player, Does.Exist);
+        }
     }
 
     // A casing variant adds the pinned spelling, so 2011-03-beta2 and 2011-03-BETA2 share 1 player.
@@ -267,7 +308,8 @@ public sealed class UdkTests
                 opened = true;
                 return null;
             },
-            Path.Combine(AppContext.BaseDirectory, "projects"));
+            Path.Combine(AppContext.BaseDirectory, "projects"),
+            _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -405,6 +447,12 @@ public sealed class UdkTests
     }
 
     // Return 404 for every request, so a build that reaches the network fails.
+    // Make room on a drive with the given free space, which by default always has room.
+    private DriveRoom Room(long freeBytes = long.MaxValue)
+    {
+        return new DriveRoom(_folder.Root, _ => freeBytes, TextWriter.Null);
+    }
+
     private Udk NewOfflineUdk()
     {
         _downloader ??= new Downloader(new FakeHttpHandler(_ => Status(HttpStatusCode.NotFound)));

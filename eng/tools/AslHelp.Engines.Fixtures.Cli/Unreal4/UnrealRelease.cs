@@ -14,7 +14,6 @@ namespace AslHelp.Engines.Fixtures.Cli.Unreal4;
 /// <param name="App">The Epic app of the minor, such as <c>UE_4.19</c>.</param>
 /// <param name="Build">The build version in the manifest, such as <c>4.19.2-4033788+++UE4+Release-4.19-2023.1-Windows</c>.</param>
 /// <param name="Sha1">The sha1 of the manifest as 40 lowercase hex chars.</param>
-/// <param name="InstallBytes">The size of the install on disk, without the tagged files when <paramref name="InstallTags"/> is set.</param>
 /// <param name="InstallTags">Whether the manifest has install tags, so the download leaves the tagged files out.</param>
 /// <param name="Players">The players in build order, written as tags such as <c>win-x64-shipping</c>.</param>
 /// <param name="EditorFlags">The switches for the editor target, such as <c>-waitmutex</c>.</param>
@@ -26,7 +25,6 @@ internal sealed record UnrealRelease(
     string App,
     string Build,
     string Sha1,
-    long InstallBytes,
     bool InstallTags,
     IReadOnlyList<UnrealPlayer> Players,
     IReadOnlyList<string> EditorFlags,
@@ -80,8 +78,8 @@ internal sealed record UnrealRelease(
 
     /// <inheritdoc/>
     /// <remarks>
-    ///     A row fails when its version is not major.minor.hotfix, its build doesn't start with its version, its install size is
-    ///     not above 0, it has an empty switch, it doesn't list a player or it lists a player twice. A bad player tag fails the
+    ///     A row fails when its version is not major.minor.hotfix, its build doesn't start with its version, it has an empty
+    ///     switch, it doesn't list a player or it lists a player twice. A bad player tag fails the
     ///     parse before.
     /// </remarks>
     public void ThrowIfInvalid()
@@ -96,12 +94,6 @@ internal sealed record UnrealRelease(
         if (!Build.StartsWith($"{Version}-", StringComparison.Ordinal))
         {
             throw new InvalidDataException(UnrealSR.FormatReleasesBuildMismatch(ReleasesPath, Build, Version));
-        }
-
-        // Check the size, because 0 is never the size of an install.
-        if (InstallBytes <= 0)
-        {
-            throw new InvalidDataException(UnrealSR.FormatReleasesBadInstallBytes(ReleasesPath, InstallBytes, Version));
         }
 
         // Check the switches, because the JSON options refuse a null list but not a null in a list.

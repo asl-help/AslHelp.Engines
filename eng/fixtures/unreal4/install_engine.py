@@ -1,7 +1,8 @@
 """Installs 1 pinned engine through legendary. Unreal4/UnrealEngine.cs writes this file to a temp folder and runs it through uv.
 
-Arguments: app build sha1 base_path install_tags manifest_path, or --check-reader to test the reader patch offline.
-Lines: every line is a step line of the tool, such as "download: 45%, 61.4 MiB/s".
+Arguments: app build sha1 base_path install_tags manifest_path, --measure app build sha1 install_tags manifest_path to print the
+install size, or --check-reader to test the reader patch offline.
+Lines: every line is a step line of the tool, such as "download: 45%, 61.4 MiB/s". --measure prints "install bytes: <n>".
 Exit codes: 0 done, 10 not logged in, 11 manifest or build not pinned, 12 app in legendary's installed.json, 13 file hash check failed.
 """
 
@@ -97,21 +98,24 @@ def download(dlm, status):
 
     progress = None
     printed_step = None
+    speeds = []
     changed_at = time.monotonic()
 
     while dlm.is_alive():
         with contextlib.suppress(queue.Empty):
             update = status.get(timeout=1)
+            speeds.append(update.download_speed)
 
             if update.progress != progress:
                 progress = update.progress
                 changed_at = time.monotonic()
                 step = progress // PROGRESS_STEP
 
-                # Print the percent of chunks and the speed as they are, because legendary's status doesn't have a byte count for a bar.
+                # Print the mean speed since the last line, because legendary measures each second on its own and chunks finish in bursts.
                 if step != printed_step:
                     printed_step = step
-                    print(f'download: {int(progress)}%, {update.download_speed / 2**20:.1f} MiB/s')
+                    print(f'download: {int(progress)}%, {sum(speeds) / len(speeds) / 2**20:.1f} MiB/s')
+                    speeds.clear()
 
         if time.monotonic() - changed_at > STALL_SECONDS:
             print(f'download stalled: no finished chunk for {STALL_SECONDS} seconds')
@@ -177,6 +181,77 @@ def check_files(dlm, files):
     return False
 
 
+def find_game(core, app):
+    """Returns the game of the app in the library or None when the account doesn't have it."""
+    # Read the stored game first, because the manifest request only needs its ids and a list refresh sends requests for the whole library.
+    game = core.get_game(app, platform='Windows')
+
+    if game is None:
+        # Pass skip_ue, because the list leaves engines out by default.
+        core.get_game_and_dlc_list(update_assets=True, platform='Windows', skip_ue=False)
+        game = core.get_game(app, platform='Windows')
+
+    if game is None:
+        print(f'{app} is not in the library of this Epic account')
+
+    return game
+
+
+def load_pinned(core, data, build, sha1):
+    """Returns the manifest of the data or None after printing why it isn't the pinned one."""
+    got_sha1 = hashlib.sha1(data).hexdigest()
+
+    if got_sha1 != sha1:
+        print(f'sha1: pinned {sha1} got {got_sha1}')
+        return None
+
+    manifest = core.load_manifest(data)
+
+    if manifest.meta.build_version != build:
+        print(f'build: pinned {build} got {manifest.meta.build_version}')
+        return None
+
+    return manifest
+
+
+def installed_files(manifest, tags):
+    """Returns the files of the manifest that an install with the tag filter writes."""
+    return [file for file in manifest.file_manifest_list.elements if tags is None or not file.install_tags or '' in file.install_tags]
+
+
+def measure(app, build, sha1, tags, manifest_path):
+    """Prints the bytes of the files the pinned manifest installs and returns the exit code."""
+    core = LegendaryCore()
+    data = None
+
+    # Read the manifest of an earlier run first, because it needs no login and no request when it's the pinned one.
+    if os.path.exists(manifest_path):
+        with open(manifest_path, 'rb') as file:
+            data = file.read()
+
+        if hashlib.sha1(data).hexdigest() != sha1:
+            data = None
+
+    if data is None:
+        if not is_logged_in(core):
+            return EXIT_NOT_LOGGED_IN
+
+        game = find_game(core, app)
+
+        if game is None:
+            return 1
+
+        data, _, _, _ = core.get_cdn_manifest(game, platform='Windows')
+
+    manifest = load_pinned(core, data, build, sha1)
+
+    if manifest is None:
+        return EXIT_NOT_PINNED
+
+    print(f'install bytes: {sum(file.file_size for file in installed_files(manifest, tags))}')
+    return 0
+
+
 def install(app, build, sha1, base_path, tags, manifest_path):
     """Downloads the pinned manifest and its files and returns the exit code."""
     core = LegendaryCore()
@@ -188,29 +263,15 @@ def install(app, build, sha1, base_path, tags, manifest_path):
     if core.is_installed(app):
         return EXIT_LISTED_AS_INSTALLED
 
-    # Read the stored game first, because the manifest request only needs its ids and a list refresh sends requests for the whole library.
-    game = core.get_game(app, platform='Windows')
+    game = find_game(core, app)
 
     if game is None:
-        # Pass skip_ue, because the list leaves engines out by default.
-        core.get_game_and_dlc_list(update_assets=True, platform='Windows', skip_ue=False)
-        game = core.get_game(app, platform='Windows')
-
-    if game is None:
-        print(f'{app} is not in the library of this Epic account')
         return 1
 
     data, base_urls, _, _ = core.get_cdn_manifest(game, platform='Windows')
-    got_sha1 = hashlib.sha1(data).hexdigest()
+    manifest = load_pinned(core, data, build, sha1)
 
-    if got_sha1 != sha1:
-        print(f'sha1: pinned {sha1} got {got_sha1}')
-        return EXIT_NOT_PINNED
-
-    manifest = core.load_manifest(data)
-
-    if manifest.meta.build_version != build:
-        print(f'build: pinned {build} got {manifest.meta.build_version}')
+    if manifest is None:
         return EXIT_NOT_PINNED
 
     with open(manifest_path, 'wb') as file:
@@ -227,7 +288,7 @@ def install(app, build, sha1, base_path, tags, manifest_path):
         override_manifest=manifest_path,
         file_install_tag=tags)
 
-    files = [file for file in manifest.file_manifest_list.elements if tags is None or not file.install_tags or '' in file.install_tags]
+    files = installed_files(manifest, tags)
 
     if dlm.chunks_to_dl:
         if not download(dlm, status):
@@ -258,6 +319,10 @@ def main(arguments):
     if arguments == ['--check-reader']:
         check_reader()
         return 0
+
+    if arguments[:1] == ['--measure']:
+        app, build, sha1, install_tags, manifest_path = arguments[1:]
+        return measure(app, build, sha1, [''] if install_tags == '1' else None, manifest_path)
 
     app, build, sha1, base_path, install_tags, manifest_path = arguments
 

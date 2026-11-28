@@ -10,9 +10,9 @@ namespace AslHelp.Engines.Unreal.Tests;
 
 public sealed class UnrealProfileCatalogTests
 {
-    // Every shipped document maps, 56 for Unreal Engine 4 and 5 and 1 for UDK, each from the Profiles folder of the assembly.
+    // Every shipped document maps, 56 for Unreal Engine 4 and 5 and 4 for UDK, each from the Profiles folder of the assembly.
     [Test]
-    public void CreateCatalog_ShippedDocuments_LoadsAll57ThroughTheirMapper()
+    public void CreateCatalog_ShippedDocuments_LoadsAll60ThroughTheirMapper()
     {
         var clock = Stopwatch.StartNew();
         var entries = UnrealProfile.CreateCatalog().Entries;
@@ -21,7 +21,7 @@ public sealed class UnrealProfileCatalogTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(entries.Count(static entry => entry.Engine == UnrealTarget.Unreal4), Is.EqualTo(56));
-            Assert.That(entries.Count(static entry => entry.Engine == UnrealTarget.Unreal3), Is.EqualTo(1));
+            Assert.That(entries.Count(static entry => entry.Engine == UnrealTarget.Unreal3), Is.EqualTo(4));
             Assert.That(entries.Select(static entry => entry.Source), Has.All.StartWith("Profiles/").And.All.EndWith(".json"));
             Assert.That(entries.Select(static entry => entry.Profile.Engine), Is.EqualTo(entries.Select(static entry => entry.Engine)));
         }
@@ -122,15 +122,20 @@ public sealed class UnrealProfileCatalogTests
             Is.EqualTo("No profile fits unreal4 4.5.1 win-x64-shipping. Add a profile that lists 4.5.1."));
     }
 
-    // The UDK document doesn't have a key, so it fits the key that detection builds for the UDK player.
-    [Test]
-    public void Select_Shipped201009X86Shipping_TakesTheUdkDocument()
+    // The UDK documents don't have a key, so each fits the key that detection builds for the UDK players of its group.
+    [TestCase("2010-07-BETA", "unreal3-2010-06-BETA")]
+    [TestCase("2010-09", "unreal3-2010-08-BETA")]
+    [TestCase("2011-03-BETA2", "unreal3-2010-08-BETA")]
+    [TestCase("2011-05-BETA", "unreal3-2011-05-BETA")]
+    [TestCase("2012-01-BETA", "unreal3-2011-07-BETA")]
+    [TestCase("2015-02", "unreal3-2011-07-BETA")]
+    public void Select_ShippedUdkReleaseX86Shipping_TakesItsDocument(string release, string document)
     {
         var selection = UnrealProfile.CreateCatalog()
-            .Select(new ProfileTarget(UnrealTarget.Unreal3, UnrealTarget.ParseVersion("2010-09")!, "win-x86-shipping"), ProfileGuessHandling.Disallow)
+            .Select(new ProfileTarget(UnrealTarget.Unreal3, UnrealTarget.ParseVersion(release)!, "win-x86-shipping"), ProfileGuessHandling.Disallow)
             .Unwrap();
 
-        Assert.That(selection.Entry.Source, Is.EqualTo("Profiles/unreal3-2010-09.json"));
+        Assert.That(selection.Entry.Source, Is.EqualTo($"Profiles/{document}.json"));
     }
 
     // A document a consumer adds after the shipped documents wins for the versions it lists.

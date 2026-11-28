@@ -10,6 +10,7 @@ namespace AslHelp.Engines.Measuring.Cli.Routes;
 /// <param name="Operands">The number of the masked operand of each byte or 0 for a byte that stays literal.</param>
 /// <param name="OperandAt">The position in <paramref name="Bytes"/> of the address operand.</param>
 /// <param name="RegisterAt">The position in <paramref name="Bytes"/> of the ModRM byte of the load or -1 if it has none.</param>
+/// <param name="PrefixAt">The position in <paramref name="Bytes"/> of the REX prefix of the load or -1 if it has no ModRM byte or no REX prefix.</param>
 internal sealed record SiteWindow(
     ulong Address,
     byte[] Bytes,
@@ -17,4 +18,5 @@ internal sealed record SiteWindow(
     int Site,
     int[] Operands,
     int OperandAt,
-    int RegisterAt);
+    int RegisterAt,
+    int PrefixAt);

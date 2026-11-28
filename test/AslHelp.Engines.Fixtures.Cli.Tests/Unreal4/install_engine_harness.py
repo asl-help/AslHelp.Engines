@@ -35,7 +35,7 @@ SHA1 = hashlib.sha1(DATA).hexdigest()
 
 def entry(name, content=b'', tags=(), chunks=True):
     parts = ['part'] if chunks else []
-    return types.SimpleNamespace(filename=name, sha_hash=hashlib.sha1(content).digest(), install_tags=list(tags), chunk_parts=parts)
+    return types.SimpleNamespace(filename=name, file_size=len(content), sha_hash=hashlib.sha1(content).digest(), install_tags=list(tags), chunk_parts=parts)
 
 
 def write(name, content):
@@ -47,7 +47,7 @@ def write(name, content):
 
 
 class Manager:
-    def __init__(self, chunks=(), updates=(), exitcode=0):
+    def __init__(self, chunks=(), updates=(), exitcode=0, speeds=None):
         self.chunks_to_dl = list(chunks)
         self.dl_dir = folder
         self.exitcode = exitcode
@@ -57,13 +57,14 @@ class Manager:
         self.resume_file = resume_path
         self.started = False
         self.status = None
+        self.speeds = speeds or [1.0] * len(updates)
         self.updates = updates
 
     def start(self):
         self.started = True
 
-        for percent in self.updates:
-            self.status.put(types.SimpleNamespace(progress=percent, download_speed=1024 * 1024))
+        for percent, speed in zip(self.updates, self.speeds):
+            self.status.put(types.SimpleNamespace(progress=percent, download_speed=speed * 1024 * 1024))
 
     def is_alive(self):
         self.polls -= 1
@@ -190,6 +191,10 @@ def new_core():
         write('good.bin', b'hello')
         return Core([entry('good.bin', b'hello')], Manager(['chunk'], [0.0, 0.0, 3.0, 5.0, 7.5, 50.0, 100.0]))
 
+    if case == 'download-bursts':
+        write('good.bin', b'hello')
+        return Core([entry('good.bin', b'hello')], Manager(['chunk'], [0.0, 2.0, 4.0, 5.0, 10.0], speeds=[0.0, 6.0, 0.0, 2.0, 4.0]))
+
     if case == 'stall':
         engine.STALL_SECONDS = 0
         return Core([entry('good.bin', b'hello')], StalledManager(['chunk']))
@@ -198,6 +203,25 @@ def new_core():
         write('Ünï/ключ.bin', b'hello')
         return Core([entry('Ünï/ключ.bin', b'hello'), entry('Café/日本語.bin', b'hello')])
 
+    if case.startswith('measure-'):
+        files = [entry('plain.bin', b'hello'), entry('tagged.bin', b'symbols', tags=['editor_symbols'])]
+
+        if case in ('measure-local', 'measure-local-other-build'):
+            with open(manifest_path, 'wb') as file:
+                file.write(DATA)
+
+        if case == 'measure-stale-local':
+            with open(manifest_path, 'wb') as file:
+                file.write(b'manifest of another pin')
+
+        if case in ('measure-local', 'measure-login-false'):
+            return Core(files, login=False, stored=True)
+
+        if case == 'measure-local-other-build':
+            return Core(files, login=False, build='1.2.3-5')
+
+        return Core(files, stored=True)
+
     raise ValueError(case)
 
 
@@ -205,7 +229,12 @@ def run_with_fake_core():
     core = new_core()
     engine.LegendaryCore = lambda: core
     tags = '0' if case == 'tags-off' else '1'
-    code = engine.main(['app', BUILD, SHA1, base, tags, manifest_path])
+    arguments = ['app', BUILD, SHA1, base, tags, manifest_path]
+
+    if case.startswith('measure-'):
+        arguments = ['--measure', 'app', BUILD, SHA1, tags, manifest_path]
+
+    code = engine.main(arguments)
 
     print(f'manifest requests: {core.requests}')
     print(f'manifest file: {os.path.exists(manifest_path)}')

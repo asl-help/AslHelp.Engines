@@ -168,7 +168,6 @@ public sealed class UnrealReleaseTests
                     "APP_1.2",
                     "1.2.3-4",
                     "0000000000000000000000000000000000000001",
-                    5,
                     true,
                     noPlayers,
                     none,
@@ -203,18 +202,6 @@ public sealed class UnrealReleaseTests
         using var json = Utf8Stream(Row(version: "4.19.2", build: "4.19.21-1"));
 
         Assert.That(() => EmbeddedReleases<UnrealRelease>.Read(json), Throws.TypeOf<InvalidDataException>().With.Message.Contains("4.19.21-1"));
-    }
-
-    // An install size of 0 or less throws at load with the size and the version, because 0 is never the size of an install.
-    [TestCase(0)]
-    [TestCase(-1)]
-    public void Read_InstallBytesNotAbove0_ThrowsWithTheSize(long installBytes)
-    {
-        using var json = Utf8Stream(Row().Replace("\"installBytes\": 5", $"\"installBytes\": {installBytes}", StringComparison.Ordinal));
-
-        Assert.That(
-            () => EmbeddedReleases<UnrealRelease>.Read(json),
-            Throws.TypeOf<InvalidDataException>().With.Message.Contains($"size {installBytes}").And.Message.Contains("'1.2.3'"));
     }
 
     // 2 hotfixes of 1 minor throw at load with the minor, because the minor and the app would pick only the 1st row.
@@ -306,7 +293,7 @@ public sealed class UnrealReleaseTests
         string players = "\"win-x64-shipping\"")
     {
         return $$"""
-            [{ "version": "{{version}}", "app": "APP_1.2", "build": "{{build}}", "sha1": "{{sha1}}", "installBytes": 5, "installTags": true,
+            [{ "version": "{{version}}", "app": "APP_1.2", "build": "{{build}}", "sha1": "{{sha1}}", "installTags": true,
                "players": [{{players}}], "editorFlags": ["-a"], "packageFlags": ["-b", "-c"], "pathPrepend": "C:\\x", "runtimes": "engine" }]
             """;
     }

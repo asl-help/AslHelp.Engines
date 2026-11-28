@@ -147,8 +147,8 @@
     "GUObjectArray": {
       "5.1.1": [
         {
-          "forward": "89 15 ???????? 85 FF",
-          "offset": 2
+          "forward": "48 8D 0D ???????? 48 0F 44 FD",
+          "offset": 3
         },
         {
           "read": "global"
@@ -169,8 +169,8 @@
     "GEngine": {
       "5.1.1": [
         {
-          "forward": "48 8B 0D ???????? 8B DF",
-          "offset": 3
+          "forward": "0F 10 01 48 8B 0D ????????",
+          "offset": 6
         },
         {
           "read": "global"

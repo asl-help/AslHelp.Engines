@@ -112,7 +112,7 @@ public sealed class CommandLineRoutesTests
         string second = Executable(Second, new CodeBuilder(false).MovEcx(GlobalRva).Ret());
 
         int code = await CommandLine.RunAsync(
-            ["engine", _folder.Root, "--output", _report],
+            ["engine", _folder.Root, "--output", _report, "--min-literals", "1"],
             _output,
             _error,
             [
@@ -146,7 +146,7 @@ public sealed class CommandLineRoutesTests
         }
 
         return CommandLine.RunAsync(
-            ["engine", _folder.Root, "--output", _report],
+            ["engine", _folder.Root, "--output", _report, "--min-literals", "1"],
             _output,
             _error,
             [

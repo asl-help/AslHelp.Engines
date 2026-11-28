@@ -107,8 +107,8 @@
     "GEngine": {
       "4.0.2": [
         {
-          "forward": "48 8B 05 ???????? 32 C9",
-          "offset": 3
+          "forward": "0F 10 02 48 8B 05 ????????",
+          "offset": 6
         },
         {
           "read": "global"

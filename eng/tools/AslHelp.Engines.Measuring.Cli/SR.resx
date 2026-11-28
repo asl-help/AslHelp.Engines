@@ -36,6 +36,12 @@
   <data name="JobsDescription" xml:space="preserve">
     <value>The most players to measure at once and the most executables of a group to decode and search at once. Default is the limit of the engine.</value>
   </data>
+  <data name="MinLiteralsBelowOne" xml:space="preserve">
+    <value>--min-literals has to be 1 or more.</value>
+  </data>
+  <data name="MinLiteralsDescription" xml:space="preserve">
+    <value>The fewest bytes a route keeps unmasked, so it doesn't match random data in the writable memory of a game. Default is 6.</value>
+  </data>
   <data name="OffsetKeyMalformed" xml:space="preserve">
     <value>Offset '{0}' is not of the form Type.Member.</value>
   </data>

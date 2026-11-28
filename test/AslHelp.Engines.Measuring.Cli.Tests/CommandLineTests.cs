@@ -150,7 +150,7 @@ public sealed class CommandLineTests
             Log = static (directory, log) => log.NotFound(Path.GetFileName(directory), "reason"),
         };
 
-        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [measurer], logger);
+        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report, "--min-literals", "1"], _output, _error, [measurer], logger);
 
         using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
         var players = report.RootElement.GetProperty("players");
@@ -203,7 +203,7 @@ public sealed class CommandLineTests
         };
 
         int code = await CommandLine.RunAsync(
-            ["engine", _folder.Root, "--output", _report, "-j", "1"],
+            ["engine", _folder.Root, "-o", _report, "-j", "1"],
             _output,
             _error,
             [measurer],
@@ -281,6 +281,24 @@ public sealed class CommandLineTests
         {
             Assert.That(code, Is.Not.Zero);
             Assert.That(_error.ToString(), Does.Contain(SR.JobsBelowOne));
+        }
+    }
+
+    // --min-literals below 1 fails the parse with its message.
+    [Test]
+    public async Task RunAsync_MinLiteralsZero_FailsWithMessage()
+    {
+        int code = await CommandLine.RunAsync(
+            ["engine", _folder.Root, "--output", _report, "--min-literals", "0"],
+            _output,
+            _error,
+            [new FakeMeasurer()],
+            NullLogger.Instance);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Not.Zero);
+            Assert.That(_error.ToString(), Does.Contain(SR.MinLiteralsBelowOne));
         }
     }
 
@@ -394,7 +412,7 @@ public sealed class CommandLineTests
         string players = Path.Combine(_folder.Root, "missing");
 
         int code = await CommandLine.RunAsync(
-            ["engine", players, "--output", _report],
+            ["engine", players, "--output", _report, "--min-literals", "1"],
             _output,
             _error,
             [new FakeMeasurer()],
@@ -477,7 +495,7 @@ public sealed class CommandLineTests
         FakeMeasurer measurer = new();
 
         int code = await CommandLine.RunAsync(
-            ["engine", _folder.Root, "--output", _report, "--targets", targets],
+            ["engine", _folder.Root, "--output", _report, "-t", targets],
             _output,
             _error,
             [measurer],
@@ -773,7 +791,7 @@ public sealed class CommandLineTests
             MaxDegreeOfParallelism = jobs,
         };
 
-        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [measurer], logger);
+        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report, "--min-literals", "1"], _output, _error, [measurer], logger);
 
         using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
         var players = report.RootElement.GetProperty("players");
@@ -797,7 +815,7 @@ public sealed class CommandLineTests
 
         ScriptedMeasurer measurer = new(static _ => throw new TimeoutException("The server was not ready."));
 
-        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [measurer], logger);
+        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report, "--min-literals", "1"], _output, _error, [measurer], logger);
 
         using var report = JsonDocument.Parse(await File.ReadAllTextAsync(_report));
 
@@ -1067,7 +1085,7 @@ public sealed class CommandLineTests
         ScopeLogger logger = new();
 
         int code = await CommandLine.RunAsync(
-            ["engine", _folder.Root, "--output", _report],
+            ["engine", _folder.Root, "--output", _report, "--min-literals", "1"],
             _output,
             _error,
             [
@@ -1257,7 +1275,7 @@ public sealed class CommandLineTests
         _ = Directory.CreateDirectory(Path.Combine(_folder.Root, Third));
         ScopeLogger logger = new();
 
-        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report], _output, _error, [new FakeMeasurer()], logger);
+        int code = await CommandLine.RunAsync(["engine", _folder.Root, "--output", _report, "--min-literals", "1"], _output, _error, [new FakeMeasurer()], logger);
 
         using (Assert.EnterMultipleScope())
         {
@@ -1356,7 +1374,7 @@ public sealed class CommandLineTests
         ScopeLogger logger = new();
 
         int code = await CommandLine.RunAsync(
-            ["engine", _folder.Root, "--output", _report],
+            ["engine", _folder.Root, "--output", _report, "--min-literals", "1"],
             _output,
             _error,
             [
@@ -1423,7 +1441,7 @@ public sealed class CommandLineTests
     private Task<int> RunAsync(IEngineMeasurer measurer, CancellationToken cancellationToken = default)
     {
         return CommandLine.RunAsync(
-            ["engine", _folder.Root, "--output", _report],
+            ["engine", _folder.Root, "--output", _report, "--min-literals", "1"],
             _output,
             _error,
             [measurer],

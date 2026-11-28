@@ -135,8 +135,8 @@
     "GWorld": {
       "4.8.3": [
         {
-          "forward": "8B 35 ???????? 8B 5F 20",
-          "offset": 2
+          "forward": "8B 80 D0 01 00 00 A3 ????????",
+          "offset": 7
         },
         {
           "read": "global"
@@ -146,8 +146,8 @@
     "GEngine": {
       "4.8.3": [
         {
-          "forward": "23 F8 A1 ????????",
-          "offset": 3
+          "forward": "83 3D ???????? 00 8B 7D 0C",
+          "offset": 2
         },
         {
           "read": "global"
@@ -157,8 +157,8 @@
     "GSerialNumberBlocksForDebugVisualizersRoot": {
       "4.8.3": [
         {
-          "forward": "89 15 ???????? E8 ???????? 6A 14",
-          "offset": 2
+          "forward": "B9 00 10 00 00 F3 AB 89 15 ????????",
+          "offset": 9
         },
         {
           "read": "global"

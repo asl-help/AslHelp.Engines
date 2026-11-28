@@ -143,8 +143,8 @@ internal sealed class Unreal(
 
     /// <inheritdoc/>
     /// <remarks>
-    ///     <see cref="UnrealEngine.InstallAsync"/> installs the engine into <c>engines/&lt;app&gt;</c>. The install script prints
-    ///     its own progress, so <paramref name="progress"/> doesn't get a report.
+    ///     <see cref="UnrealEngine.InstallAsync"/> installs the engine into <c>engines/&lt;app&gt;</c> and makes room for the engine
+    ///     and the cook scratch first. The install script prints its own progress, so <paramref name="progress"/> doesn't get a report.
     /// </remarks>
     /// <exception cref="FileNotFoundException">uv is not installed.</exception>
     /// <exception cref="FormatException">The tag part of <paramref name="player"/> isn't a player tag.</exception>
@@ -155,12 +155,13 @@ internal sealed class Unreal(
     public Task<string> InstallAsync(
         string player,
         string outputDirectory,
+        DriveRoom room,
         IProgress<TransferProgress>? progress,
         CancellationToken cancellationToken)
     {
         var (release, _) = ParseId(player);
 
-        return engine.InstallAsync(release, outputDirectory, cancellationToken);
+        return engine.InstallAsync(release, outputDirectory, room, cancellationToken);
     }
 
     /// <summary>

@@ -147,7 +147,7 @@
     "GUObjectArray": {
       "4.26.2": [
         {
-          "forward": "2B 05 ???????? 56",
+          "forward": "03 0D ???????? 89 4C 24 1C",
           "offset": 2
         },
         {
@@ -158,8 +158,8 @@
     "GWorld": {
       "4.26.2": [
         {
-          "forward": "8B 47 68 A3 ????????",
-          "offset": 4
+          "forward": "8B 80 DC 01 00 00 A3 ????????",
+          "offset": 7
         },
         {
           "read": "global"
@@ -169,8 +169,8 @@
     "GEngine": {
       "4.26.2": [
         {
-          "forward": "5B 8B 15 ????????",
-          "offset": 3
+          "forward": "0F 11 46 2C 8B 0D ????????",
+          "offset": 6
         },
         {
           "read": "global"
@@ -180,8 +180,8 @@
     "NamePoolData": {
       "4.26.2": [
         {
-          "forward": "B8 ???????? 8B 44 B0 0C",
-          "offset": 1
+          "forward": "74 ?? B8 ???????? 8B 44 B0 0C",
+          "offset": 3
         },
         {
           "read": "global"

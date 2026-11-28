@@ -17,4 +17,9 @@
     <PackageReference Include="NUnit3TestAdapter" />
   </ItemGroup>
 
+  <!-- Link the player id and executable rules of the fixtures tools, because their project only targets net11.0-windows. -->
+  <ItemGroup>
+    <Compile Include="$(ToolsPath)/AslHelp.Engines.Fixtures/Unreal4/UnrealPlayerNames.cs" Link="Unreal4/UnrealPlayerNames.cs" />
+  </ItemGroup>
+
 </Project>

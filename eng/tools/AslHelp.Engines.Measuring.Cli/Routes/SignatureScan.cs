@@ -1,6 +1,6 @@
+using AslHelp.Memory.Scanning;
 using Iced.Intel;
 using System;
-using System.Globalization;
 
 namespace AslHelp.Engines.Measuring.Cli.Routes;
 
@@ -11,11 +11,10 @@ internal sealed class SignatureScan
 {
     private const byte Literal = 0xFF;
 
-    private readonly byte[] _masks;
     private readonly int _offset;
+    private readonly ScanPattern _pattern;
     private readonly int _runAt;
     private readonly int _runLength;
-    private readonly byte[] _values;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="SignatureScan"/> class.
@@ -24,31 +23,17 @@ internal sealed class SignatureScan
     public SignatureScan(RouteCandidate candidate)
     {
         _offset = candidate.Offset;
-        _values = new byte[candidate.Bytes];
-        _masks = new byte[candidate.Bytes];
 
-        int position = 0;
-
-        foreach (string token in candidate.Forward.Split(' '))
-        {
-            if (token[0] == '?')
-            {
-                position += token.Length / 2;
-            }
-            else
-            {
-                _values[position] = byte.Parse(token, NumberStyles.HexNumber, CultureInfo.InvariantCulture);
-                _masks[position] = Literal;
-                position++;
-            }
-        }
+        // Parse with the memory library, so the text follows the rules of the reader that runs the route.
+        _pattern = ScanPattern.Parse(candidate.Forward);
 
         // Find the longest literal run, because a search on it skips the most positions.
+        var masks = _pattern.Masks;
         int runStart = 0;
 
-        for (int index = 0; index <= _masks.Length; index++)
+        for (int index = 0; index <= masks.Length; index++)
         {
-            if (index < _masks.Length && _masks[index] == Literal)
+            if (index < masks.Length && masks[index] == Literal)
             {
                 continue;
             }
@@ -115,12 +100,12 @@ internal sealed class SignatureScan
     {
         var bytes = part.Bytes.Span;
 
-        if (bytes.Length < _values.Length)
+        if (bytes.Length < _pattern.Length)
         {
             return true;
         }
 
-        ReadOnlySpan<byte> run = _values.AsSpan(_runAt, _runLength);
+        var run = _pattern.Values.Slice(_runAt, _runLength);
         ulong partAddress = image.ImageBase + part.Rva;
         MemoryCodeReader? reader = null;
         Decoder? decoder = null;
@@ -128,7 +113,7 @@ internal sealed class SignatureScan
         try
         {
             int from = _runAt;
-            int lastRunAt = bytes.Length - _values.Length + _runAt;
+            int lastRunAt = bytes.Length - _pattern.Length + _runAt;
 
             while (from <= lastRunAt)
             {
@@ -176,7 +161,7 @@ internal sealed class SignatureScan
     /// </returns>
     private bool MatchesZeros(CodeImage image)
     {
-        bool zerosMatch = !_values.AsSpan().ContainsAnyExcept((byte)0);
+        bool zerosMatch = !_pattern.Values.ContainsAnyExcept((byte)0);
         long firstRva = image.ImageSize;
 
         for (int index = 0; index < PartCount(image); index++)
@@ -199,18 +184,18 @@ internal sealed class SignatureScan
                 return true;
             }
 
-            if (zerosMatch && NextPartAt(image, end) - end >= _values.Length)
+            if (zerosMatch && NextPartAt(image, end) - end >= _pattern.Length)
             {
                 return true;
             }
         }
 
-        return zerosMatch && firstRva >= _values.Length;
+        return zerosMatch && firstRva >= _pattern.Length;
     }
 
     private bool MatchesAcross(CodeImage image, long boundary)
     {
-        for (long start = long.Max(0, boundary - _values.Length + 1); start < boundary; start++)
+        for (long start = long.Max(0, boundary - _pattern.Length + 1); start < boundary; start++)
         {
             if (MatchesAt(image, start))
             {
@@ -223,7 +208,7 @@ internal sealed class SignatureScan
 
     private bool MatchesAt(CodeImage image, long start)
     {
-        long end = start + _values.Length;
+        long end = start + _pattern.Length;
 
         if (end > image.ImageSize)
         {
@@ -232,7 +217,7 @@ internal sealed class SignatureScan
 
         // Copy the bytes of each part once into a window of zeros, because the image reads as zeros outside its parts
         // and the span of a mapped part costs a call.
-        Span<byte> window = stackalloc byte[_values.Length];
+        Span<byte> window = stackalloc byte[_pattern.Length];
         window.Clear();
 
         for (int index = 0; index < PartCount(image); index++)
@@ -269,9 +254,12 @@ internal sealed class SignatureScan
 
     private bool IsMatch(ReadOnlySpan<byte> code)
     {
-        for (int index = 0; index < _values.Length; index++)
+        var values = _pattern.Values;
+        var masks = _pattern.Masks;
+
+        for (int index = 0; index < values.Length; index++)
         {
-            if (((code[index] ^ _values[index]) & _masks[index]) != 0)
+            if (((code[index] ^ values[index]) & masks[index]) != 0)
             {
                 return false;
             }

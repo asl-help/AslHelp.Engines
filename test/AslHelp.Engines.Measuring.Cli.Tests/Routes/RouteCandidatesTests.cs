@@ -122,6 +122,77 @@ public sealed class RouteCandidatesTests
         Assert.That(candidate, Is.EqualTo(new RouteCandidate("8B ?? 25 ????????", 3, 1, 7)));
     }
 
+    // The prefix tier masks the low nibble of the REX prefix and keeps the ModRM byte, so a load into rcx also matches a load into r9.
+    [Test]
+    public void Enumerate_PrefixTier_MasksTheLowNibbleOfTheRexPrefix()
+    {
+        var window = Window(new CodeBuilder(true).Raw(0x48, 0x8B, 0x0D).Relative(Global).Ret());
+
+        var candidate = RouteCandidates.Enumerate(window, MaskTier.Prefix, 1).Single();
+
+        Assert.That(candidate, Is.EqualTo(new RouteCandidate("4? 8B 0D ????????", 3, 1, 7)));
+    }
+
+    // A load without a REX prefix gives the prefix tier nothing to mask.
+    [Test]
+    public void Enumerate_PrefixTierWithoutRexPrefix_YieldsNothing()
+    {
+        var window = Window(new CodeBuilder(false).MovEcx(Global).Ret());
+
+        Assert.That(RouteCandidates.Enumerate(window, MaskTier.Prefix, 1), Is.Empty);
+    }
+
+    // The nibble tier keeps the low nibble of the ModRM byte with the lowest register bit and masks the high nibble.
+    [Test]
+    public void Enumerate_NibbleTier_MasksTheHighNibbleOfTheModRmByte()
+    {
+        var x86 = Window(new CodeBuilder(false).MovEcx(Global).Ret());
+        var x64 = Window(new CodeBuilder(true).Raw(0x4C, 0x8B, 0x0D).Relative(Global).Ret());
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(RouteCandidates.Enumerate(x86, MaskTier.Nibble, 1).Single().Forward, Is.EqualTo("8B ?D ????????"));
+            Assert.That(RouteCandidates.Enumerate(x64, MaskTier.Nibble, 1).Single().Forward, Is.EqualTo("4? 8B ?D ????????"));
+        }
+    }
+
+    // The register tier masks the whole ModRM byte and the low nibble of the REX prefix.
+    [Test]
+    public void Enumerate_RegisterTierWithRexPrefix_MasksBoth()
+    {
+        var window = Window(new CodeBuilder(true).Raw(0x48, 0x8B, 0x0D).Relative(Global).Ret());
+
+        var candidate = RouteCandidates.Enumerate(window, MaskTier.Register, 1).Single();
+
+        Assert.That(candidate, Is.EqualTo(new RouteCandidate("4? 8B ?? ????????", 3, 1, 7)));
+    }
+
+    // A prefix before the REX prefix stays literal, because only the REX prefix has register bits.
+    [Test]
+    public void Enumerate_PrefixTierAfterOperandSizePrefix_MasksOnlyTheRexPrefix()
+    {
+        var window = Window(new CodeBuilder(true).Raw(0x66, 0x44, 0x8B, 0x0D).Relative(Global).Ret());
+
+        var candidate = RouteCandidates.Enumerate(window, MaskTier.Prefix, 1).Single();
+
+        Assert.That(candidate.Forward, Is.EqualTo("66 4? 8B 0D ????????"));
+    }
+
+    // The REX prefix keeps only its high half, so it can't count toward the least number of literals like a whole byte.
+    [Test]
+    public void Literals_ByteWithOneMaskedHalf_DoesNotCount()
+    {
+        var window = Window(new CodeBuilder(true).Raw(0x66, 0x44, 0x8B, 0x0D).Relative(Global).Ret());
+
+        var candidate = RouteCandidates.Enumerate(window, MaskTier.Prefix, 1).Single();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(candidate.Forward, Is.EqualTo("66 4? 8B 0D ????????"));
+            Assert.That(candidate.Literals, Is.EqualTo(3));
+        }
+    }
+
     // A site without a ModRM byte has nothing to loosen.
     [Test]
     public void Enumerate_RegisterTierOnImmediateSite_YieldsNothing()

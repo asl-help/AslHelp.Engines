@@ -110,7 +110,7 @@ public sealed class CommandLineProfilesTests
     [Test]
     public async Task RunAsync_FailedPlayer_StillWritesTheProfilesOfTheRest()
     {
-        int code = await RunAsync(["--profiles", _profiles], (First, null, 0x28), (Second, new CodeBuilder(false).MovEcx(GlobalRva).Ret(), 0x28));
+        int code = await RunAsync(["-p", _profiles], (First, null, 0x28), (Second, new CodeBuilder(false).MovEcx(GlobalRva).Ret(), 0x28));
 
         using (Assert.EnterMultipleScope())
         {
@@ -339,7 +339,7 @@ public sealed class CommandLineProfilesTests
         }
 
         return CommandLine.RunAsync(
-            ["engine", _folder.Root, "--output", _report, .. options],
+            ["engine", _folder.Root, "--output", _report, "--min-literals", "1", .. options],
             _output,
             _error,
             [

@@ -8,7 +8,7 @@ namespace AslHelp.Engines.Unreal.Errors;
 internal abstract record RootError : ResultError
 {
     /// <summary>
-    ///     Creates the error for an object whose address now has an object of another class.
+    ///     Creates the error for an object that left its slot of the object array or whose address now has an object of another class.
     /// </summary>
     /// <param name="className">The name of the class of the object.</param>
     /// <param name="obj">The address of the object.</param>

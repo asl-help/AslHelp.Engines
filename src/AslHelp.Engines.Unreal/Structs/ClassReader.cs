@@ -268,9 +268,37 @@ internal sealed class ClassReader(
             return error;
         }
 
-        UnrealObject[] objects = [.. instances.Select(instance => new UnrealObject(this, instance.Address, klass, instance.Name))];
+        UnrealObject[] objects =
+        [
+            .. instances.Select(instance => new UnrealObject(this, instance.Address, klass, instance.Name, instance.Slot)),
+        ];
 
         return Result.Ok<IReadOnlyList<UnrealObject>>(objects);
+    }
+
+    /// <summary>
+    ///     Checks whether the game still has <paramref name="obj"/> in its slot of the object array with its class.
+    /// </summary>
+    /// <param name="obj">The object.</param>
+    /// <returns>
+    ///     <see langword="false"/> when the slot has another object or none or the object has another class,
+    ///     or a failure when a read fails.
+    /// </returns>
+    public Result<bool> IsLive(UnrealObject obj)
+    {
+        if (!_classIndex.IsInSlot(obj.Slot, obj.Address).TryUnwrap(out bool inSlot, out var error))
+        {
+            return error;
+        }
+
+        if (!inSlot)
+        {
+            return false;
+        }
+
+        return ObjectReader.ClassOf(obj.Address).TryUnwrap(out var klass, out error)
+            ? klass == obj.Class.Address
+            : error;
     }
 
     /// <summary>

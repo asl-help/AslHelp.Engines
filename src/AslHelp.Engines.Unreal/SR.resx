@@ -87,6 +87,9 @@
   <data name="CollectionTooLong" xml:space="preserve">
     <value>{0} has {1} elements, past the limit of {2}.</value>
   </data>
+  <data name="CollectionTooManySlots" xml:space="preserve">
+    <value>{0} has {1} slots, past the limit of {2}.</value>
+  </data>
   <data name="NameArrayHeaderUnreadable" xml:space="preserve">
     <value>Can't read the header of the name array at {0}: reading {1} failed. {2}</value>
   </data>

@@ -395,6 +395,19 @@ public sealed class UnrealGameLookupTests(
             Is.EqualTo($"Can't read FixtureData.Hp at FixtureData. The FixtureData object at {_fakeGame.Data} was freed."));
     }
 
+    // The game cleared the slot of the object but its memory still has the class and the values, so the path fails instead of
+    // reading the last values.
+    [Test]
+    public void Path_InstanceWhoseSlotGotCleared_FailsAsFreed()
+    {
+        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp");
+        _fakeGame.FreeObject(_fakeGame.Data);
+
+        Assert.That(
+            hp.Read<int>().UnwrapErr().Message,
+            Is.EqualTo($"Can't read FixtureData.Hp at FixtureData. The FixtureData object at {_fakeGame.Data} was freed."));
+    }
+
     // GameMode is declared as an object property and only FixtureGameMode, the class of the object, declares Data.
     [Test]
     public void Path_InstanceOfABaseMember_ReadsAMemberOnlyTheDerivedClassDeclares()

@@ -204,17 +204,31 @@ internal abstract record CollectionError : ResultError
     }
 
     /// <summary>
-    ///     Creates the error for a collection with more elements or slots than a whole read or a key lookup takes.
+    ///     Creates the error for an array with more elements than a whole read takes.
     /// </summary>
     /// <param name="property">The name of the property.</param>
-    /// <param name="count">The number of elements or slots.</param>
-    /// <param name="maxCount">The most elements or slots a read takes.</param>
+    /// <param name="count">The number of elements.</param>
+    /// <param name="maxCount">The most elements a read takes.</param>
     /// <returns>
     ///     The error.
     /// </returns>
     public static CollectionError TooLong(string property, int count, int maxCount)
     {
         return new TooLongError(property, count, maxCount);
+    }
+
+    /// <summary>
+    ///     Creates the error for a set or map with more slots, used or free, than a whole read or a key lookup takes.
+    /// </summary>
+    /// <param name="property">The name of the property.</param>
+    /// <param name="slots">The number of slots.</param>
+    /// <param name="maxSlots">The most slots a read takes.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static CollectionError TooManySlots(string property, int slots, int maxSlots)
+    {
+        return new TooManySlotsError(property, slots, maxSlots);
     }
 }
 
@@ -333,4 +347,12 @@ file sealed record TooLongError(
     int MaxCount) : CollectionError
 {
     public override string Message => SR.FormatCollectionTooLong(Property, Count, MaxCount);
+}
+
+file sealed record TooManySlotsError(
+    string Property,
+    int Slots,
+    int MaxSlots) : CollectionError
+{
+    public override string Message => SR.FormatCollectionTooManySlots(Property, Slots, MaxSlots);
 }

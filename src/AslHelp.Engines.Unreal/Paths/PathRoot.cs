@@ -60,8 +60,9 @@ internal abstract class PathRoot
     ///     Creates the root at 1 live object.
     /// </summary>
     /// <remarks>
-    ///     Reads the class pointer of the object on each read and fails when the address has an object of another class,
-    ///     so a freed object doesn't give the values of the next object at its address.
+    ///     Reads the slot of the object in the object array and its class pointer on each read. Fails when the slot has another object
+    ///     or none or the address has an object of another class, so a freed object doesn't give its last values
+    ///     or the values of the next object at its address.
     /// </remarks>
     /// <param name="classReader">The reader of the game.</param>
     /// <param name="obj">The object.</param>
@@ -143,12 +144,12 @@ file sealed class ObjectRoot(
 
     public override Result<Address> Read()
     {
-        if (!classReader.ObjectReader.ClassOf(obj.Address).TryUnwrap(out var klass, out var error))
+        if (!classReader.IsLive(obj).TryUnwrap(out bool live, out var error))
         {
             return error;
         }
 
-        return klass == obj.Class.Address ? obj.Address : _goneError ??= RootError.ObjectGone(obj.Class.Name, obj.Address);
+        return live ? obj.Address : _goneError ??= RootError.ObjectGone(obj.Class.Name, obj.Address);
     }
 
     public override Result<UnrealClass> ReadDeclaredClass()

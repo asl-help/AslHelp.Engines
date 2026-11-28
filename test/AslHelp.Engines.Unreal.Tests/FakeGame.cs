@@ -770,6 +770,27 @@ internal sealed class FakeGame
     }
 
     /// <summary>
+    ///     Writes 0 into the item of the object array that has <paramref name="obj"/> without changing the object,
+    ///     like when the game frees an object and doesn't use its memory again yet.
+    /// </summary>
+    /// <param name="obj">The address of the object.</param>
+    public void FreeObject(Address obj)
+    {
+        for (long slot = 0; slot < _itemCount; slot++)
+        {
+            var pointer = _items + (slot * _item.Size) + _item.ObjectPointer;
+
+            if (Memory.ReadPointer(pointer).Unwrap() == obj)
+            {
+                Memory.WritePointer(pointer, Address.Zero);
+                return;
+            }
+        }
+
+        throw new ArgumentException($"The object array doesn't have {obj}.", nameof(obj));
+    }
+
+    /// <summary>
     ///     Creates an object of <paramref name="klass"/> without an outer object at the next free address and adds it to the object array.
     /// </summary>
     /// <param name="name">The name of the object, 1 of the names of the game.</param>

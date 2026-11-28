@@ -30,10 +30,12 @@ public sealed record ValueBounds
     } = 512;
 
     /// <summary>
-    ///     Gets the most elements or slots of a collection that a whole read or a key lookup takes.
+    ///     Gets the most elements of an array that a whole read takes and the most slots of a set or map that a whole read
+    ///     or a key lookup takes.
     /// </summary>
     /// <remarks>
-    ///     1 element by index only checks the index against the count.
+    ///     1 element of an array by index only checks the index against the count. The slots of a set or map are its elements
+    ///     and the free slots that removed elements left.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
     ///     The value is below 1 or above <see cref="Limit"/>.

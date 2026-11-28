@@ -162,7 +162,7 @@ internal sealed class SparseArray
 
         if (slots > _maxSlots)
         {
-            return CollectionError.TooLong(_name, slots, _maxSlots);
+            return CollectionError.TooManySlots(_name, slots, _maxSlots);
         }
 
         if (slots == 0)

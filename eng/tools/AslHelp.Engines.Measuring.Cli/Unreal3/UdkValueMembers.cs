@@ -180,7 +180,7 @@ internal sealed class UdkValueMembers
             return -1;
         }
 
-        return OffsetsBy(sizeof(uint)).FirstOrDefault(
+        return SubclassOffsetsBy(sizeof(uint)).FirstOrDefault(
             at => _bools.All(
                 entry =>
                 {
@@ -201,7 +201,7 @@ internal sealed class UdkValueMembers
             return -1;
         }
 
-        return OffsetsBy(_pointerSize).FirstOrDefault(
+        return SubclassOffsetsBy(_pointerSize).FirstOrDefault(
             at => string.Equals(_measured.Reader.NameOf(ReadPointer(coord, at)).UnwrapOrDefault(), CoordType, StringComparison.Ordinal),
             -1);
     }
@@ -214,7 +214,7 @@ internal sealed class UdkValueMembers
             return -1;
         }
 
-        return OffsetsBy(_pointerSize).FirstOrDefault(
+        return SubclassOffsetsBy(_pointerSize).FirstOrDefault(
             at => ClassNameIs(ReadPointer(intArray, at), "IntProperty") && ClassNameIs(ReadPointer(stringArray, at), "StrProperty"),
             -1);
     }
@@ -385,6 +385,19 @@ internal sealed class UdkValueMembers
         {
             yield return at;
         }
+    }
+
+    // List the offsets after every Property member found, because the mask, the struct type and the inner property are members
+    // of subclasses of Property. An earlier pointer can lead to the same object, like the hash chain of names in 2011-05 and later,
+    // which links an array property to its inner property of the same name.
+    private IEnumerable<int> SubclassOffsetsBy(int step)
+    {
+        int propertyEnd = _offsets.Where(static pair => pair.Key.StartsWith("UProperty.", StringComparison.Ordinal))
+            .Select(static pair => pair.Value)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return OffsetsBy(step).Where(at => at > propertyEnd);
     }
 
     private static IEnumerable<int> Within(int size, int step)

@@ -272,6 +272,78 @@ public sealed class SharedRoutesTests
         }
     }
 
+    // b loads into r9 where a loads into rcx, so only the REX prefix differs and the route of a masks just its low nibble.
+    [Test]
+    public void Find_RcxAndR9_MasksTheRexNibble()
+    {
+        var found = Find(
+            Version("a", new CodeBuilder(true).Raw(0x48, 0x8B, 0x0D).Relative(GlobalA).Ret(), GlobalA),
+            Version("b", new CodeBuilder(true).Raw(0xB8, 0x4C, 0x8B, 0x0D).Relative(GlobalB).Ret(), GlobalB));
+
+        var routes = found[Global].Routes;
+
+        Assert.That(routes, Has.Count.EqualTo(2));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(routes[1].Forward, Is.EqualTo("4? 8B 0D ????????"));
+            Assert.That(routes[1].Versions, Is.EqualTo(_b));
+            Assert.That(routes[1].Reached["b"], Is.EqualTo("0x3000"));
+            Assert.That(found[Global].Uncovered, Is.Null);
+        }
+    }
+
+    // ecx and ebx share the lowest register bit, so the route masks only the high nibble of the ModRM byte.
+    [Test]
+    public void Find_RegistersWithEqualLowestBit_MasksTheModRmNibble()
+    {
+        var found = Find(
+            Version("a", new CodeBuilder(false).MovEcx(GlobalA).Ret(), GlobalA),
+            Version("b", new CodeBuilder(false).Raw(0xB8, 0x8B, 0x1D).Absolute(GlobalB).Ret(), GlobalB));
+
+        var routes = found[Global].Routes;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(routes[1].Forward, Is.EqualTo("8B ?D ????????"));
+            Assert.That(routes[1].Versions, Is.EqualTo(_b));
+        }
+    }
+
+    // mov ecx, [ebp + 8] in b also matches the nibble route, and the load of a has no neighbor to grow by, so b stays uncovered.
+    [Test]
+    public void Find_NibbleRouteAlsoMatchesFieldLoad_StaysUncovered()
+    {
+        var found = Find(
+            Version("a", new CodeBuilder(false).MovEcx(GlobalA), GlobalA),
+            Version("b", new CodeBuilder(false).Raw(0x8B, 0x4D, 0x08).Nops(4).Raw(0xB8, 0x8B, 0x1D).Absolute(GlobalB).Ret(), GlobalB));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(found[Global].Routes.Single().Versions, Is.EqualTo(_a));
+            Assert.That(found[Global].Uncovered!["b"], Is.EqualTo(SR.UncoveredNoCandidate));
+        }
+    }
+
+    // The neighbor after the load of b differs from the bytes after mov ecx, [ebp + 8], so the nibble route grows by 1 instruction.
+    [Test]
+    public void Find_NeighborSetsNibbleRouteApartFromFieldLoad_GrowsTheRoute()
+    {
+        var found = Find(
+            Version("a", new CodeBuilder(false).MovEcx(GlobalA).Ret(), GlobalA),
+            Version("b", new CodeBuilder(false).Raw(0x8B, 0x4D, 0x08).Nops(4).Raw(0xB8, 0x8B, 0x1D).Absolute(GlobalB).Ret(), GlobalB));
+
+        var routes = found[Global].Routes;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(routes[1].Forward, Is.EqualTo("8B ?D ???????? C3"));
+            Assert.That(routes[1].Versions, Is.EqualTo(_b));
+            Assert.That(routes[1].Reached["b"], Is.EqualTo("0x3000"));
+            Assert.That(found[Global].Uncovered, Is.Null);
+        }
+    }
+
     // A strict route exists for every version, so the register tier never runs even though 1 loose route could cover both.
     [Test]
     public void Find_StrictRouteForEveryVersion_DoesNotLoosen()
@@ -330,6 +402,7 @@ public sealed class SharedRoutesTests
                 Version("a", new CodeBuilder(false).MovEcx(GlobalA), GlobalA),
                 new RouteVersion("b", missing, Globals(GlobalB)),
             ],
+            1,
             2,
             logger,
             CancellationToken.None);
@@ -406,7 +479,7 @@ public sealed class SharedRoutesTests
         source.Cancel();
         var version = Version("a", new CodeBuilder(false).MovEcx(GlobalA), GlobalA);
 
-        Assert.That(() => SharedRoutes.Find([version], 2, NullLogger.Instance, source.Token), Throws.InstanceOf<OperationCanceledException>());
+        Assert.That(() => SharedRoutes.Find([version], 1, 2, NullLogger.Instance, source.Token), Throws.InstanceOf<OperationCanceledException>());
     }
 
     // Counts the workers of each parallel step, because a step without the limit starts more workers as long as items are left.
@@ -426,7 +499,7 @@ public sealed class SharedRoutesTests
         ];
 
         using ParallelWorkers workers = new();
-        var found = SharedRoutes.Find(versions, 1, NullLogger.Instance, CancellationToken.None);
+        var found = SharedRoutes.Find(versions, 1, 1, NullLogger.Instance, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -436,9 +509,37 @@ public sealed class SharedRoutesTests
         }
     }
 
+    // A route keeps at least the fewest unmasked bytes, so it grows by the instructions around the load until it has enough.
+    [TestCase(1, "8B 0D ????????")]
+    [TestCase(3, "8B 0D ???????? C3")]
+    [TestCase(5, "33 C0 8B 0D ???????? C3")]
+    public void Find_LeastLiterals_GrowsTheRouteUntilItHasEnough(int leastLiterals, string forward)
+    {
+        RouteVersion[] versions = [Version("a", new CodeBuilder(false).Raw(0x33, 0xC0).MovEcx(GlobalA).Ret(), GlobalA)];
+
+        var found = SharedRoutes.Find(versions, leastLiterals, 2, NullLogger.Instance, CancellationToken.None);
+
+        Assert.That(found[Global].Routes.Single().Forward, Is.EqualTo(forward));
+    }
+
+    // A load whose whole window keeps fewer unmasked bytes than the least stays uncovered, because a short route can match random data.
+    [Test]
+    public void Find_WindowShorterThanLeastLiterals_LeavesTheVersionUncovered()
+    {
+        RouteVersion[] versions = [Version("a", new CodeBuilder(false).Raw(0x33, 0xC0).MovEcx(GlobalA).Ret(), GlobalA)];
+
+        var found = SharedRoutes.Find(versions, 6, 2, NullLogger.Instance, CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(found[Global].Routes, Is.Empty);
+            Assert.That(found[Global].Uncovered, Does.ContainKey("a"));
+        }
+    }
+
     private static IReadOnlyDictionary<string, GlobalRoutes> Find(params RouteVersion[] versions)
     {
-        return SharedRoutes.Find(versions, 2, NullLogger.Instance, CancellationToken.None);
+        return SharedRoutes.Find(versions, 1, 2, NullLogger.Instance, CancellationToken.None);
     }
 
     private static Dictionary<string, IReadOnlyList<uint>> Globals(params uint[] rvas)

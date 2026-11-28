@@ -10,6 +10,12 @@ namespace AslHelp.Engines.Measuring.Cli.Routes;
 internal static class RouteCandidates
 {
     /// <summary>
+    ///     Represents the default of the fewest bytes a route keeps unmasked: 6, so a random match in the writable memory of
+    ///     a module, which a search at run time also reads, is about 1 in 5 million per search of 50 MB.
+    /// </summary>
+    public const int DefaultLeastLiterals = 6;
+
+    /// <summary>
     ///     Represents the largest number of bytes of a candidate.
     /// </summary>
     public const int MostBytes = 64;
@@ -40,7 +46,8 @@ internal static class RouteCandidates
     /// </returns>
     public static IEnumerable<RouteCandidate> Enumerate(SiteWindow window, MaskTier tier, int instructions)
     {
-        if (tier == MaskTier.Register && window.RegisterAt < 0)
+        // Skip a tier that masks nothing more than the tier before it, because its candidates would repeat.
+        if ((tier != MaskTier.Strict && window.RegisterAt < 0) || (tier == MaskTier.Prefix && window.PrefixAt < 0))
         {
             yield break;
         }
@@ -63,14 +70,12 @@ internal static class RouteCandidates
 
             if (end - start <= MostBytes)
             {
-                int registerAt = tier == MaskTier.Register ? window.RegisterAt : -1;
-
-                yield return new RouteCandidate(Render(window, start, end, registerAt), window.OperandAt - start, instructions, end - start);
+                yield return new RouteCandidate(Render(window, tier, start, end), window.OperandAt - start, instructions, end - start);
             }
         }
     }
 
-    private static string Render(SiteWindow window, int start, int end, int registerAt)
+    private static string Render(SiteWindow window, MaskTier tier, int start, int end)
     {
         StringBuilder text = new();
 
@@ -82,14 +87,26 @@ internal static class RouteCandidates
             }
 
             int operand = window.Operands[position];
+            byte value = window.Bytes[position];
 
-            if (position == registerAt)
+            // Mask the low nibble of the REX prefix, because it has the register extension bit.
+            // The nibble tier masks the high nibble of the ModRM byte, so it also loses mod, because that nibble has mod and register bits 2 and 1.
+            // It keeps the low nibble, because that has register bit 0 and the rm field, and the scan refuses a match with another mod.
+            if (tier != MaskTier.Strict && position == window.PrefixAt)
+            {
+                _ = text.Append(CultureInfo.InvariantCulture, $"{value >> 4:X}?");
+            }
+            else if (tier == MaskTier.Nibble && position == window.RegisterAt)
+            {
+                _ = text.Append(CultureInfo.InvariantCulture, $"?{value & 0xF:X}");
+            }
+            else if (tier == MaskTier.Register && position == window.RegisterAt)
             {
                 _ = text.Append("??");
             }
             else if (operand == 0)
             {
-                _ = text.Append(CultureInfo.InvariantCulture, $"{window.Bytes[position]:X2}");
+                _ = text.Append(CultureInfo.InvariantCulture, $"{value:X2}");
             }
             else
             {

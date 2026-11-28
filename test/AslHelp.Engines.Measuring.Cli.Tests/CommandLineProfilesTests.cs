@@ -339,7 +339,7 @@ public sealed class CommandLineProfilesTests
         }
 
         return CommandLine.RunAsync(
-            ["engine", _folder.Root, "--output", _report, .. options],
+            ["engine", _folder.Root, "--output", _report, "--min-literals", "1", .. options],
             _output,
             _error,
             [

@@ -132,8 +132,8 @@
     "GUObjectArray": {
       "4.22.3": [
         {
-          "forward": "03 1D ???????? FF C8",
-          "offset": 2
+          "forward": "4C 8D 05 ???????? 89 41 08",
+          "offset": 3
         },
         {
           "read": "global"
@@ -154,8 +154,8 @@
     "GEngine": {
       "4.22.3": [
         {
-          "forward": "32 C0 48 8B 15 ????????",
-          "offset": 5
+          "forward": "08 43 30 48 8B 0D ????????",
+          "offset": 6
         },
         {
           "read": "global"

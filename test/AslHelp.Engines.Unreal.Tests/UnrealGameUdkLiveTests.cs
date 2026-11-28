@@ -7,6 +7,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Threading;
 
 namespace AslHelp.Engines.Unreal.Tests;
@@ -19,7 +20,7 @@ public sealed class UnrealGameUdkLiveTests
     private const string MapsPath = @"UDKGame\Content\Maps";
     private const int MaxStarts = 3;
 
-    // Set FIXTURES_UNREAL3_PLAYER to the folder of the UDK 2010-09 player to attach to it.
+    // Set FIXTURES_UNREAL3_PLAYER to the folder of a UDK player to attach to it.
     private const string PlayerVariable = "FIXTURES_UNREAL3_PLAYER";
 
     // Set FIXTURES_UNREAL3_PROFILE to the profile document of that player.
@@ -236,7 +237,8 @@ public sealed class UnrealGameUdkLiveTests
         });
     }
 
-    // UDK.exe stamps the engine build 7258, so detection reads 2010-09 and the shipped catalog picks the UDK document.
+    // UDK.exe stamps its engine build, so detection reads a release that the document of the player's release lists too. Releases that
+    // share a build read as the 1st of them, which the same document lists.
     [Test]
     public void Attach_RealPlayerWithoutAProfile_DetectsTheVersionAndPicksTheDocument()
     {
@@ -247,14 +249,20 @@ public sealed class UnrealGameUdkLiveTests
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(
-                    game.Selection!.Target,
-                    Is.EqualTo(new ProfileTarget(UnrealTarget.Unreal3, UnrealTarget.ParseVersion("2010-09")!, "win-x86-shipping")));
-                Assert.That(game.Selection.Entry.Source, Is.EqualTo("Profiles/unreal3-2010-09.json"));
+                Assert.That(game.Selection!.Target.Engine, Is.EqualTo(UnrealTarget.Unreal3));
+                Assert.That(game.Selection.Entry.Profile.Versions, Does.Contain(PlayerVersion()).And.Contain(game.Selection.Target.Version.Text));
                 Assert.That(game.Selection.Match, Is.EqualTo(ProfileMatch.Listed));
                 Assert.That(data.Path.Member("IntValue").Read<int>().Unwrap(), Is.EqualTo(1337));
             }
         });
+    }
+
+    // Read the version from the manifest that the fixtures command line writes into each player folder.
+    private static string PlayerVersion()
+    {
+        string manifest = File.ReadAllText(Path.Combine(Environment.GetEnvironmentVariable(PlayerVariable)!, "manifest.json"));
+
+        return JsonNode.Parse(manifest)!["version"]!.GetValue<string>();
     }
 
     // Parse the profile of FIXTURES_UNREAL3_PROFILE and attach with it to the started server.
@@ -277,7 +285,7 @@ public sealed class UnrealGameUdkLiveTests
     {
         string? player = Environment.GetEnvironmentVariable(PlayerVariable);
 
-        Assume.That(player is not null && Directory.Exists(player), $"Set {PlayerVariable} to the UDK 2010-09 player to run this test.");
+        Assume.That(player is not null && Directory.Exists(player), $"Set {PlayerVariable} to a UDK player folder to run this test.");
 
         string directory = Path.Combine(player!, BinariesPath);
         string logPath = Path.Combine(player!, LogPath);

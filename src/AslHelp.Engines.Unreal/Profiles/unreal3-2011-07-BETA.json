@@ -1,0 +1,114 @@
+{
+  "engine": "unreal3",
+  "versions": [
+    "2011-07-BETA",
+    "2011-10-BETA",
+    "2011-11-BETA",
+    "2011-12-BETA",
+    "2012-01-BETA",
+    "2012-02-BETA",
+    "2012-05-BETA",
+    "2012-07-BETA2",
+    "2012-11-BETA",
+    "2013-02-BETA",
+    "2013-02-BETA2",
+    "2013-07",
+    "2014-02",
+    "2015-02"
+  ],
+  "offsets": {
+    "FName": {
+      "Index": "0x0",
+      "Number": "0x4"
+    },
+    "FNameEntry": {
+      "Index": "0x8",
+      "Name": "0x10"
+    },
+    "FScriptArray": {
+      "Data": "0x0",
+      "ArrayNum": "0x4"
+    },
+    "UArrayProperty": {
+      "Inner": "0x70"
+    },
+    "UBoolProperty": {
+      "BitMask": "0x70"
+    },
+    "UEnum": {
+      "Names": "0x40"
+    },
+    "UField": {
+      "Next": "0x3C"
+    },
+    "UObject": {
+      "ObjectInternalInteger": "0x20",
+      "Outer": "0x28",
+      "Name": "0x2C",
+      "Class": "0x34"
+    },
+    "UObjectProperty": {
+      "PropertyClass": "0x70"
+    },
+    "UProperty": {
+      "ArrayDim": "0x40",
+      "ElementSize": "0x44",
+      "Offset": "0x60",
+      "PropertyLinkNext": "0x64"
+    },
+    "UStruct": {
+      "SuperField": "0x48",
+      "Children": "0x4C",
+      "PropertySize": "0x50"
+    },
+    "UStructProperty": {
+      "Struct": "0x70"
+    }
+  },
+  "globals": {
+    "GNames": {
+      "2011-07-BETA": [
+        {
+          "forward": "8B 0D ???????? 83 3C 81 00",
+          "offset": 2
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GObjObjects": {
+      "2011-07-BETA": [
+        {
+          "forward": "83 BF E8 00 00 00 00 8B 0D ????????",
+          "offset": 9
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GEngine": {
+      "2011-07-BETA": [
+        {
+          "forward": "83 60 3C FD 8B 3D ????????",
+          "offset": 6
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GWorld": {
+      "2011-07-BETA": [
+        {
+          "forward": "66 89 0C 47 8B 0D ????????",
+          "offset": 6
+        },
+        {
+          "read": "global"
+        }
+      ]
+    }
+  }
+}

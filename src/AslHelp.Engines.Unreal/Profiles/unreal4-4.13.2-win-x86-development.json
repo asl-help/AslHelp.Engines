@@ -121,8 +121,8 @@
     "GUObjectArray": {
       "4.13.2": [
         {
-          "forward": "89 74 24 14 68 ????????",
-          "offset": 5
+          "forward": "8D 8C 24 AC 00 00 00 68 ????????",
+          "offset": 8
         },
         {
           "read": "global"
@@ -132,8 +132,8 @@
     "GWorld": {
       "4.13.2": [
         {
-          "forward": "89 01 FF 35 ????????",
-          "offset": 4
+          "forward": "89 5C 24 34 8B 2D ????????",
+          "offset": 6
         },
         {
           "read": "global"
@@ -143,8 +143,8 @@
     "GEngine": {
       "4.13.2": [
         {
-          "forward": "32 C9 A1 ????????",
-          "offset": 3
+          "forward": "0F 11 40 20 8B 0D ????????",
+          "offset": 6
         },
         {
           "read": "global"

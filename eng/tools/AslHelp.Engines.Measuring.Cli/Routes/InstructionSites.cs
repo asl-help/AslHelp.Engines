@@ -1,5 +1,6 @@
 using Iced.Intel;
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 
 namespace AslHelp.Engines.Measuring.Cli.Routes;
@@ -13,6 +14,10 @@ internal static class InstructionSites
     private const int LargeAddressSize = sizeof(ulong);
     private const byte ModRmFormMask = 0xC7;
     private const byte ModRmFormOfAddress = 0x05;
+    private const byte RexPrefixForm = 0x40;
+    private const byte RexPrefixMask = 0xF0;
+
+    private static readonly SearchValues<byte> _legacyPrefixes = SearchValues.Create(0x26, 0x2E, 0x36, 0x3E, 0x64, 0x65, 0x66, 0x67, 0xF0, 0xF2, 0xF3);
 
     /// <summary>
     ///     Decodes the code sections of <paramref name="image"/> linearly and lists the window around each site.
@@ -134,6 +139,7 @@ internal static class InstructionSites
         List<(int At, int Size)> masks = [];
         int length = 0;
         int registerAt = -1;
+        int prefixAt = -1;
 
         while (starts.Count <= site + RouteCandidates.MostNeighbors && reader.CanReadByte)
         {
@@ -154,6 +160,10 @@ internal static class InstructionSites
             {
                 // Step over a SIB byte, because [address] also encodes as ModRM, SIB, displacement and only the opcode comes right before the ModRM.
                 registerAt = section.Bytes.Span[from + operandAt - 2] == (byte)instruction.OpCode.OpCode ? operandAt - 1 : operandAt - 2;
+
+                // Look for a REX prefix only on x64, because 0x40 to 0x4F are the opcodes of inc and dec on x86.
+                int rex = image.Is64Bit ? RexPrefixAt(section.Bytes.Span[(from + length)..(from + registerAt)]) : -1;
+                prefixAt = rex < 0 ? -1 : length + rex;
             }
 
             if (IsAddressDisplacement(instruction, offsets, image))
@@ -178,7 +188,22 @@ internal static class InstructionSites
             operands.AsSpan(masks[mask].At, masks[mask].Size).Fill(mask + 1);
         }
 
-        return new SiteWindow(address, bytes, [.. starts], site, operands, operandAt, registerAt);
+        return new SiteWindow(address, bytes, [.. starts], site, operands, operandAt, registerAt, prefixAt);
+    }
+
+    /// <summary>
+    ///     Finds the REX prefix among the bytes of an x64 instruction before its ModRM byte.
+    /// </summary>
+    /// <param name="head">The bytes from the start of the instruction to its ModRM byte.</param>
+    /// <returns>
+    ///     The position of the REX prefix in <paramref name="head"/> or -1 if it has none.
+    /// </returns>
+    private static int RexPrefixAt(ReadOnlySpan<byte> head)
+    {
+        // Step over the legacy prefixes, because the REX prefix comes after them, right before the opcode.
+        int position = head.IndexOfAnyExcept(_legacyPrefixes);
+
+        return position >= 0 && (head[position] & RexPrefixMask) == RexPrefixForm ? position : -1;
     }
 
     private static bool IsAddressDisplacement(in Instruction instruction, in ConstantOffsets offsets, CodeImage image)

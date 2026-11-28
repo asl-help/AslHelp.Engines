@@ -138,8 +138,8 @@
     "GWorld": {
       "4.21.2": [
         {
-          "forward": "89 01 FF 35 ????????",
-          "offset": 4
+          "forward": "89 0D ???????? 89 44 24 28",
+          "offset": 2
         },
         {
           "read": "global"
@@ -149,8 +149,8 @@
     "GEngine": {
       "4.21.2": [
         {
-          "forward": "84 C0 A1 ????????",
-          "offset": 3
+          "forward": "0F 11 46 10 8B 3D ????????",
+          "offset": 6
         },
         {
           "read": "global"

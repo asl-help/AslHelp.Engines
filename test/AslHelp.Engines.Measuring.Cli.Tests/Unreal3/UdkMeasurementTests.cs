@@ -58,6 +58,18 @@ public sealed class UdkMeasurementTests(
         }
     }
 
+    // A pointer before the Property members that also leads to the inner property isn't Inner, because Inner is a member of the
+    // subclass ArrayProperty and comes after every Property member.
+    [Test]
+    public void Measure_ArraysChainedToTheirInnersBeforePropertyMembers_FindsInnerAfterThem()
+    {
+        _image.ChainArraysToTheirInners(sizeof(uint));
+
+        var measurement = Measure();
+
+        Assert.That(measurement.Offsets[UdkValueMembers.Inner], Is.EqualTo(layout.PropertySize));
+    }
+
     // A fixture class without the value fields reports their members unmeasured and still finds ArrayDim.
     [Test]
     public void Measure_FixtureWithoutValueFields_ReportsValueMembersUnmeasured()

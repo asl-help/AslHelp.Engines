@@ -244,13 +244,40 @@ public static class UnrealTarget
         };
     }
 
-    // List the engine build that each measured UDK release stamps, because the stamp doesn't have the release month.
+    // List the engine build that each measured UDK release stamps, because the stamp doesn't have the release month. 2011-03-BETA2
+    // stamps 7977 like 2011-03-BETA, so that build maps to 2011-03-BETA, which the same document lists.
     private static ProfileVersion? Unreal3Release(int build)
     {
-        return build switch
+        string? release = build switch
         {
-            7258 => new ProfileVersion("2010-09", 2010, 9),
+            6829 => "2010-06-BETA",
+            6890 => "2010-07-BETA",
+            7026 => "2010-08-BETA",
+            7258 => "2010-09",
+            7422 => "2010-10-BETA",
+            7546 => "2010-11-BETA",
+            7637 => "2010-12-BETA",
+            7748 => "2011-01-BETA",
+            7876 => "2011-02-BETA",
+            7977 => "2011-03-BETA",
+            8364 => "2011-05-BETA",
+            8710 => "2011-07-BETA",
+            9029 => "2011-10-BETA",
+            9140 => "2011-11-BETA",
+            9249 => "2011-12-BETA",
+            9375 => "2012-01-BETA",
+            9505 => "2012-02-BETA",
+            9953 => "2012-05-BETA",
+            10246 => "2012-07-BETA2",
+            10499 => "2012-11-BETA",
+            10897 => "2013-02-BETA",
+            10900 => "2013-02-BETA2",
+            10907 => "2013-07",
+            12097 => "2014-02",
+            12791 => "2015-02",
             _ => null,
         };
+
+        return release is null ? null : ParseVersion(release);
     }
 }

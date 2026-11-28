@@ -25,7 +25,7 @@ var x = data.Member("Coord").Member("X").Value<int>().Unwrap().CreateWatcher(tic
 var anyHp = data.Member("Hp").Unwrap().CreateWatcher(ticks);
 ```
 
-- the library ships 1 document per group of the measured players, 4.0 to 5.8 and UDK 2010-09 (see [Profiles](#profiles))
+- the library ships 1 document per group of the measured players, 4.0 to 5.8 and UDK 2010-06 to 2015-02 (see [Profiles](#profiles))
 - the pick takes the document that lists the version. A version without a patch, like a 5.8 stamp, takes the highest listed 5.8.x (a guess when the 5.8.x sit in 2 documents) and a listed 5.8 covers every 5.8.x. If none fits, it guesses the nearest patch of the same minor or else the highest lower version of the same major, like 5.8.4 for 5.9.0. Then `Selection.Warning` has both versions
 - `ProfileGuessHandling.Disallow` doesn't guess and fails with the version a guess would take
 - the key is `win-x64` or `win-x86` from the pointer size, then `development` when the exe name ends with `-Debug` or `-DebugGame` and `shipping` for any other name. UBT leaves the configuration out of the name of a development build (`Game.exe`), so a name without it is a guess. Pass `UnrealConfiguration.Development` for a development build
@@ -270,7 +270,7 @@ Each version's row in `releases.json` declares what's different for that version
 ## Measuring
 
 ```
-just measure <engine> <players> --output <file> [--profiles <folder>] [--targets <file>] [--jobs <n>]
+just measure <engine> <players> --output <file> [--profiles <folder>] [--targets <file>] [--jobs <n>] [--min-literals <n>]
 ```
 
 | Argument | Value |
@@ -280,6 +280,7 @@ just measure <engine> <players> --output <file> [--profiles <folder>] [--targets
 | `--output` | The file to write the JSON report to. |
 | `--profiles` | The folder to write 1 profile document per group to. Leave it out to skip them. |
 | `--jobs`, `-j` | How many players to measure at once. The default is the engine's limit, which is 4 for `unreal4` and 1 for `unreal3`. Lower it if you run short on memory. |
+| `--min-literals` | The fewest bytes a route keeps unmasked, 6 by default. A search at run time also reads the writable memory of the game, where a shorter pattern can match random data. |
 | `--targets` | The file with the values to find. It replaces the built-in list, so you can change it without a rebuild. |
 
 `unreal3` starts each player on your machine and reads its memory. `unreal4` only reads the PDB and the executable of each player, so it takes a few seconds per player. It also takes `--arch x64|x86` and `--config shipping|development`, which both default to every player.
@@ -357,7 +358,7 @@ After `players` comes `groups`. 2 versions are in the same group when the offset
 ]
 ```
 
-Each group lists `routes` for the globals of its versions. A route finds a global with a signature search through the code of the executable and then reads the global from the operand at `offset`. `forward` uses the same format as the `forward` step of a `LocatorRoute` in AslHelp.Memory, with `?` for the bytes of address operands and branch targets. A route only counts for a version when every match in that version's image reaches the same RVA, which `reached` lists. `uncovered` gives the reason for each version that no route covers.
+Each group lists `routes` for the globals of its versions. A route finds a global with a signature search through the code of the executable and then reads the global from the operand at `offset`. `forward` uses the same format as the `forward` step of a `LocatorRoute` in AslHelp.Memory, with `?` for the bytes of address operands and branch targets. When no such route covers a version, the search also masks the register of the load, 1 nibble at a time: first the low nibble of the REX prefix, as in `4? 8B 0D`, then the high nibble of the ModRM byte, as in `4? 8B ?D`, and last the whole ModRM byte. A route only counts for a version when every match in that version's image reaches the same RVA, which `reached` lists. A match that doesn't load an address at `offset`, like `8B 4D 08` for `8B ?D ????????`, makes the route conflict, because the library reads the bytes at `offset` of every match as an address without decoding the instruction. `uncovered` gives the reason for each version that no route covers.
 
 ### Profiles
 

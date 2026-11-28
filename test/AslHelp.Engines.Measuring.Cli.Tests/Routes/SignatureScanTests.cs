@@ -33,6 +33,28 @@ public sealed class SignatureScanTests
         Assert.That(new SignatureScan(candidate).Search(image).Rva, Is.EqualTo(target));
     }
 
+    // A nibble token matches any value of its masked half and nothing outside its fixed half.
+    [TestCase((byte)0x48, true)]
+    [TestCase((byte)0x4C, true)]
+    [TestCase((byte)0x58, false)]
+    public void Search_NibbleToken_MatchesOnlyItsFixedHalf(byte prefix, bool matched)
+    {
+        RouteCandidate candidate = new("4? 8B 0D ????????", 3, 1, 7);
+        var image = new CodeBuilder(true, 0x0001_4000_0000).Raw(prefix, 0x8B, 0x0D).Relative(Global).Build();
+
+        Assert.That(new SignatureScan(candidate).Search(image), Is.EqualTo(matched ? ScanResult.Reached(Global) : ScanResult.None));
+    }
+
+    // mov ecx, [ebp + 8] also matches the nibble token, so the route conflicts, because a run time scan reads its bytes as an address.
+    [Test]
+    public void Search_NibbleTokenAlsoMatchesFieldLoad_IsConflicting()
+    {
+        RouteCandidate candidate = new("8B ?D ????????", 2, 1, 6);
+        var image = new CodeBuilder(false).MovEcx(Global).Raw(0x8B, 0x4D, 0x08).Nops(4).Build();
+
+        Assert.That(new SignatureScan(candidate).Search(image), Is.EqualTo(ScanResult.Conflicting));
+    }
+
     // 2 matches in 2 sections that reach 1 RVA are fine.
     [Test]
     public void Search_TwoMatchesSameRva_ReachesIt()

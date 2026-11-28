@@ -16,6 +16,7 @@ internal static class SharedRoutes
     ///     Maps the executable of each version once and searches the routes of each global.
     /// </summary>
     /// <param name="versions">The versions.</param>
+    /// <param name="leastLiterals">The fewest unmasked bytes of a route, so a route doesn't match random data at run time.</param>
     /// <param name="maxDegreeOfParallelism">The number of executables to map, decode and search at once, the same as the players of the run.</param>
     /// <param name="logger">The logger for an executable that fails to read.</param>
     /// <param name="cancellationToken">The token that stops the search.</param>
@@ -25,6 +26,7 @@ internal static class SharedRoutes
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
     public static IReadOnlyDictionary<string, GlobalRoutes> Find(
         IReadOnlyList<RouteVersion> versions,
+        int leastLiterals,
         int maxDegreeOfParallelism,
         ILogger logger,
         CancellationToken cancellationToken)
@@ -78,7 +80,7 @@ internal static class SharedRoutes
 
             foreach (string global in versions.SelectMany(static version => version.Globals.Keys).Distinct(StringComparer.Ordinal))
             {
-                routes[global] = new GlobalSearch(global, readable, options).Run(versions, unreadable);
+                routes[global] = new GlobalSearch(global, readable, leastLiterals, options).Run(versions, unreadable);
             }
 
             return routes;
@@ -98,6 +100,7 @@ internal static class SharedRoutes
 file sealed class GlobalSearch(
     string global,
     List<VersionCode> readable,
+    int leastLiterals,
     ParallelOptions options)
 {
     private readonly List<VersionCode> _remaining = readable.FindAll(code => code.Version.Globals.ContainsKey(global));
@@ -143,15 +146,27 @@ file sealed class GlobalSearch(
     }
 
     // Tries the windows of every version only after the sites of the versions left, because they are for a load that linear decoding missed.
-    // A register mask adds nothing for a version with its own site, because every match of the strict form is also a match of the masked form.
+    // A looser mask adds nothing for a version with its own site, because every match of the strict form is also a match of the masked form.
+    // Tries the tiers from the tightest, so a route masks only the nibbles that it needs.
     private Picked? Pick()
     {
         // Stop growing at the versions with a site, because a version without one adds a scan to every candidate and the window tiers still search it.
         int withSite = _remaining.Count(code => code.WindowsOf(global).Any());
 
-        return PickFrom(CandidatesOfSites, withSite)
-            ?? PickFrom(instructions => CandidatesOfWindows(MaskTier.Strict, instructions), _remaining.Count)
-            ?? PickFrom(instructions => CandidatesOfWindows(MaskTier.Register, instructions), _remaining.Count);
+        if (PickFrom(CandidatesOfSites, withSite) is { } picked)
+        {
+            return picked;
+        }
+
+        foreach (var tier in Enum.GetValues<MaskTier>())
+        {
+            if (PickFrom(instructions => CandidatesOfWindows(tier, instructions), _remaining.Count) is { } loose)
+            {
+                return loose;
+            }
+        }
+
+        return null;
     }
 
     private Picked? PickFrom(Func<int, IEnumerable<CandidateVersions>> candidates, int enough)
@@ -241,6 +256,13 @@ file sealed class GlobalSearch(
         }).IsCompleted;
     }
 
+    // Skip a candidate with too few unmasked bytes, because a search at run time also reads the writable memory of the module
+    // and a short pattern can match the data there.
+    private IEnumerable<RouteCandidate> Enumerate(SiteWindow window, MaskTier tier, int instructions)
+    {
+        return RouteCandidates.Enumerate(window, tier, instructions).Where(candidate => candidate.Literals >= leastLiterals);
+    }
+
     private Dictionary<RouteCandidate, CandidateVersions>.ValueCollection CandidatesOfSites(int instructions)
     {
         Dictionary<RouteCandidate, CandidateVersions> seen = [];
@@ -249,7 +271,7 @@ file sealed class GlobalSearch(
         {
             foreach (var window in code.WindowsOf(global))
             {
-                foreach (var candidate in RouteCandidates.Enumerate(window, MaskTier.Strict, instructions))
+                foreach (var candidate in Enumerate(window, MaskTier.Strict, instructions))
                 {
                     if (!seen.TryGetValue(candidate, out var entry))
                     {
@@ -280,7 +302,7 @@ file sealed class GlobalSearch(
 
         foreach (var window in _windows)
         {
-            foreach (var candidate in RouteCandidates.Enumerate(window, tier, instructions))
+            foreach (var candidate in Enumerate(window, tier, instructions))
             {
                 _ = seen.TryAdd(candidate, new CandidateVersions(candidate, _remaining));
             }

@@ -1,7 +1,8 @@
 {
   "engine": "unreal3",
   "versions": [
-    "2010-09"
+    "2010-06-BETA",
+    "2010-07-BETA"
   ],
   "offsets": {
     "FName": {
@@ -17,16 +18,16 @@
       "ArrayNum": "0x4"
     },
     "UArrayProperty": {
-      "Inner": "0x80"
+      "Inner": "0x84"
     },
     "UBoolProperty": {
-      "BitMask": "0x80"
+      "BitMask": "0x84"
     },
     "UEnum": {
-      "Names": "0x40"
+      "Names": "0x44"
     },
     "UField": {
-      "Next": "0x3C"
+      "Next": "0x40"
     },
     "UObject": {
       "ObjectInternalInteger": "0x4",
@@ -35,28 +36,28 @@
       "Class": "0x34"
     },
     "UObjectProperty": {
-      "PropertyClass": "0x80"
+      "PropertyClass": "0x84"
     },
     "UProperty": {
-      "ArrayDim": "0x40",
-      "ElementSize": "0x44",
-      "Offset": "0x60",
-      "PropertyLinkNext": "0x64"
+      "ArrayDim": "0x44",
+      "ElementSize": "0x48",
+      "Offset": "0x64",
+      "PropertyLinkNext": "0x68"
     },
     "UStruct": {
-      "SuperField": "0x48",
+      "SuperField": "0x3C",
       "Children": "0x4C",
       "PropertySize": "0x50"
     },
     "UStructProperty": {
-      "Struct": "0x80"
+      "Struct": "0x84"
     }
   },
   "globals": {
     "GNames": {
-      "2010-09": [
+      "2010-06-BETA": [
         {
-          "forward": "A3 ???????? 89 33",
+          "forward": "A1 ???????? 8B 88 AC 11 00 00",
           "offset": 1
         },
         {
@@ -65,10 +66,10 @@
       ]
     },
     "GObjObjects": {
-      "2010-09": [
+      "2010-06-BETA": [
         {
-          "forward": "3B F0 8B 0D ????????",
-          "offset": 4
+          "forward": "89 6C 24 30 8B 0D ????????",
+          "offset": 6
         },
         {
           "read": "global"
@@ -76,10 +77,10 @@
       ]
     },
     "GEngine": {
-      "2010-09": [
+      "2010-06-BETA": [
         {
-          "forward": "2B F0 A1 ????????",
-          "offset": 3
+          "forward": "83 60 3C FD 8B 3D ????????",
+          "offset": 6
         },
         {
           "read": "global"
@@ -87,10 +88,10 @@
       ]
     },
     "GWorld": {
-      "2010-09": [
+      "2010-06-BETA": [
         {
-          "forward": "89 07 A1 ????????",
-          "offset": 3
+          "forward": "03 44 24 24 8B 0D ????????",
+          "offset": 6
         },
         {
           "read": "global"

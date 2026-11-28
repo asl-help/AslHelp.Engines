@@ -1,0 +1,101 @@
+{
+  "engine": "unreal3",
+  "versions": [
+    "2011-05-BETA"
+  ],
+  "offsets": {
+    "FName": {
+      "Index": "0x0",
+      "Number": "0x4"
+    },
+    "FNameEntry": {
+      "Index": "0x8",
+      "Name": "0x10"
+    },
+    "FScriptArray": {
+      "Data": "0x0",
+      "ArrayNum": "0x4"
+    },
+    "UArrayProperty": {
+      "Inner": "0x80"
+    },
+    "UBoolProperty": {
+      "BitMask": "0x80"
+    },
+    "UEnum": {
+      "Names": "0x40"
+    },
+    "UField": {
+      "Next": "0x3C"
+    },
+    "UObject": {
+      "ObjectInternalInteger": "0x20",
+      "Outer": "0x28",
+      "Name": "0x2C",
+      "Class": "0x34"
+    },
+    "UObjectProperty": {
+      "PropertyClass": "0x80"
+    },
+    "UProperty": {
+      "ArrayDim": "0x40",
+      "ElementSize": "0x44",
+      "Offset": "0x60",
+      "PropertyLinkNext": "0x64"
+    },
+    "UStruct": {
+      "SuperField": "0x48",
+      "Children": "0x4C",
+      "PropertySize": "0x50"
+    },
+    "UStructProperty": {
+      "Struct": "0x80"
+    }
+  },
+  "globals": {
+    "GNames": {
+      "2011-05-BETA": [
+        {
+          "forward": "8B 0D ???????? 83 3C B9 00",
+          "offset": 2
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GObjObjects": {
+      "2011-05-BETA": [
+        {
+          "forward": "8B 0D ???????? 8B 5C 24 40",
+          "offset": 2
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GEngine": {
+      "2011-05-BETA": [
+        {
+          "forward": "83 60 3C FD 8B 3D ????????",
+          "offset": 6
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GWorld": {
+      "2011-05-BETA": [
+        {
+          "forward": "03 44 24 24 8B 0D ????????",
+          "offset": 6
+        },
+        {
+          "read": "global"
+        }
+      ]
+    }
+  }
+}

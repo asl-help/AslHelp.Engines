@@ -122,8 +122,8 @@
     "GUObjectArray": {
       "4.13.2": [
         {
-          "forward": "89 11 48 8D 0D ????????",
-          "offset": 5
+          "forward": "8B 50 0C 48 8D 0D ????????",
+          "offset": 6
         },
         {
           "read": "global"
@@ -144,8 +144,8 @@
     "GEngine": {
       "4.13.2": [
         {
-          "forward": "CC 48 8B 15 ????????",
-          "offset": 4
+          "forward": "09 43 48 48 8B 0D ????????",
+          "offset": 6
         },
         {
           "read": "global"
@@ -155,8 +155,8 @@
     "NameTable": {
       "4.13.2": [
         {
-          "forward": "33 FF 48 89 3D ????????",
-          "offset": 5
+          "forward": "48 89 35 ???????? 41 83 3F 00",
+          "offset": 3
         },
         {
           "read": "global"

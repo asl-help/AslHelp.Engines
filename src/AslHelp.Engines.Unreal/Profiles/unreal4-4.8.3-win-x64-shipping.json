@@ -115,8 +115,8 @@
     "GUObjectArray": {
       "4.8.3": [
         {
-          "forward": "89 15 ???????? 85 D2",
-          "offset": 2
+          "forward": "48 8D 35 ???????? F6 C1 01",
+          "offset": 3
         },
         {
           "read": "global"
@@ -124,8 +124,8 @@
       ],
       "4.10.4": [
         {
-          "forward": "33 D2 89 1D ????????",
-          "offset": 4
+          "forward": "89 05 ???????? 41 B8 00 10 00 00",
+          "offset": 2
         },
         {
           "read": "global"
@@ -146,8 +146,8 @@
     "GEngine": {
       "4.8.3": [
         {
-          "forward": "32 DB 48 8B 0D ????????",
-          "offset": 5
+          "forward": "09 43 44 48 8B 0D ????????",
+          "offset": 6
         },
         {
           "read": "global"
@@ -157,8 +157,8 @@
     "GSerialNumberBlocksForDebugVisualizersRoot": {
       "4.8.3": [
         {
-          "forward": "75 ?? 48 89 0D ???????? E8 ????????",
-          "offset": 5
+          "forward": "48 89 0D ???????? E8 ???????? B9 20 00 00 00",
+          "offset": 3
         },
         {
           "read": "global"

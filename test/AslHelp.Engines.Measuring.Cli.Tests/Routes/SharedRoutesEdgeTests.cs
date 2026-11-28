@@ -59,6 +59,7 @@ public sealed class SharedRoutesEdgeTests
                 new RouteVersion("a", Path.Combine(_folder.Root, "missing.bin"), new Dictionary<string, IReadOnlyList<uint>>()),
                 Version("b", new CodeBuilder(false).MovEcx(GlobalB), GlobalB),
             ],
+            1,
             2,
             new WriterLogger(output, TextWriter.Null),
             CancellationToken.None);
@@ -136,6 +137,7 @@ public sealed class SharedRoutesEdgeTests
 
         var found = SharedRoutes.Find(
             [new RouteVersion("a", missing, new Dictionary<string, IReadOnlyList<uint>> { ["X"] = [GlobalA], ["Y"] = [GlobalB] })],
+            1,
             2,
             new WriterLogger(output, TextWriter.Null),
             CancellationToken.None);
@@ -381,12 +383,12 @@ public sealed class SharedRoutesEdgeTests
         source.Cancel();
         RouteVersion version = new("a", Path.Combine(_folder.Root, "missing.bin"), Globals(GlobalA));
 
-        Assert.That(() => SharedRoutes.Find([version], 2, NullLogger.Instance, source.Token), Throws.InstanceOf<OperationCanceledException>());
+        Assert.That(() => SharedRoutes.Find([version], 1, 2, NullLogger.Instance, source.Token), Throws.InstanceOf<OperationCanceledException>());
     }
 
     private static IReadOnlyDictionary<string, GlobalRoutes> Find(params RouteVersion[] versions)
     {
-        return SharedRoutes.Find(versions, 2, NullLogger.Instance, CancellationToken.None);
+        return SharedRoutes.Find(versions, 1, 2, NullLogger.Instance, CancellationToken.None);
     }
 
     private static Dictionary<string, IReadOnlyList<uint>> Globals(params uint[] rvas)

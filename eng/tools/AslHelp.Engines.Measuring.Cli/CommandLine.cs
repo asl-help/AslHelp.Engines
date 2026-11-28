@@ -70,6 +70,18 @@ internal static class CommandLine
         Option<string?> profilesOption = new("--profiles") { Description = SR.ProfilesDescription };
         Option<string?> targetsOption = new("--targets") { Description = SR.TargetsDescription };
         Option<int?> jobsOption = new("--jobs", "-j") { Description = SR.JobsDescription };
+        Option<int> minLiteralsOption = new("--min-literals")
+        {
+            Description = SR.MinLiteralsDescription,
+            DefaultValueFactory = static _ => RouteCandidates.DefaultLeastLiterals,
+        };
+        minLiteralsOption.Validators.Add(static result =>
+        {
+            if (result.GetValueOrDefault<int>() < 1)
+            {
+                result.AddError(SR.MinLiteralsBelowOne);
+            }
+        });
         jobsOption.Validators.Add(static result =>
         {
             if (result.GetValueOrDefault<int?>() is < 1)
@@ -91,6 +103,7 @@ internal static class CommandLine
                 profilesOption,
                 targetsOption,
                 jobsOption,
+                minLiteralsOption,
                 .. measurer.Options,
             ];
 
@@ -101,6 +114,7 @@ internal static class CommandLine
                 parseResult.GetValue(profilesOption),
                 parseResult.GetValue(targetsOption),
                 JobsOf(measurer, parseResult.GetValue(jobsOption), logger),
+                parseResult.GetValue(minLiteralsOption),
                 parseResult,
                 logger,
                 cancellationToken));
@@ -160,6 +174,7 @@ internal static class CommandLine
     /// <param name="profilesDirectory">The folder for the profile documents or <see langword="null"/> to skip them.</param>
     /// <param name="targetsPath">The file with the values to find or <see langword="null"/> for the list built into the measurer.</param>
     /// <param name="maxDegreeOfParallelism">The number of players to measure at once, from 1 to the limit of the measurer.</param>
+    /// <param name="leastLiterals">The fewest unmasked bytes of a route, the value of <c>--min-literals</c>.</param>
     /// <param name="parseResult">The parsed command line with the values of the options of the measurer.</param>
     /// <param name="logger">The logger for the steps and the failures of the run.</param>
     /// <param name="cancellationToken">The token that stops the run.</param>
@@ -174,6 +189,7 @@ internal static class CommandLine
         string? profilesDirectory,
         string? targetsPath,
         int maxDegreeOfParallelism,
+        int leastLiterals,
         ParseResult parseResult,
         ILogger logger,
         CancellationToken cancellationToken)
@@ -287,7 +303,7 @@ internal static class CommandLine
 
                 foreach (var group in measuredGroups)
                 {
-                    groups.Add(FindRoutes(group, measurements, maxDegreeOfParallelism, logger, cancellationToken));
+                    groups.Add(FindRoutes(group, measurements, leastLiterals, maxDegreeOfParallelism, logger, cancellationToken));
                 }
             }
 
@@ -450,6 +466,7 @@ internal static class CommandLine
     /// </summary>
     /// <param name="group">The group.</param>
     /// <param name="measurements">The measurement of each measured version.</param>
+    /// <param name="leastLiterals">The fewest unmasked bytes of a route.</param>
     /// <param name="maxDegreeOfParallelism">The number of executables to read at once, the same as the players of the run.</param>
     /// <param name="logger">The logger for the steps and the failures of the run.</param>
     /// <param name="cancellationToken">The token that stops the search.</param>
@@ -460,6 +477,7 @@ internal static class CommandLine
     private static VersionGroup FindRoutes(
         VersionGroup group,
         Dictionary<string, PlayerMeasurement> measurements,
+        int leastLiterals,
         int maxDegreeOfParallelism,
         ILogger logger,
         CancellationToken cancellationToken)
@@ -483,7 +501,7 @@ internal static class CommandLine
             .. group.Versions.Select(version => new RouteVersion(version, measurements[version].ExecutablePath, measurements[version].Globals)),
         ];
 
-        var routes = SharedRoutes.Find(routeVersions, maxDegreeOfParallelism, logger, cancellationToken);
+        var routes = SharedRoutes.Find(routeVersions, leastLiterals, maxDegreeOfParallelism, logger, cancellationToken);
 
         foreach ((string global, var globalRoutes) in routes)
         {

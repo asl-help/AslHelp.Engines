@@ -171,8 +171,8 @@
     "GEngine": {
       "5.3.2": [
         {
-          "forward": "48 8B 05 ???????? FF C1",
-          "offset": 3
+          "forward": "0F 28 D6 48 8B 0D ????????",
+          "offset": 6
         },
         {
           "read": "global"

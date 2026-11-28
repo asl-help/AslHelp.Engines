@@ -54,8 +54,8 @@ public sealed class CacheKeyBuilder
     // Throw on a lone surrogate, because the default encoder maps every one to U+FFFD and 2 values would share a key.
     private static readonly UTF8Encoding _strictUtf8 = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
-    private readonly string _kind;
     private readonly SortedDictionary<string, Entry> _entries = [with(StringComparer.Ordinal)];
+    private readonly string _kind;
 
     private ReadOnlyCollection<CacheKeyInput>? _inputs;
 

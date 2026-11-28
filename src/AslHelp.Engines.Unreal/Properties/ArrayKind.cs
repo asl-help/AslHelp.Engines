@@ -95,11 +95,11 @@ file sealed class ArrayElements(
 {
     private readonly ArrayPropertyLayout _layout = layout;
 
-    public int MaxCount { get; } = maxCount;
-
     public override ValueAccess<int> Count { get; } = new ArrayCount(property, layout);
 
     public override PropertyAccess Element { get; } = element;
+
+    public int MaxCount { get; } = maxCount;
 
     public int Stride { get; } = stride;
 

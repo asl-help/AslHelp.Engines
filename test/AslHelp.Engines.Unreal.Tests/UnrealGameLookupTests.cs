@@ -206,7 +206,7 @@ public sealed class UnrealGameLookupTests(
     [Test]
     public void GetProperties_DerivedClass_ListsOnlyItsOwnProperties()
     {
-        var properties = _game.FindClass("FixtureGameMode").Unwrap().GetProperties().Unwrap();
+        var properties = _game.FindClass("FixtureGameMode").Unwrap().Properties.Unwrap();
 
         Assert.That(
             properties.Select(static property => (property.Name, property.ClassName, property.Offset, property.ElementSize)),
@@ -215,11 +215,11 @@ public sealed class UnrealGameLookupTests(
 
     // The own list and the lookup through the bases don't share a list, so a member of a base still comes back.
     [Test]
-    public void FindProperty_PropertyOfABase_StillFindsItAfterGetProperties()
+    public void FindProperty_PropertyOfABase_StillFindsItAfterProperties()
     {
         var klass = _game.FindClass("GameEngine").Unwrap();
 
-        var own = klass.GetProperties().Unwrap();
+        var own = klass.Properties.Unwrap();
 
         using (Assert.EnterMultipleScope())
         {

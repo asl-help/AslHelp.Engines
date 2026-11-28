@@ -67,19 +67,6 @@ internal sealed record UnrealMemberTarget(
     } = From;
 
     /// <summary>
-    ///     Gets the last minor version with the member or <see langword="null"/> if every later version has it.
-    /// </summary>
-    public string? Until
-    {
-        get;
-        init
-        {
-            field = value;
-            UntilMinor = UnrealVersions.ParseMinor(value);
-        }
-    } = Until;
-
-    /// <summary>
     ///     Gets the last minor version whose PDB lists the member as <see cref="OldName"/> or <see langword="null"/> without an old name.
     /// </summary>
     public string? OldNameUntil
@@ -91,6 +78,19 @@ internal sealed record UnrealMemberTarget(
             OldNameUntilMinor = UnrealVersions.ParseMinor(value);
         }
     } = OldNameUntil;
+
+    /// <summary>
+    ///     Gets the last minor version with the member or <see langword="null"/> if every later version has it.
+    /// </summary>
+    public string? Until
+    {
+        get;
+        init
+        {
+            field = value;
+            UntilMinor = UnrealVersions.ParseMinor(value);
+        }
+    } = Until;
 
     /// <summary>
     ///     Gets <see cref="From"/> parsed once at load or <see langword="null"/> if it is open or not a minor version.

@@ -46,9 +46,9 @@ internal sealed record UnrealPaths(
     public const string StepsMount = @"C:\r";
 
     /// <summary>
-    ///     Gets the rendered project.
+    ///     Gets the folder of the step logs.
     /// </summary>
-    public string Project => Path.Combine(Scratch, "project");
+    public string Logs => Path.Combine(Scratch, "logs");
 
     /// <summary>
     ///     Gets the folder the package steps archive into, 1 subfolder per player tag.
@@ -56,14 +56,14 @@ internal sealed record UnrealPaths(
     public string Out => Path.Combine(Scratch, "out");
 
     /// <summary>
-    ///     Gets the folder of the step logs.
-    /// </summary>
-    public string Logs => Path.Combine(Scratch, "logs");
-
-    /// <summary>
     ///     Gets the folder of the finished players, 1 subfolder per player tag.
     /// </summary>
     public string Players => Path.Combine(Scratch, "players");
+
+    /// <summary>
+    ///     Gets the rendered project.
+    /// </summary>
+    public string Project => Path.Combine(Scratch, "project");
 
     /// <summary>
     ///     Gets the mounts of every step: the engine at <c>C:\e</c>, the project at <c>C:\p</c>, the archives at <c>C:\o</c>, the

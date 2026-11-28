@@ -172,7 +172,7 @@ public sealed class MapKindTests(
     [Test]
     public void Count_Map_ReadsTheNumberOfPairs()
     {
-        Assert.That(Data.Member("IntDict").Count().Read<int>().Unwrap(), Is.EqualTo(3));
+        Assert.That(Data.Member("IntDict").Count.Read<int>().Unwrap(), Is.EqualTo(3));
     }
 
     // 2 paths to MixedDict with FixtureCoord values share 1 read, so another value read between 2 ticks still gives the watcher its dictionary.

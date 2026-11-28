@@ -40,11 +40,6 @@ public sealed record PlayerStartInfo
     }
 
     /// <summary>
-    ///     Gets the path of the player executable.
-    /// </summary>
-    public string ExecutablePath { get; }
-
-    /// <summary>
     ///     Gets the command line arguments.
     /// </summary>
     /// <remarks>
@@ -54,15 +49,20 @@ public sealed record PlayerStartInfo
     public string Arguments { get; }
 
     /// <summary>
-    ///     Gets the folder the player starts in.
+    ///     Gets the path of the player executable.
     /// </summary>
-    public string WorkingDirectory { get; }
+    public string ExecutablePath { get; }
 
     /// <summary>
     ///     Gets a value indicating whether the player starts on a desktop of its own, so its windows never take the
     ///     focus. Defaults to <see langword="false"/>.
     /// </summary>
     public bool HiddenDesktop { get; init; }
+
+    /// <summary>
+    ///     Gets the folder the player starts in.
+    /// </summary>
+    public string WorkingDirectory { get; }
 
     /// <summary>
     ///     Gets how long <see cref="Player.Start"/> waits for another player on the machine to stop. Defaults to

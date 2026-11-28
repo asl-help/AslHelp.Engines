@@ -93,16 +93,13 @@ internal sealed class FakeStruct(
 file sealed class FakePath(
     FakeNode node) : IMemberPath
 {
+    public Result<IMemberPath> Count => Step(new CountStep());
+
     public bool IsChecked => node.IsChecked;
 
     public static FakePath Root(FakeObject root)
     {
         return new FakePath(new FakeNode(root, null, null));
-    }
-
-    public Result<IMemberPath> Count()
-    {
-        return Step(new CountStep());
     }
 
     public Watcher<object?> CreateWatcher(ITickCounter ticks)

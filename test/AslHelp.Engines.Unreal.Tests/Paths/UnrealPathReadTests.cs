@@ -242,7 +242,7 @@ public sealed class UnrealPathReadTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(Data.Member("IntArray").Count().Unwrap().IsChecked, Is.True);
+            Assert.That(Data.Member("IntArray").Count.Unwrap().IsChecked, Is.True);
             Assert.That(Data.Member("IntArray").Member("Count").IsErr, Is.True);
         }
     }

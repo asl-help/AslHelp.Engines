@@ -32,31 +32,31 @@ internal sealed record PlayerMeasurement(
     string ExecutablePath)
 {
     /// <summary>
+    ///     Gets the 1st key of <see cref="Offsets"/> without a type before its 1st dot or a member after it, because the report
+    ///     splits each key at its 1st dot. <see langword="null"/> when every key has the form <c>Type.Member</c>.
+    /// </summary>
+    public string? MalformedOffsetKey
+    {
+        get
+        {
+            foreach (string key in Offsets.Keys)
+            {
+                int dot = key.IndexOf('.', StringComparison.Ordinal);
+
+                if (dot <= 0 || dot == key.Length - 1)
+                {
+                    return key;
+                }
+            }
+
+            return null;
+        }
+    }
+
+    /// <summary>
     ///     Gets the layout that the build uses for each type with several layouts across versions, by type.
     /// </summary>
     public IReadOnlyDictionary<string, string> Shapes { get; init; } = ReadOnlyDictionary<string, string>.Empty;
-
-    /// <summary>
-    ///     Finds the 1st key of <see cref="Offsets"/> without a type before its 1st dot or a member after it,
-    ///     because the report splits each key at its 1st dot.
-    /// </summary>
-    /// <returns>
-    ///     The key or <see langword="null"/> if every key has the form <c>Type.Member</c>.
-    /// </returns>
-    public string? FindMalformedOffsetKey()
-    {
-        foreach (string key in Offsets.Keys)
-        {
-            int dot = key.IndexOf('.', StringComparison.Ordinal);
-
-            if (dot <= 0 || dot == key.Length - 1)
-            {
-                return key;
-            }
-        }
-
-        return null;
-    }
 }
 
 /// <summary>

@@ -245,9 +245,9 @@ file sealed class FakePlayerRun(int exitCode, int checksBeforeExit) : IHostedRun
 {
     private int _checks;
 
-    public bool HasExited => _checks++ >= checksBeforeExit;
-
     public int ExitCode => exitCode;
+
+    public bool HasExited => _checks++ >= checksBeforeExit;
 
     public Task WaitForExitAsync(CancellationToken cancellationToken)
     {

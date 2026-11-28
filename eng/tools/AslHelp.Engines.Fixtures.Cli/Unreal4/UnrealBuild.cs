@@ -19,14 +19,14 @@ namespace AslHelp.Engines.Fixtures.Cli.Unreal4;
 /// </remarks>
 internal static class UnrealBuild
 {
+    private const string EditorFlagsVariable = "FIXTURE_EDITOR_FLAGS";
+    private const string PackageFlagsVariable = "FIXTURE_PACKAGE_FLAGS";
+    private const string PathPrependVariable = "FIXTURE_PATH_PREPEND";
+
     /// <summary>
     ///     Represents how long <see cref="RunAsync"/> lets a step run by default, 90 minutes.
     /// </summary>
     public static readonly TimeSpan DefaultStepTimeout = TimeSpan.FromMinutes(90);
-
-    private const string EditorFlagsVariable = "FIXTURE_EDITOR_FLAGS";
-    private const string PackageFlagsVariable = "FIXTURE_PACKAGE_FLAGS";
-    private const string PathPrependVariable = "FIXTURE_PATH_PREPEND";
 
     /// <summary>
     ///     Creates the step that copies the runtime DLLs of the image into <c>runtimes/x64</c> and <c>runtimes/x86</c> of

@@ -20,14 +20,14 @@ public sealed record UnrealLivePlayer(
     string Key)
 {
     /// <summary>
-    ///     The variable with the folder of 1 player.
-    /// </summary>
-    public const string PlayerVariable = "FIXTURES_UNREAL_PLAYER";
-
-    /// <summary>
     ///     The variable with the folder that <c>just fixtures-all unreal4</c> fills, 1 player folder per version and key.
     /// </summary>
     public const string PlayersVariable = "FIXTURES_UNREAL_PLAYERS";
+
+    /// <summary>
+    ///     The variable with the folder of 1 player.
+    /// </summary>
+    public const string PlayerVariable = "FIXTURES_UNREAL_PLAYER";
 
     // Take the 4.19.2 x64 shipping player for a folder of FIXTURES_UNREAL_PLAYER whose name doesn't have a version and a key.
     private const string DefaultKey = "win-x64-shipping";
@@ -36,6 +36,27 @@ public sealed record UnrealLivePlayer(
 
     // The executables of Unreal Engine 4.0 to 4.7 don't have a version resource.
     private static readonly ProfileVersion _firstVersionStamp = UnrealTarget.ParseVersion("4.8")!;
+
+    /// <summary>
+    ///     Gets the build configuration.
+    /// </summary>
+    public UnrealConfiguration Configuration => Key.EndsWith("-development", StringComparison.Ordinal)
+        ? UnrealConfiguration.Development
+        : UnrealConfiguration.Shipping;
+
+    /// <summary>
+    ///     Gets the path of the executable.
+    /// </summary>
+    public string ExecutablePath => UnrealPlayerNames.ExecutablePath(
+        Folder,
+        new Version(Version.Text),
+        Is64Bit,
+        Configuration == UnrealConfiguration.Shipping);
+
+    /// <summary>
+    ///     Gets a value indicating whether the executable has the engine version in its version resource, which players from 4.8 on have.
+    /// </summary>
+    public bool HasVersionStamp => Version >= _firstVersionStamp;
 
     /// <summary>
     ///     Gets the id, like <c>4.19.2-win-x64-shipping</c>.
@@ -48,35 +69,14 @@ public sealed record UnrealLivePlayer(
     public bool Is64Bit => Key.StartsWith("win-x64-", StringComparison.Ordinal);
 
     /// <summary>
-    ///     Gets a value indicating whether the executable has the engine version in its version resource, which players from 4.8 on have.
-    /// </summary>
-    public bool HasVersionStamp => Version >= _firstVersionStamp;
-
-    /// <summary>
-    ///     Gets the version to pass to detection, which is <see langword="null"/> when the executable has the stamp.
-    /// </summary>
-    public string? VersionWithoutStamp => HasVersionStamp ? null : Version.Text;
-
-    /// <summary>
-    ///     Gets the build configuration.
-    /// </summary>
-    public UnrealConfiguration Configuration => Key.EndsWith("-development", StringComparison.Ordinal)
-        ? UnrealConfiguration.Development
-        : UnrealConfiguration.Shipping;
-
-    /// <summary>
     ///     Gets the target that detection reads from the player.
     /// </summary>
     public ProfileTarget Target => new(UnrealTarget.Unreal4, Version, Key);
 
     /// <summary>
-    ///     Gets the path of the executable.
+    ///     Gets the version to pass to detection, which is <see langword="null"/> when the executable has the stamp.
     /// </summary>
-    public string ExecutablePath => UnrealPlayerNames.ExecutablePath(
-        Folder,
-        new Version(Version.Text),
-        Is64Bit,
-        Configuration == UnrealConfiguration.Shipping);
+    public string? VersionWithoutStamp => HasVersionStamp ? null : Version.Text;
 
     /// <summary>
     ///     Lists 1 test fixture per player of <see cref="PlayersVariable"/> in the order of the versions,

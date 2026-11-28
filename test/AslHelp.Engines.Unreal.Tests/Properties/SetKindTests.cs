@@ -44,7 +44,7 @@ public sealed class SetKindTests(
             Assert.That(
                 _game.GWorld.Path.Member("GameMode").Member("Data").Member("IntSet").Read<HashSet<int>>().Unwrap(),
                 Is.EquivalentTo(expected));
-            Assert.That(IntSet.Count().Read<int>().Unwrap(), Is.EqualTo(3));
+            Assert.That(IntSet.Count.Read<int>().Unwrap(), Is.EqualTo(3));
         }
     }
 

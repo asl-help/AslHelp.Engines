@@ -287,7 +287,7 @@ file abstract class ProfileMapper
     ///     Reads the offsets of every value kind. A document can be without them.
     /// </summary>
     /// <remarks>
-    ///     Doesn't add a missing offset to the parts that <see cref="ProfileReader.GetFailure"/> lists, so the document still parses.
+    ///     Doesn't add a missing offset to the parts that <see cref="ProfileReader.Failure"/> lists, so the document still parses.
     /// </remarks>
     /// <param name="reader">The reader of the document.</param>
     /// <param name="propertyPrefix">The prefix of the property classes, <c>U</c> or <c>F</c>.</param>
@@ -331,7 +331,7 @@ file sealed class Unreal3ProfileMapper : ProfileMapper
         var worldLocator = reader.ReadGlobal(UnrealProfile.WorldGlobal);
         var engineLocator = reader.ReadGlobal(UnrealProfile.EngineGlobal);
 
-        if (reader.GetFailure() is { } failure)
+        if (reader.Failure is { } failure)
         {
             return failure;
         }
@@ -376,7 +376,7 @@ file sealed class Unreal4ProfileMapper : ProfileMapper
         // Return before the offsets when a shape is missing, because the offsets a document needs depend on its shapes.
         if (nameTable is null || objectArray is null || property is null)
         {
-            return reader.GetFailure()!;
+            return reader.Failure!;
         }
 
         int objectArrayOffset = reader.ReadOffset("FUObjectArray", "ObjObjects");
@@ -410,7 +410,7 @@ file sealed class Unreal4ProfileMapper : ProfileMapper
         // Read the serial number blocks as optional, because only 4.0 to 4.10 keep the serial numbers apart from the object array.
         var serialNumberBlocksLocator = reader.ReadGlobalOrNull(SerialNumberBlocks.Global);
 
-        if (reader.GetFailure() is { } failure)
+        if (reader.Failure is { } failure)
         {
             return failure;
         }

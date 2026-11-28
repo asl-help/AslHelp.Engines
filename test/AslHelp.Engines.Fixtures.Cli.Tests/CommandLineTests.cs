@@ -758,6 +758,18 @@ public sealed class CommandLineTests
         }
     }
 
+    // A cause that the message does not contain goes on its own line, so a network or disk failure shows its reason.
+    [Test]
+    public void FailureText_InnerCauseNotInMessage_PutsItOnTheNextLine()
+    {
+        IOException cause = new("The remote certificate is invalid.");
+        InvalidOperationException exception = new("The SSL connection could not be established.", cause);
+
+        Assert.That(
+            CommandLine.FailureText(exception),
+            Is.EqualTo("The SSL connection could not be established." + Environment.NewLine + "The remote certificate is invalid."));
+    }
+
     private Task<int> RunBuildAsync(
         StringWriter output,
         StringWriter error,
@@ -810,18 +822,6 @@ public sealed class CommandLineTests
         Archive.Unpack(archive, destination);
 
         return File.ReadAllBytes(Path.Combine(destination, "file.bin"));
-    }
-
-    // A cause that the message does not contain goes on its own line, so a network or disk failure shows its reason.
-    [Test]
-    public void FailureText_InnerCauseNotInMessage_PutsItOnTheNextLine()
-    {
-        IOException cause = new("The remote certificate is invalid.");
-        InvalidOperationException exception = new("The SSL connection could not be established.", cause);
-
-        Assert.That(
-            CommandLine.FailureText(exception),
-            Is.EqualTo("The SSL connection could not be established." + Environment.NewLine + "The remote certificate is invalid."));
     }
 
     // A cause that the message quotes already is not printed again.

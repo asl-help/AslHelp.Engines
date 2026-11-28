@@ -27,14 +27,14 @@ public sealed class UdkFixtureCheckTests(
 
     private FakeImage _image = null!;
 
+    // The filler sits in front of the classes, so a test can give it any role at the start of the object array.
+    private Address Filler => _image.Memory.ReadPointer(FakeImage.ObjectPointerAt(FakeImage.FirstFillerPosition)).UnwrapOr(Address.Zero);
+
     private static IReadOnlyList<string> FirstNames => _targets.Values.OfType<UdkNameArrayTarget>().Single().FirstNames;
 
     private Address FixtureClass => _image.ClassCalled(UdkFixtureCheck.ClassName);
 
     private Address FixtureField => _image.Memory.ReadPointer(FixtureClass + layout.Children).UnwrapOr(Address.Zero);
-
-    // The filler sits in front of the classes, so a test can give it any role at the start of the object array.
-    private Address Filler => _image.Memory.ReadPointer(FakeImage.ObjectPointerAt(FakeImage.FirstFillerPosition)).UnwrapOr(Address.Zero);
 
     [SetUp]
     public void SetUp()

@@ -356,15 +356,15 @@ public sealed class UnrealPathShareEdgeTests(
         Assert.That(data.Current, Is.EqualTo(_fakeGame.OtherData));
     }
 
-    // IntArray.Count() and a member called Count are 2 paths in either order, so the member fails on the step and Count reads.
+    // IntArray.Count and a member called Count are 2 paths in either order, so the member fails on the step and Count reads.
     [Test]
     public void Count_BeforeAMemberCalledCount_StaysAnotherPath()
     {
         var intArray = _game.GWorld.Path.Member("GameMode").Member("Data").Member("IntArray").Unwrap();
         ManualTicks ticks = new();
-        var count = intArray.Count().Unwrap().CreateWatcher(ticks);
+        var count = intArray.Count.Unwrap().CreateWatcher(ticks);
         var member = intArray.Member("Count");
-        var countAgain = intArray.Count().Unwrap();
+        var countAgain = intArray.Count.Unwrap();
 
         using (Assert.EnterMultipleScope())
         {

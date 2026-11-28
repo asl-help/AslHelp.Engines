@@ -424,6 +424,19 @@ public sealed class UnrealProfileTests
             Does.StartWith("The profile's globals.GWorld isn't a locator. The route '4.18.3' is invalid. ").And.Contain(reason));
     }
 
+    // Only documents of 4.22 and later have the subsystem collection and its map, so both decide whether the game has subsystems.
+    // The offset of the map in the game instance adds both.
+    [TestCase(false, false, null)]
+    [TestCase(true, false, null)]
+    [TestCase(true, true, 0x1A8)]
+    public void Parse_SubsystemCollectionAndMap_DecideTheSubsystemMapOffset(bool collection, bool map, int? offset)
+    {
+        string json = collection ? Set(Item, """{ "SubsystemCollection": "0x1A0" }""", "offsets", "UGameInstance") : Item;
+        json = map ? Set(json, """{ "SubsystemMap": "0x8" }""", "offsets", "FSubsystemCollectionBase") : json;
+
+        Assert.That(UnrealProfile.Parse(json).Unwrap().SubsystemMapOffset, Is.EqualTo(offset));
+    }
+
     // Gets a kind of the library as the kind of its layout type.
     private static LayoutKind<TLayout> Kind<TLayout>(string className)
         where TLayout : notnull
@@ -445,18 +458,5 @@ public sealed class UnrealProfileTests
             profile.ObjectArrayShape.Create(memory, Address.Zero).Unwrap().GetType(),
             profile.PropertyShape.Create(memory, names, objectReader, structReader).GetType(),
         ];
-    }
-
-    // Only documents of 4.22 and later have the subsystem collection and its map, so both decide whether the game has subsystems.
-    // The offset of the map in the game instance adds both.
-    [TestCase(false, false, null)]
-    [TestCase(true, false, null)]
-    [TestCase(true, true, 0x1A8)]
-    public void Parse_SubsystemCollectionAndMap_DecideTheSubsystemMapOffset(bool collection, bool map, int? offset)
-    {
-        string json = collection ? Set(Item, """{ "SubsystemCollection": "0x1A0" }""", "offsets", "UGameInstance") : Item;
-        json = map ? Set(json, """{ "SubsystemMap": "0x8" }""", "offsets", "FSubsystemCollectionBase") : json;
-
-        Assert.That(UnrealProfile.Parse(json).Unwrap().SubsystemMapOffset, Is.EqualTo(offset));
     }
 }

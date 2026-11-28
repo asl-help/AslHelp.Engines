@@ -43,9 +43,12 @@ internal sealed class CodeImage : IDisposable
     }
 
     /// <summary>
-    ///     Gets whether the code is x64 and not x86.
+    ///     Gets the headers and the sections without code in file order, which the loader maps next to the code.
     /// </summary>
-    public bool Is64Bit { get; }
+    /// <remarks>
+    ///     The rest of the image up to <see cref="ImageSize"/> reads as zeros at run time.
+    /// </remarks>
+    public IReadOnlyList<CodeSection> Data { get; }
 
     /// <summary>
     ///     Gets the preferred image base, which the absolute addresses in the code assume.
@@ -58,17 +61,14 @@ internal sealed class CodeImage : IDisposable
     public uint ImageSize { get; }
 
     /// <summary>
+    ///     Gets whether the code is x64 and not x86.
+    /// </summary>
+    public bool Is64Bit { get; }
+
+    /// <summary>
     ///     Gets the executable sections in file order.
     /// </summary>
     public IReadOnlyList<CodeSection> Sections { get; }
-
-    /// <summary>
-    ///     Gets the headers and the sections without code in file order, which the loader maps next to the code.
-    /// </summary>
-    /// <remarks>
-    ///     The rest of the image up to <see cref="ImageSize"/> reads as zeros at run time.
-    /// </remarks>
-    public IReadOnlyList<CodeSection> Data { get; }
 
     /// <summary>
     ///     Reads the sections and the headers of the file at <paramref name="path"/>.

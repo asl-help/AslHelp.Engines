@@ -70,7 +70,7 @@ internal sealed class FakeProfile(
         int speedOffset = reader.ReadOffset("Thing", "Speed");
         var thingsLocator = reader.ReadGlobal("Things");
 
-        // Skip GetFailure, because the reader fails the document after the map when a part is missing.
+        // Skip Failure, because the reader fails the document after the map when a part is missing.
         return new FakeProfile(speedOffset, thingsLocator!);
     }
 

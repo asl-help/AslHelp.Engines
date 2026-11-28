@@ -30,6 +30,12 @@ namespace AslHelp.Engines;
 public interface IMemberPath : IWatcherSource<object?>
 {
     /// <summary>
+    ///     Gets the path to the number of items of the collection at the end of this path or a failure when the end of this
+    ///     path isn't a collection.
+    /// </summary>
+    Result<IMemberPath> Count { get; }
+
+    /// <summary>
     ///     Gets a value indicating whether the engine checked the last step of this path against the game.
     /// </summary>
     /// <remarks>
@@ -37,14 +43,6 @@ public interface IMemberPath : IWatcherSource<object?>
     ///     A path without steps is always checked.
     /// </remarks>
     bool IsChecked { get; }
-
-    /// <summary>
-    ///     Creates the path to the number of items of the collection at the end of this path.
-    /// </summary>
-    /// <returns>
-    ///     The longer path or a failure when the end of this path isn't a collection.
-    /// </returns>
-    Result<IMemberPath> Count();
 
     /// <summary>
     ///     Creates the path to the item of <paramref name="key"/> in the collection at the end of this path.

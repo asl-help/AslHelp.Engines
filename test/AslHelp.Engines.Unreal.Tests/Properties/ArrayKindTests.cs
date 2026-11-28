@@ -249,7 +249,7 @@ public sealed class ArrayKindTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(items.Count().Read<int>().Unwrap(), Is.EqualTo(2));
+            Assert.That(items.Count.Read<int>().Unwrap(), Is.EqualTo(2));
             Assert.That(
                 items.Member("Length").Read<int>().UnwrapErr().Message,
                 Is.EqualTo(
@@ -277,7 +277,7 @@ public sealed class ArrayKindTests(
                 Data.Member("Items").Item(1).Item(0).Read<int>().UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.Items[1][0]. Items[1] isn't a collection, so it can't take the index 0."));
             Assert.That(
-                Data.Member("Items").Item(1).Unwrap().Count().UnwrapErr().Message,
+                Data.Member("Items").Item(1).Unwrap().Count.UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.Items[1].Count. Items[1] isn't a collection, so it doesn't have a Count."));
         }
     }

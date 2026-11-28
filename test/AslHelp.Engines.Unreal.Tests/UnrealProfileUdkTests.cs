@@ -223,6 +223,13 @@ public sealed class UnrealProfileUdkTests
         Assert.That(UnrealProfile.Parse(Set(Document, routes, "globals", "GWorld")).Unwrap().WorldLocator.Routes.Keys, Is.EqualTo(versions));
     }
 
+    // Unreal Engine 3 doesn't have subsystems, so an unreal3 document never has them.
+    [Test]
+    public void Parse_Unreal3Document_DoesNotHaveSubsystems()
+    {
+        Assert.That(UnrealProfile.Parse(Document).Unwrap().SubsystemMapOffset, Is.Null);
+    }
+
     // Creates the property reader of the profile over the memory.
     private static IPropertyReader PropertyReader(UnrealProfile profile, FakeMemory memory)
     {
@@ -245,12 +252,5 @@ public sealed class UnrealProfileUdkTests
             profile.ObjectArrayShape.Create(memory, Address.Zero).Unwrap().GetType(),
             PropertyReader(profile, memory).GetType(),
         ];
-    }
-
-    // Unreal Engine 3 doesn't have subsystems, so an unreal3 document never has them.
-    [Test]
-    public void Parse_Unreal3Document_DoesNotHaveSubsystems()
-    {
-        Assert.That(UnrealProfile.Parse(Document).Unwrap().SubsystemMapOffset, Is.Null);
     }
 }

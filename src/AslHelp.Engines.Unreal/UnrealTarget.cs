@@ -151,6 +151,42 @@ public static class UnrealTarget
         return new ProfileVersion(text, [.. parts]);
     }
 
+    /// <summary>
+    ///     Builds the target from a file version the way <see cref="Detect"/> does.
+    /// </summary>
+    /// <param name="fileVersion">The file version of the module or <see langword="null"/> when <paramref name="version"/> is passed.</param>
+    /// <param name="moduleName">The name of the module, like <c>Game-Win64-Shipping.exe</c>.</param>
+    /// <param name="pointerSize">The pointer size of the memory.</param>
+    /// <param name="version">The engine version to use instead of the stamp.</param>
+    /// <param name="configuration">The configuration to use instead of the one of the module name.</param>
+    /// <returns>
+    ///     The target or the failure of <see cref="Detect"/>.
+    /// </returns>
+    internal static Result<ProfileTarget> FromFileVersion(
+        ModuleFileVersion? fileVersion,
+        string moduleName,
+        byte pointerSize,
+        string? version,
+        UnrealConfiguration? configuration)
+    {
+        string? architecture = pointerSize switch
+        {
+            8 => "x64",
+            4 => "x86",
+            _ => null,
+        };
+
+        if (architecture is null)
+        {
+            return TargetError.PointerSizeUnsupported(pointerSize);
+        }
+
+        string configurationName = (configuration ?? ConfigurationOf(moduleName)) == UnrealConfiguration.Development ? "development" : "shipping";
+        string key = $"win-{architecture}-{configurationName}";
+
+        return version is null ? ReadFileVersion(fileVersion!, moduleName, key) : ReadVersion(version, key);
+    }
+
     // Reads every run of digits as 1 part.
     private static List<int>? ReadParts(string text)
     {
@@ -186,42 +222,6 @@ public static class UnrealTarget
         }
 
         return parts.Count == 0 ? null : parts;
-    }
-
-    /// <summary>
-    ///     Builds the target from a file version the way <see cref="Detect"/> does.
-    /// </summary>
-    /// <param name="fileVersion">The file version of the module or <see langword="null"/> when <paramref name="version"/> is passed.</param>
-    /// <param name="moduleName">The name of the module, like <c>Game-Win64-Shipping.exe</c>.</param>
-    /// <param name="pointerSize">The pointer size of the memory.</param>
-    /// <param name="version">The engine version to use instead of the stamp.</param>
-    /// <param name="configuration">The configuration to use instead of the one of the module name.</param>
-    /// <returns>
-    ///     The target or the failure of <see cref="Detect"/>.
-    /// </returns>
-    internal static Result<ProfileTarget> FromFileVersion(
-        ModuleFileVersion? fileVersion,
-        string moduleName,
-        byte pointerSize,
-        string? version,
-        UnrealConfiguration? configuration)
-    {
-        string? architecture = pointerSize switch
-        {
-            8 => "x64",
-            4 => "x86",
-            _ => null,
-        };
-
-        if (architecture is null)
-        {
-            return TargetError.PointerSizeUnsupported(pointerSize);
-        }
-
-        string configurationName = (configuration ?? ConfigurationOf(moduleName)) == UnrealConfiguration.Development ? "development" : "shipping";
-        string key = $"win-{architecture}-{configurationName}";
-
-        return version is null ? ReadFileVersion(fileVersion!, moduleName, key) : ReadVersion(version, key);
     }
 
     private static UnrealConfiguration ConfigurationOf(string moduleName)

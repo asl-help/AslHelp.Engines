@@ -13,6 +13,9 @@ public sealed class StructKindTests(
     Address start,
     string shape)
 {
+    // Read the class of a property in the ffield shape at this offset, because FField keeps it in front of its name.
+    private const int FieldClassOffset = 0x8;
+
     // Starts every address above the signed 4-byte range on x86 and above 4 GB on x64, so a 4-byte or sign-extended pointer read fails.
     private static readonly TestFixtureData[] _fixtures =
     [
@@ -21,9 +24,6 @@ public sealed class StructKindTests(
         new(MemoryLayout.X64, new Address(0x7FF6_0000_0000), "uproperty"),
         new(MemoryLayout.X64, new Address(0x7FF6_0000_0000), "ffield"),
     ];
-
-    // Read the class of a property in the ffield shape at this offset, because FField keeps it in front of its name.
-    private const int FieldClassOffset = 0x8;
 
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;

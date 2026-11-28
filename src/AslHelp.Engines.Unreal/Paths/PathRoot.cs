@@ -167,12 +167,12 @@ file sealed class SubsystemRoot(
     private const string SubsystemMapName = "SubsystemMap";
 
     private Result<IMemberPath>? _engineInstance;
-    private Result<IMemberPath>? _worldInstance;
-    private SparseArray? _subsystemMap;
-    private byte[] _subsystemPairs = [];
     private RootError? _notFoundError;
     // Keep the subsystem with its class, so a later read only checks the class.
     private (Address Address, Address Class)? _subsystem;
+    private SparseArray? _subsystemMap;
+    private byte[] _subsystemPairs = [];
+    private Result<IMemberPath>? _worldInstance;
 
     public override Result<Address> Read()
     {

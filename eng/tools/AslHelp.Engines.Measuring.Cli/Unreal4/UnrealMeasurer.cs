@@ -34,16 +34,16 @@ internal sealed class UnrealMeasurer : IEngineMeasurer
     }
 
     /// <inheritdoc/>
-    public string Name => "unreal4";
-
-    /// <inheritdoc/>
-    public IReadOnlyList<Option> Options { get; }
-
-    /// <inheritdoc/>
     /// <remarks>
     ///     Measures 4 players at a time, because a player only reads files and keeps its PDB and its code in memory, about 1 GB each.
     /// </remarks>
     public int MaxDegreeOfParallelism => 4;
+
+    /// <inheritdoc/>
+    public string Name => "unreal4";
+
+    /// <inheritdoc/>
+    public IReadOnlyList<Option> Options { get; }
 
     /// <summary>
     ///     Gets the values to find, which <see cref="LoadTargets"/> sets.

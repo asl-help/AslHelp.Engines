@@ -271,8 +271,8 @@ public sealed class UnrealGameLiveTests(
                 Assert.That(data.Member("CoordArray").Read<int[][]>().Unwrap(), Is.EqualTo(coordArray));
                 Assert.That(data.Member("CoordArray").Item(1).Member("X").Read<int>().Unwrap(), Is.EqualTo(3));
                 Assert.That(data.Member("Items").Item(1).Member("Count").Read<int>().Unwrap(), Is.EqualTo(3));
-                Assert.That(data.Member("Items").Item(1).Count().IsErr, Is.True);
-                Assert.That(data.Member("Items").Count().Read<int>().Unwrap(), Is.EqualTo(2));
+                Assert.That(data.Member("Items").Item(1).Count.IsErr, Is.True);
+                Assert.That(data.Member("Items").Count.Read<int>().Unwrap(), Is.EqualTo(2));
                 Assert.That(data.Member("Dict").Read<Dictionary<string, int>>().Unwrap(), Is.EquivalentTo(dict));
                 Assert.That(data.Member("Dict").Item("two").Read<int>().Unwrap(), Is.EqualTo(2));
                 Assert.That(data.Member("IntDict").Item(5).Read<int>().Unwrap(), Is.EqualTo(50));
@@ -315,7 +315,7 @@ public sealed class UnrealGameLiveTests(
                 Assert.That(watch(data.Member("Dict").Item("two")).Current, Is.EqualTo(2));
                 Assert.That(watch(data.Member("IntDict").Item(6)).Current, Is.EqualTo(60));
                 Assert.That(watch(data.Member("IntSet").Item(33)).Current, Is.True);
-                Assert.That(watch(data.Member("Items").Count()).Current, Is.EqualTo(2));
+                Assert.That(watch(data.Member("Items").Count).Current, Is.EqualTo(2));
                 Assert.That(watch(data.Member("WeakItem").Member("Count")).Current, Is.EqualTo(3));
                 Assert.That(Numbers(watch(data.Member("VecArray").Item(0)).Current), Is.EqualTo(firstVector));
                 Assert.That(Numbers(watch(data.Member("VecArray").Item(1)).Current), Is.EqualTo(secondVector));
@@ -373,7 +373,7 @@ public sealed class UnrealGameLiveTests(
         WithAttachedPlayer(game =>
         {
             var classes = game.FindPackage("/Script/Fixture").Unwrap().GetClasses().Unwrap().Select(static klass => klass.Name);
-            var properties = game.FindClass("FixtureData").Unwrap().GetProperties().Unwrap();
+            var properties = game.FindClass("FixtureData").Unwrap().Properties.Unwrap();
             var kinds = properties.Select(static property => (property.Name, property.ClassName));
 
             using (Assert.EnterMultipleScope())

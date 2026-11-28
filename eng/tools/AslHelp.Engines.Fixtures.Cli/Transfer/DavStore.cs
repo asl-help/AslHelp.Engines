@@ -120,22 +120,6 @@ internal sealed class DavStore : ICacheStore
     }
 
     /// <summary>
-    ///     Creates the handler the store uses when the caller passes none.
-    /// </summary>
-    /// <remarks>
-    ///     Automatic redirects are off, because a followed redirect drops the Authorization header
-    ///     and the server then returns 401, which reads as wrong credentials.
-    ///     A 3xx fails with its status instead and a message that points at the URL variable.
-    /// </remarks>
-    /// <returns>
-    ///     The handler from <see cref="HttpHandlers.Create"/>. The caller disposes it.
-    /// </returns>
-    internal static SocketsHttpHandler CreateHandler()
-    {
-        return HttpHandlers.Create(followRedirects: false);
-    }
-
-    /// <summary>
     ///     Creates a store from the variables <see cref="UrlVariable"/>, <see cref="UserVariable"/> and <see cref="TokenVariable"/>.
     /// </summary>
     /// <returns>
@@ -148,64 +132,6 @@ internal sealed class DavStore : ICacheStore
     public static DavStore FromEnvironment()
     {
         return FromEnvironment(null);
-    }
-
-    /// <summary>
-    ///     Creates a store from the variables <see cref="UrlVariable"/>, <see cref="UserVariable"/> and <see cref="TokenVariable"/>
-    ///     that sends its requests through <paramref name="handler"/>.
-    /// </summary>
-    /// <param name="handler">The handler that sends the requests or <see langword="null"/> for <see cref="CreateHandler"/>.</param>
-    /// <returns>
-    ///     The store. The caller disposes it.
-    /// </returns>
-    /// <exception cref="InvalidOperationException">
-    ///     A variable is missing, a variable is empty or <see cref="UrlVariable"/> is not an absolute http or https URL
-    ///     with no query or fragment.
-    /// </exception>
-    internal static DavStore FromEnvironment(HttpMessageHandler? handler)
-    {
-        string? url = Environment.GetEnvironmentVariable(UrlVariable);
-        string? user = Environment.GetEnvironmentVariable(UserVariable);
-        string? token = Environment.GetEnvironmentVariable(TokenVariable);
-
-        List<string> missing = [];
-
-        if (string.IsNullOrEmpty(url))
-        {
-            missing.Add(UrlVariable);
-        }
-
-        if (string.IsNullOrEmpty(user))
-        {
-            missing.Add(UserVariable);
-        }
-
-        if (string.IsNullOrEmpty(token))
-        {
-            missing.Add(TokenVariable);
-        }
-
-        // Leave the values out of the message, because they are secret.
-        if (missing.Count > 0)
-        {
-            throw new InvalidOperationException(SR.FormatDavVariablesMissing(string.Join(", ", missing)));
-        }
-
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var baseUri)
-            || (baseUri.Scheme != Uri.UriSchemeHttps && baseUri.Scheme != Uri.UriSchemeHttp)
-            || baseUri.Query.Length > 0
-            || baseUri.Fragment.Length > 0)
-        {
-            throw new InvalidOperationException(SR.FormatDavUrlInvalid(UrlVariable));
-        }
-
-        // Refuse plain http to another machine, because the Basic header puts the app password into every request.
-        if (baseUri.Scheme == Uri.UriSchemeHttp && !baseUri.IsLoopback)
-        {
-            throw new InvalidOperationException(SR.FormatDavUrlNotHttps(UrlVariable));
-        }
-
-        return new DavStore(baseUri, user!, token!, handler);
     }
 
     /// <summary>
@@ -417,6 +343,80 @@ internal sealed class DavStore : ICacheStore
     public void Dispose()
     {
         _client.Dispose();
+    }
+
+    /// <summary>
+    ///     Creates the handler the store uses when the caller passes none.
+    /// </summary>
+    /// <remarks>
+    ///     Automatic redirects are off, because a followed redirect drops the Authorization header
+    ///     and the server then returns 401, which reads as wrong credentials.
+    ///     A 3xx fails with its status instead and a message that points at the URL variable.
+    /// </remarks>
+    /// <returns>
+    ///     The handler from <see cref="HttpHandlers.Create"/>. The caller disposes it.
+    /// </returns>
+    internal static SocketsHttpHandler CreateHandler()
+    {
+        return HttpHandlers.Create(followRedirects: false);
+    }
+
+    /// <summary>
+    ///     Creates a store from the variables <see cref="UrlVariable"/>, <see cref="UserVariable"/> and <see cref="TokenVariable"/>
+    ///     that sends its requests through <paramref name="handler"/>.
+    /// </summary>
+    /// <param name="handler">The handler that sends the requests or <see langword="null"/> for <see cref="CreateHandler"/>.</param>
+    /// <returns>
+    ///     The store. The caller disposes it.
+    /// </returns>
+    /// <exception cref="InvalidOperationException">
+    ///     A variable is missing, a variable is empty or <see cref="UrlVariable"/> is not an absolute http or https URL
+    ///     with no query or fragment.
+    /// </exception>
+    internal static DavStore FromEnvironment(HttpMessageHandler? handler)
+    {
+        string? url = Environment.GetEnvironmentVariable(UrlVariable);
+        string? user = Environment.GetEnvironmentVariable(UserVariable);
+        string? token = Environment.GetEnvironmentVariable(TokenVariable);
+
+        List<string> missing = [];
+
+        if (string.IsNullOrEmpty(url))
+        {
+            missing.Add(UrlVariable);
+        }
+
+        if (string.IsNullOrEmpty(user))
+        {
+            missing.Add(UserVariable);
+        }
+
+        if (string.IsNullOrEmpty(token))
+        {
+            missing.Add(TokenVariable);
+        }
+
+        // Leave the values out of the message, because they are secret.
+        if (missing.Count > 0)
+        {
+            throw new InvalidOperationException(SR.FormatDavVariablesMissing(string.Join(", ", missing)));
+        }
+
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var baseUri)
+            || (baseUri.Scheme != Uri.UriSchemeHttps && baseUri.Scheme != Uri.UriSchemeHttp)
+            || baseUri.Query.Length > 0
+            || baseUri.Fragment.Length > 0)
+        {
+            throw new InvalidOperationException(SR.FormatDavUrlInvalid(UrlVariable));
+        }
+
+        // Refuse plain http to another machine, because the Basic header puts the app password into every request.
+        if (baseUri.Scheme == Uri.UriSchemeHttp && !baseUri.IsLoopback)
+        {
+            throw new InvalidOperationException(SR.FormatDavUrlNotHttps(UrlVariable));
+        }
+
+        return new DavStore(baseUri, user!, token!, handler);
     }
 
     /// <summary>

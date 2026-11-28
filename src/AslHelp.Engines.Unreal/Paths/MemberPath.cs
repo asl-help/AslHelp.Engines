@@ -95,11 +95,6 @@ internal sealed class MemberPath
     }
 
     /// <summary>
-    ///     Gets the memory of the game.
-    /// </summary>
-    public IMemoryReader Memory => _classReader.Memory;
-
-    /// <summary>
     ///     Gets a value indicating whether a step or a read checked the hop of the last segment against the classes of the game.
     /// </summary>
     /// <remarks>
@@ -107,6 +102,11 @@ internal sealed class MemberPath
     ///     and stays unchecked when only a derived class can have the member.
     /// </remarks>
     public bool IsChecked => _parent is null || _checked;
+
+    /// <summary>
+    ///     Gets the memory of the game.
+    /// </summary>
+    public IMemoryReader Memory => _classReader.Memory;
 
     /// <summary>
     ///     Gets the number of segments, the root and 1 per member, index or count hop.

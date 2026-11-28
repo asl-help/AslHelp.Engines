@@ -84,7 +84,7 @@ After a collection, an index or key goes into 1 element and `Count` reads the nu
 var second = data.Member("IntArray").Item(1).Value<int>().Unwrap().CreateWatcher(ticks);
 var two = data.Member("Dict").Item("two").Value<int>().Unwrap().CreateWatcher(ticks);
 var shieldCount = data.Member("Items").Item(1).Member("Count").Value<int>().Unwrap().CreateWatcher(ticks);
-var items = data.Member("Items").Count().Value<int>().Unwrap().CreateWatcher(ticks);
+var items = data.Member("Items").Count.Value<int>().Unwrap().CreateWatcher(ticks);
 ```
 
 - `Item` takes an integer, a `string` or a `bool` as a `PathKey`
@@ -93,7 +93,7 @@ var items = data.Member("Items").Count().Value<int>().Unwrap().CreateWatcher(tic
 - on a set of objects or a map keyed by objects the key is the position among the used items, like `Item(1).Member("Hp")`. It moves when the game removes an item in front of it
 - an array or map of mixed structs doesn't read as 1 value, so index it
 - a missing key or an index past the count fails the read. A key of the wrong type, like a string on an array, fails the step
-- `Count()` only works on a collection. `Member("Count")` reads a member called `Count` and fails on a collection
+- `Count` only works on a collection. `Member("Count")` reads a member called `Count` and fails on a collection
 
 Any other kind fails with the property and its class, like `TextProperty` or `SoftObjectProperty`. A struct with a member of such a kind fails as a `StructValue`, but its other members still read through a step. A `StructValue` that changes allocates on that tick, so `Value<float[]>()` or a step to `X` is cheaper for a vector that moves all the time. A string with more than 512 characters fails. A whole array, set or map with more than 1024 elements fails too. A key lookup fails on a set or map with more than 1024 slots, used or free. Pass `new ValueBounds { MaxChars = 2048, MaxElements = 4096 }` to `UnrealGame.Attach` for other limits of up to 1048576. A watcher of a collection keeps its instance while the elements don't change. A profile without the offsets of a kind still attaches and only reads of that kind fail with the missing offsets. Unreal Engine 3 documents don't have the set, map and weak pointer offsets, so those kinds fail there.
 
@@ -118,7 +118,7 @@ var score = subsystem.Path.Member("Score").Value<int>();
 - `GEngine` starts at the engine object like `GWorld` at the world. A profile needs `globals.GEngine`.
 - A `GWorld` or `GEngine` that isn't found doesn't fail attach, so the other one still reads. A read through it fails and searches the module again after 1 second.
 - `FindPackage` takes a path like `/Script/Engine` in any case. On Unreal Engine 3 it takes a bare name like `Engine`. `GetPackages` lists the packages.
-- A package has `FindClass` and `GetClasses`. A class has `FindProperty` (through its bases), `GetProperties` (its own), `GetInstances` and `GetDerivedClasses`.
+- A package has `FindClass` and `GetClasses`. A class has `FindProperty` (through its bases), `Properties` (its own), `GetInstances` and `GetDerivedClasses`.
 - `GetInstances` lists the live objects of exactly that class without the `Default__` object. It searches the object array like `FindClass`. An object's path fails once the game frees it.
 - `FindSubsystem` gives a root at the subsystem of a class in the subsystem map of the game instance, which it takes from `GEngine` or else from `GWorld`. It needs a profile of 4.22 or later. A read finds the subsystem again when it's missing or replaced.
 - `World` doesn't have any reflected properties on Unreal Engine 3, so start at `GEngine` or at an object from `GetInstances` on that engine.
@@ -127,7 +127,7 @@ var score = subsystem.Path.Member("Score").Value<int>();
 
 `AslHelp.Engines` has the types an engine library implements. Code that only uses them doesn't depend on `AslHelp.Engines.Unreal`:
 
-- `IMemberPath`: the steps `Member(name)`, `Item(key)`, `Count()` and `Value<T>()` return a `Result`. `Read()` and `Read<T>()` read the value once and `IsChecked` is false for a step the engine couldn't check yet. The path itself is an `IWatcherSource<object?>` and `ToString` gives it as written
+- `IMemberPath`: the steps `Member(name)`, `Item(key)`, `Count` and `Value<T>()` return a `Result`. `Read()` and `Read<T>()` read the value once and `IsChecked` is false for a step the engine couldn't check yet. The path itself is an `IWatcherSource<object?>` and `ToString` gives it as written
 - `MemberPathError`: the base of the path errors of an engine. `IsShapeMismatch` is true for a typo and false for a read that can work later
 - `PathKey`: an index or key. `PathKey.TryCreate(object)` takes any integer, a `string` or a `bool`
 - `StructValue`: a struct with its members by name, with value equality so `Changed` works

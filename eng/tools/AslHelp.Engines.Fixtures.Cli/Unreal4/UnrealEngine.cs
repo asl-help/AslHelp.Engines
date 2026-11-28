@@ -125,25 +125,6 @@ internal sealed class UnrealEngine(
     }
 
     /// <summary>
-    ///     Lists the scratch folders that builds of other versions left in <paramref name="outputDirectory"/>.
-    /// </summary>
-    /// <param name="outputDirectory">The full path of the folder with the <c>engines</c> folder.</param>
-    /// <param name="release">The release to install, whose own scratch the build deletes and recreates.</param>
-    /// <returns>
-    ///     The scratch folders of every other version.
-    /// </returns>
-    private static string[] StaleScratches(string outputDirectory, UnrealRelease release)
-    {
-        string own = Path.Combine(outputDirectory, $"{Unreal.ToolchainName}-{release.Version}{UnrealPaths.ScratchSuffix}");
-
-        return
-        [
-            .. Directory.EnumerateDirectories(outputDirectory, $"{Unreal.ToolchainName}-*{UnrealPaths.ScratchSuffix}")
-                .Where(scratch => !scratch.Equals(own, StringComparison.OrdinalIgnoreCase)),
-        ];
-    }
-
-    /// <summary>
     ///     Creates the uv arguments that run <paramref name="script"/> with the pinned legendary.
     /// </summary>
     /// <param name="script">The full path of the script.</param>
@@ -169,6 +150,25 @@ internal sealed class UnrealEngine(
         using var file = File.Create(path);
 
         script.CopyTo(file);
+    }
+
+    /// <summary>
+    ///     Lists the scratch folders that builds of other versions left in <paramref name="outputDirectory"/>.
+    /// </summary>
+    /// <param name="outputDirectory">The full path of the folder with the <c>engines</c> folder.</param>
+    /// <param name="release">The release to install, whose own scratch the build deletes and recreates.</param>
+    /// <returns>
+    ///     The scratch folders of every other version.
+    /// </returns>
+    private static string[] StaleScratches(string outputDirectory, UnrealRelease release)
+    {
+        string own = Path.Combine(outputDirectory, $"{Unreal.ToolchainName}-{release.Version}{UnrealPaths.ScratchSuffix}");
+
+        return
+        [
+            .. Directory.EnumerateDirectories(outputDirectory, $"{Unreal.ToolchainName}-*{UnrealPaths.ScratchSuffix}")
+                .Where(scratch => !scratch.Equals(own, StringComparison.OrdinalIgnoreCase)),
+        ];
     }
 
     /// <summary>

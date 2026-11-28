@@ -52,7 +52,7 @@ public sealed class ProfileCatalogEdgeTests
 
     // A mapper that doesn't check the reader still can't add a document with missing parts.
     [Test]
-    public void Add_MapperSkipsGetFailure_FailsWithTheMissingParts()
+    public void Add_MapperSkipsFailure_FailsWithTheMissingParts()
     {
         ProfileCatalog<FakeProfile> catalog = new(static reader => new FakeProfile(0, null!), FakeVersion.Parse);
 

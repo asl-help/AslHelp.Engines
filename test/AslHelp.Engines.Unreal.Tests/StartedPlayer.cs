@@ -21,9 +21,9 @@ internal sealed class StartedPlayer : IDisposable
 
     private readonly string _executablePath;
 
-    private Process _process;
     private RemoteProcessMemory _memory;
     private MemoryModule _module;
+    private Process _process;
     private bool _stopped;
 
     /// <summary>

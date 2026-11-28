@@ -62,25 +62,14 @@ internal sealed class FakeGame
     public const double DoubleValue = 2.718281828;
 
     /// <summary>
-    ///     The offset of <c>IntArray</c> in the data object, with the data pointer at 0 and the count at 8.
-    /// </summary>
-    public const int IntArrayOffset = 0x100;
-
-    /// <summary>
-    ///     The offset of <c>IntSet</c> in the data object, a sparse array with the slots <c>11</c>, <c>22</c>, <c>33</c> and a free slot
-    ///     whose bytes still are <c>44</c>.
-    /// </summary>
-    public const int IntSetOffset = 0x140;
-
-    /// <summary>
-    ///     The offset of <c>Items</c> in the data object, an array of the float data object and the other data object.
-    /// </summary>
-    public const int ItemsOffset = 0x130;
-
-    /// <summary>
     ///     The value of <c>Hp</c> in the data object of <c>FloatFixtureData</c>.
     /// </summary>
     public const float FloatHp = 12.5f;
+
+    /// <summary>
+    ///     The offset of <c>GameInstance</c> in the engine object, which <c>GameEngine</c> declares like in the real engine.
+    /// </summary>
+    public const int GameInstanceOffset = 0x98;
 
     /// <summary>
     ///     The offset of <c>GameMode</c> in the world.
@@ -118,6 +107,22 @@ internal sealed class FakeGame
     public const sbyte Int8Value = -5;
 
     /// <summary>
+    ///     The offset of <c>IntArray</c> in the data object, with the data pointer at 0 and the count at 8.
+    /// </summary>
+    public const int IntArrayOffset = 0x100;
+
+    /// <summary>
+    ///     The offset of <c>IntSet</c> in the data object, a sparse array with the slots <c>11</c>, <c>22</c>, <c>33</c> and a free slot
+    ///     whose bytes still are <c>44</c>.
+    /// </summary>
+    public const int IntSetOffset = 0x140;
+
+    /// <summary>
+    ///     The offset of <c>Items</c> in the data object, an array of the float data object and the other data object.
+    /// </summary>
+    public const int ItemsOffset = 0x130;
+
+    /// <summary>
     ///     The value of <c>Kind</c>, an enum with a byte as its underlying property.
     /// </summary>
     public const byte Kind = 1;
@@ -138,15 +143,20 @@ internal sealed class FakeGame
     public const int NameValueOffset = 0xA0;
 
     /// <summary>
-    ///     The offset of <c>Position</c> in the data object, a struct of the 3 floats 1, 2 and 3.
-    /// </summary>
-    public const int PositionOffset = 0x290;
-
-    /// <summary>
     ///     The offset of <c>ObjectSet</c> in the data object, a set of objects with the slots of the data object,
     ///     a free slot that still points at the float data object and the other data object.
     /// </summary>
     public const int ObjectSetOffset = 0x2C0;
+
+    /// <summary>
+    ///     The offset of <c>OwningGameInstance</c> in the world.
+    /// </summary>
+    public const int OwningGameInstanceOffset = 0x88;
+
+    /// <summary>
+    ///     The offset of <c>Position</c> in the data object, a struct of the 3 floats 1, 2 and 3.
+    /// </summary>
+    public const int PositionOffset = 0x290;
 
     /// <summary>
     ///     The offset of the number of elements in a property, <c>ArrayDim</c> in the documents of <see cref="Document"/>.
@@ -154,14 +164,14 @@ internal sealed class FakeGame
     public const int PropertyArrayDimOffset = 0x30;
 
     /// <summary>
-    ///     The offset of the size of 1 element in a property, <c>ElementSize</c> in the documents of <see cref="Document"/>.
-    /// </summary>
-    public const int PropertyElementSizeOffset = 0x34;
-
-    /// <summary>
     ///     The offset of the declared class in an object property, <c>PropertyClass</c> in the documents of <see cref="Document"/>.
     /// </summary>
     public const int PropertyClassOffset = 0x70;
+
+    /// <summary>
+    ///     The offset of the size of 1 element in a property, <c>ElementSize</c> in the documents of <see cref="Document"/>.
+    /// </summary>
+    public const int PropertyElementSizeOffset = 0x34;
 
     /// <summary>
     ///     The offset of the value offset in a property, <c>Offset_Internal</c> in the documents of <see cref="Document"/>.
@@ -182,19 +192,6 @@ internal sealed class FakeGame
     ///     The offset of <c>SubsystemValue</c> in an object of <c>FixtureSubsystem</c>.
     /// </summary>
     public const int SubsystemValueOffset = 0x80;
-
-    /// <summary>
-    ///     The offset of <c>GameInstance</c> in the engine object, which <c>GameEngine</c> declares like in the real engine.
-    /// </summary>
-    public const int GameInstanceOffset = 0x98;
-
-    /// <summary>
-    ///     The offset of <c>OwningGameInstance</c> in the world.
-    /// </summary>
-    public const int OwningGameInstanceOffset = 0x88;
-
-    // The offset of the subsystem map in the game instance, the sum of the 2 offsets of SubsystemDocument.
-    private const int SubsystemMapOffset = 0x48;
 
     /// <summary>
     ///     The value of <c>Speed</c>.
@@ -251,16 +248,6 @@ internal sealed class FakeGame
     /// </summary>
     public const int WideKind = 70_000;
 
-    /// <summary>
-    ///     The code bytes in front of the operand of the <c>GEngine</c> instruction that the documents of <see cref="Document"/> search for.
-    /// </summary>
-    public static readonly byte[] GEngineCode = [0xE1, 0xE2, 0xE3];
-
-    /// <summary>
-    ///     The code bytes in front of the operand of the <c>GWorld</c> instruction that the documents of <see cref="Document"/> search for.
-    /// </summary>
-    public static readonly byte[] GWorldCode = [0xC1, 0xC2, 0xC3];
-
     private const int BoolByteOffsetOffset = 0x71;
     private const int BoolFieldMaskOffset = 0x73;
     private const int FieldChildPropertiesOffset = 0x50;
@@ -280,7 +267,20 @@ internal sealed class FakeGame
     // Leave room for objects that a test adds behind the last item of the array.
     private const int SpareItems = 8;
 
+    // The offset of the subsystem map in the game instance, the sum of the 2 offsets of SubsystemDocument.
+    private const int SubsystemMapOffset = 0x48;
+
     private const int ValuePropertyOffset = 0x78;
+
+    /// <summary>
+    ///     The code bytes in front of the operand of the <c>GEngine</c> instruction that the documents of <see cref="Document"/> search for.
+    /// </summary>
+    public static readonly byte[] GEngineCode = [0xE1, 0xE2, 0xE3];
+
+    /// <summary>
+    ///     The code bytes in front of the operand of the <c>GWorld</c> instruction that the documents of <see cref="Document"/> search for.
+    /// </summary>
+    public static readonly byte[] GWorldCode = [0xC1, 0xC2, 0xC3];
 
     private static readonly ChildLayout _childLayout = new(0x28);
     private static readonly NameEntryLayout _entryLayout = new(0x0, 0x10);
@@ -393,7 +393,6 @@ internal sealed class FakeGame
         "Roll",
     ];
 
-    private readonly Address _subsystemPairs;
     private readonly Address _coordType;
     private readonly Address _coreUObjectPackage;
     private readonly Address _defaultData;
@@ -412,6 +411,7 @@ internal sealed class FakeGame
     private readonly Dictionary<string, Address> _propertyClasses = [];
     private readonly string _shape;
     private readonly Address _start;
+    private readonly Address _subsystemPairs;
     private readonly Address _vectorType;
     private readonly Address _worldClass;
 
@@ -525,14 +525,25 @@ internal sealed class FakeGame
     public Address FloatData { get; }
 
     /// <summary>
-    ///     Gets the address of the game mode that the world points at, an object of <c>FixtureGameMode</c>.
-    /// </summary>
-    public Address GameMode { get; }
-
-    /// <summary>
     ///     Gets the address of <c>GameEngine</c>.
     /// </summary>
     public Address GameEngineClass { get; }
+
+    /// <summary>
+    ///     Gets the address of the game instance, which <c>GEngine.GameInstance</c> points at. Its subsystem map is empty until a test
+    ///     writes it with <see cref="WriteSubsystemMap"/>.
+    /// </summary>
+    public Address GameInstance { get; }
+
+    /// <summary>
+    ///     Gets the address of <c>GameInstance</c>.
+    /// </summary>
+    public Address GameInstanceClass { get; }
+
+    /// <summary>
+    ///     Gets the address of the game mode that the world points at, an object of <c>FixtureGameMode</c>.
+    /// </summary>
+    public Address GameMode { get; }
 
     /// <summary>
     ///     Gets the address of <c>GameModeBase</c>.
@@ -604,17 +615,6 @@ internal sealed class FakeGame
     ///     that isn't in the object array until a test adds it.
     /// </summary>
     public Address Subsystem { get; }
-
-    /// <summary>
-    ///     Gets the address of the game instance, which <c>GEngine.GameInstance</c> points at. Its subsystem map is empty until a test
-    ///     writes it with <see cref="WriteSubsystemMap"/>.
-    /// </summary>
-    public Address GameInstance { get; }
-
-    /// <summary>
-    ///     Gets the address of <c>GameInstance</c>.
-    /// </summary>
-    public Address GameInstanceClass { get; }
 
     /// <summary>
     ///     Gets the address of <c>FixtureSubsystem</c>.

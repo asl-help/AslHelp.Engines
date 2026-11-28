@@ -36,16 +36,16 @@ internal sealed class Udk(
 
     private const string InstallPrefix = "udk-";
 
+    /// <summary>
+    ///     Gets how long <see cref="CheckAsync"/> waits for the ready line once the server runs. The default is 2 minutes.
+    /// </summary>
+    public TimeSpan CheckTimeout { get; init; } = UdkServer.DefaultCheckTimeout;
+
     /// <inheritdoc/>
     public string Name => "unreal3";
 
     /// <inheritdoc/>
     public IReadOnlyList<Option> Options => [];
-
-    /// <summary>
-    ///     Gets how long <see cref="CheckAsync"/> waits for the ready line once the server runs. The default is 2 minutes.
-    /// </summary>
-    public TimeSpan CheckTimeout { get; init; } = UdkServer.DefaultCheckTimeout;
 
     /// <inheritdoc/>
     /// <remarks>

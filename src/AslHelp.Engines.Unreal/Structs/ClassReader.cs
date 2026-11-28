@@ -42,8 +42,8 @@ internal sealed class ClassReader(
     /// </summary>
     internal const int MaxSuperDepth = 64;
 
-    private readonly ClassIndex _classIndex = new(objectReader, structReader, objectArray);
     private readonly Dictionary<Address, UnrealClass> _classes = [];
+    private readonly ClassIndex _classIndex = new(objectReader, structReader, objectArray);
     private readonly Dictionary<Address, UnrealPackage> _packages = [];
     private readonly IPropertyReader _propertyReader = propertyReader;
     private readonly StructReader _structReader = structReader;
@@ -56,11 +56,6 @@ internal sealed class ClassReader(
     ///     Gets the largest string and collection that a read takes.
     /// </summary>
     public ValueBounds Bounds { get; } = bounds ?? ValueBounds.Default;
-
-    /// <summary>
-    ///     Gets the serial numbers apart from the object array or <see langword="null"/> when the object array has them or the game has none.
-    /// </summary>
-    public SerialNumberBlocks? SerialNumberBlocks { get; } = serialNumberBlocks;
 
     /// <summary>
     ///     Gets the offsets that the value kinds read.
@@ -86,6 +81,11 @@ internal sealed class ClassReader(
     ///     Gets the reader of the names, the classes and the outer objects of objects.
     /// </summary>
     public ObjectReader ObjectReader { get; } = objectReader;
+
+    /// <summary>
+    ///     Gets the serial numbers apart from the object array or <see langword="null"/> when the object array has them or the game has none.
+    /// </summary>
+    public SerialNumberBlocks? SerialNumberBlocks { get; } = serialNumberBlocks;
 
     /// <summary>
     ///     Reads the number of elements of the property at <paramref name="prop"/>, like 3 for <c>float V[3]</c>.
@@ -235,7 +235,7 @@ internal sealed class ClassReader(
 
         foreach (var derivedClass in derived)
         {
-            if (!derivedClass.GetProperties().TryUnwrap(out var properties, out _))
+            if (!derivedClass.Properties.TryUnwrap(out var properties, out _))
             {
                 return null;
             }

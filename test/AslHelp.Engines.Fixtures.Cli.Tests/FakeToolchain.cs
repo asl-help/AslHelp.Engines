@@ -28,6 +28,12 @@ internal sealed class FakeToolchain(
     public List<string> Calls { get; } = [];
 
     /// <summary>
+    ///     Gets or sets the value that <see cref="AddKeyInputs"/> adds as the input <c>extra</c>, so a test changes the key
+    ///     from the toolchain side.
+    /// </summary>
+    public string ExtraKeyInput { get; set; } = "";
+
+    /// <summary>
     ///     Gets the call that throws <see cref="StepException"/> or <see langword="null"/> for none.
     ///     A method name such as <c>BuildAsync</c> fails every call of that method and a full line such as
     ///     <c>CheckAsync folder</c> fails 1 call.
@@ -35,30 +41,21 @@ internal sealed class FakeToolchain(
     public string? FailingStep { get; init; }
 
     /// <summary>
-    ///     Gets the exception that <see cref="FailingStep"/> throws or <see langword="null"/> for an <see cref="InvalidOperationException"/>.
+    ///     Gets the version that <see cref="AddKeyInputs"/> adds as the input <c>version</c> or <see langword="null"/> to add
+    ///     the one it returns. A test sets it to check that a mismatch throws.
     /// </summary>
-    public Exception? StepException { get; init; }
+    public string? HashedVersion { get; init; }
 
     /// <summary>
     ///     Gets the players that <see cref="ListPlayers"/> returns or <see langword="null"/> to list them from the option.
     /// </summary>
     public IReadOnlyList<string>? ListedPlayers { get; init; }
 
-    /// <summary>
-    ///     Gets the folders that <see cref="BuildAsync"/> returns or <see langword="null"/> to return the ones it builds.
-    /// </summary>
-    public IReadOnlyList<string>? ReturnedFolders { get; init; }
+    /// <inheritdoc/>
+    public string Name => name;
 
-    /// <summary>
-    ///     Gets the progress that <see cref="InstallAsync"/> reports once or <see langword="null"/> for none.
-    /// </summary>
-    public TransferProgress? Progress { get; init; }
-
-    /// <summary>
-    ///     Gets or sets the value that <see cref="AddKeyInputs"/> adds as the input <c>extra</c>, so a test changes the key
-    ///     from the toolchain side.
-    /// </summary>
-    public string ExtraKeyInput { get; set; } = "";
+    /// <inheritdoc/>
+    public IReadOnlyList<Option> Options => [_variantOption];
 
     /// <summary>
     ///     Gets the version that <see cref="ListPlayers"/> lists and <see cref="AddKeyInputs"/> adds and returns or
@@ -67,16 +64,24 @@ internal sealed class FakeToolchain(
     public string? PinnedVersion { get; init; }
 
     /// <summary>
-    ///     Gets the version that <see cref="AddKeyInputs"/> adds as the input <c>version</c> or <see langword="null"/> to add
-    ///     the one it returns. A test sets it to check that a mismatch throws.
+    ///     Gets the progress that <see cref="InstallAsync"/> reports once or <see langword="null"/> for none.
     /// </summary>
-    public string? HashedVersion { get; init; }
+    public TransferProgress? Progress { get; init; }
 
-    /// <inheritdoc/>
-    public string Name => name;
+    /// <summary>
+    ///     Gets the folders that <see cref="BuildAsync"/> returns or <see langword="null"/> to return the ones it builds.
+    /// </summary>
+    public IReadOnlyList<string>? ReturnedFolders { get; init; }
 
-    /// <inheritdoc/>
-    public IReadOnlyList<Option> Options => [_variantOption];
+    /// <summary>
+    ///     Gets the space that <see cref="InstallAsync"/> makes room for before it installs. The default needs nothing.
+    /// </summary>
+    public InstallSpace Space { get; init; } = new(0, 0, [], []);
+
+    /// <summary>
+    ///     Gets the exception that <see cref="FailingStep"/> throws or <see langword="null"/> for an <see cref="InvalidOperationException"/>.
+    /// </summary>
+    public Exception? StepException { get; init; }
 
     /// <inheritdoc/>
     /// <remarks>
@@ -113,11 +118,6 @@ internal sealed class FakeToolchain(
 
         return pinned;
     }
-
-    /// <summary>
-    ///     Gets the space that <see cref="InstallAsync"/> makes room for before it installs. The default needs nothing.
-    /// </summary>
-    public InstallSpace Space { get; init; } = new(0, 0, [], []);
 
     /// <inheritdoc/>
     /// <remarks>

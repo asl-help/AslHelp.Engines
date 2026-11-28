@@ -116,6 +116,29 @@ internal static class CommandLine
     }
 
     /// <summary>
+    ///     Joins the message of <paramref name="exception"/> with the message of each inner exception that it does not
+    ///     contain yet, 1 per line.
+    /// </summary>
+    /// <param name="exception">The exception of the failed step.</param>
+    /// <returns>
+    ///     The text to print.
+    /// </returns>
+    internal static string FailureText(Exception exception)
+    {
+        string text = exception.Message;
+
+        for (var inner = exception.InnerException; inner is not null; inner = inner.InnerException)
+        {
+            if (!text.Contains(inner.Message, StringComparison.Ordinal))
+            {
+                text += Environment.NewLine + inner.Message;
+            }
+        }
+
+        return text;
+    }
+
+    /// <summary>
     ///     Prints the help of the parsed command and fails, so a script without a subcommand stops.
     /// </summary>
     /// <param name="parseResult">The parsed command line.</param>
@@ -271,28 +294,5 @@ internal static class CommandLine
         {
             throw new IOException(SR.FormatOutputInUse(folder), exception);
         }
-    }
-
-    /// <summary>
-    ///     Joins the message of <paramref name="exception"/> with the message of each inner exception that it does not
-    ///     contain yet, 1 per line.
-    /// </summary>
-    /// <param name="exception">The exception of the failed step.</param>
-    /// <returns>
-    ///     The text to print.
-    /// </returns>
-    internal static string FailureText(Exception exception)
-    {
-        string text = exception.Message;
-
-        for (var inner = exception.InnerException; inner is not null; inner = inner.InnerException)
-        {
-            if (!text.Contains(inner.Message, StringComparison.Ordinal))
-            {
-                text += Environment.NewLine + inner.Message;
-            }
-        }
-
-        return text;
     }
 }

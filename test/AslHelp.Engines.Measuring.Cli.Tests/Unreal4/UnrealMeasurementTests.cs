@@ -424,6 +424,25 @@ public sealed class UnrealMeasurementTests
         }
     }
 
+    // A canceled token stops the measurement before the 1st target, so Ctrl+C doesn't wait for a whole target list.
+    [Test]
+    public void Measure_CanceledToken_ThrowsOperationCanceledException()
+    {
+        Type(0x28, ("Member", 0x10)).Write(PdbPath);
+        using var file = PdbFile.Open(PdbPath).Unwrap();
+
+        Assert.That(
+            () => UnrealMeasurement.Measure(
+                file,
+                new CodeBuilder(true).Ret().Build(),
+                new Version(4, 19, 2),
+                Layout("Player", "Member"),
+                Executable,
+                NullLogger.Instance,
+                new CancellationToken(canceled: true)),
+            Throws.InstanceOf<OperationCanceledException>());
+    }
+
     private static FakePdb Pdb()
     {
         return new FakePdb(_guid, _sections);
@@ -475,25 +494,6 @@ public sealed class UnrealMeasurementTests
             pdb,
             new Dictionary<string, UnrealTarget> { ["Static"] = new UnrealFunctionStaticTarget("FName::GetNames") },
             code);
-    }
-
-    // A canceled token stops the measurement before the 1st target, so Ctrl+C doesn't wait for a whole target list.
-    [Test]
-    public void Measure_CanceledToken_ThrowsOperationCanceledException()
-    {
-        Type(0x28, ("Member", 0x10)).Write(PdbPath);
-        using var file = PdbFile.Open(PdbPath).Unwrap();
-
-        Assert.That(
-            () => UnrealMeasurement.Measure(
-                file,
-                new CodeBuilder(true).Ret().Build(),
-                new Version(4, 19, 2),
-                Layout("Player", "Member"),
-                Executable,
-                NullLogger.Instance,
-                new CancellationToken(canceled: true)),
-            Throws.InstanceOf<OperationCanceledException>());
     }
 
     private Result<PlayerMeasurement> Measure(string id, FakePdb pdb, Dictionary<string, UnrealTarget> targets, CodeBuilder? code = null)

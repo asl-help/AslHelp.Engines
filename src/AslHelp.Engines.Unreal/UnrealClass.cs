@@ -10,7 +10,7 @@ namespace AslHelp.Engines.Unreal;
 ///     Represents a class of a running game with its own and its inherited properties.
 /// </summary>
 /// <remarks>
-///     Reads the properties at the 1st <see cref="FindProperty"/> or <see cref="GetProperties"/> and keeps them,
+///     Reads the properties at the 1st <see cref="FindProperty"/> or <see cref="Properties"/> and keeps them,
 ///     because the engine doesn't change a loaded class.
 ///     <see cref="UnrealGame"/> replaces the instance when the game frees the class and another class takes its address.
 ///     Isn't thread-safe.
@@ -18,7 +18,6 @@ namespace AslHelp.Engines.Unreal;
 public sealed class UnrealClass
 {
     private readonly ClassReader _classReader;
-    private UnrealProperty[]? _ownProperties;
     private Dictionary<string, UnrealProperty>? _properties;
     private Dictionary<string, UnrealProperty>? _propertiesIgnoringCase;
 
@@ -46,6 +45,16 @@ public sealed class UnrealClass
     public string Name { get; }
 
     /// <summary>
+    ///     Gets the properties that this class declares itself, without the properties of its super classes, in declaration
+    ///     order or a failure when a read of the properties fails.
+    /// </summary>
+    /// <remarks>
+    ///     <see cref="FindProperty"/> also finds the properties of the super classes. Keeps the list once it read and reads
+    ///     again after a failure.
+    /// </remarks>
+    public Result<IReadOnlyList<UnrealProperty>> Properties => field is { IsOk: true, Value: not null } ? field : field = ReadProperties();
+
+    /// <summary>
     ///     Finds the property called <paramref name="name"/> on this class or a class up its super chain.
     /// </summary>
     /// <remarks>
@@ -70,38 +79,6 @@ public sealed class UnrealClass
         }
 
         return property is null ? ClassError.PropertyNotFound(Name, name) : property;
-    }
-
-    /// <summary>
-    ///     Lists the properties that this class declares itself, without the properties of its super classes.
-    /// </summary>
-    /// <remarks>
-    ///     <see cref="FindProperty"/> also finds the properties of the super classes.
-    /// </remarks>
-    /// <returns>
-    ///     The properties in declaration order or a failure when a read of the properties fails.
-    ///     Doesn't keep a failed read, so the next call reads again.
-    /// </returns>
-    public Result<IReadOnlyList<UnrealProperty>> GetProperties()
-    {
-        if (_ownProperties is null)
-        {
-            List<UnrealProperty> properties = [];
-
-            foreach (var item in _classReader.OwnPropertiesOf(Address))
-            {
-                if (!item.TryUnwrap(out var property, out var error))
-                {
-                    return error;
-                }
-
-                properties.Add(property);
-            }
-
-            _ownProperties = [.. properties];
-        }
-
-        return _ownProperties;
     }
 
     /// <summary>
@@ -183,5 +160,22 @@ public sealed class UnrealClass
         }
 
         return _properties.TryGetValue(name, out var found) || _propertiesIgnoringCase.TryGetValue(name, out found) ? found : null;
+    }
+
+    private Result<IReadOnlyList<UnrealProperty>> ReadProperties()
+    {
+        List<UnrealProperty> properties = [];
+
+        foreach (var item in _classReader.OwnPropertiesOf(Address))
+        {
+            if (!item.TryUnwrap(out var property, out var error))
+            {
+                return error;
+            }
+
+            properties.Add(property);
+        }
+
+        return (UnrealProperty[])[.. properties];
     }
 }

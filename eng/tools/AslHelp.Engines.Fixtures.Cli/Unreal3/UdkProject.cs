@@ -32,11 +32,6 @@ internal static class UdkProject
     /// </summary>
     public const string ProjectClassesPath = "Classes";
 
-    /// <summary>
-    ///     Represents how long <see cref="MakeAsync"/> lets the compile run by default, 10 minutes.
-    /// </summary>
-    public static readonly TimeSpan DefaultMakeTimeout = TimeSpan.FromMinutes(10);
-
     private const string ClassesPath = @"Development\Src\Fixture\Classes";
 
     /// <summary>
@@ -72,6 +67,11 @@ internal static class UdkProject
     ///     Represents the template line of the shipped config file that <see cref="EnabledPackageLine"/> replaces.
     /// </summary>
     private const string TemplatePackageLine = ";ModEditPackages=MyMod";
+
+    /// <summary>
+    ///     Represents how long <see cref="MakeAsync"/> lets the compile run by default, 10 minutes.
+    /// </summary>
+    public static readonly TimeSpan DefaultMakeTimeout = TimeSpan.FromMinutes(10);
 
     /// <summary>
     ///     Copies the fixture classes into the install and turns the <c>Fixture</c> package on.

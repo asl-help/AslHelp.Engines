@@ -78,7 +78,7 @@ public sealed class MemberPathTests
     [Test]
     public void Count_OnACollection_WatchesTheNumberOfItems()
     {
-        var count = _player.Path.Member("Items").Count().Unwrap();
+        var count = _player.Path.Member("Items").Count.Unwrap();
 
         Assert.That(count.CreateWatcher(new ManualTicks()).Current, Is.EqualTo(3));
     }
@@ -87,7 +87,7 @@ public sealed class MemberPathTests
     [Test]
     public void Count_OnAString_FailsOnTheStep()
     {
-        Assert.That(_player.Path.Member("Name").Count().UnwrapErr().Message, Is.EqualTo("player.Name doesn't take .Count."));
+        Assert.That(_player.Path.Member("Name").Count.UnwrapErr().Message, Is.EqualTo("player.Name doesn't take .Count."));
     }
 
     // A value written between 2 ticks shows up as a change and each call gives a new watcher.
@@ -278,7 +278,7 @@ public sealed class MemberPathTests
         {
             Assert.That(typo.Member("X").UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
             Assert.That(typo.Item(1).UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
-            Assert.That(typo.Count().UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
+            Assert.That(typo.Count.UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
             Assert.That(typo.Value<int>().UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
         }
     }

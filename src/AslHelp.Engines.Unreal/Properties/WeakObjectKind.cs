@@ -90,11 +90,22 @@ file sealed class WeakObjectAccess(
             return Address.Zero;
         }
 
-        if (item.SerialNumber is not { } itemSerial)
+        if (item.SerialNumber is { } itemSerial)
+        {
+            return itemSerial == serial ? item.Address : Address.Zero;
+        }
+
+        // Read the serial number from the blocks apart from the object array, because 4.0 to 4.10 keep it there.
+        if (ClassReader.SerialNumberBlocks is not { } blocks)
         {
             return _serialNumbersError ??= ValueError.WeakSerialNumbersMissing(Property.Name);
         }
 
-        return itemSerial == serial ? item.Address : Address.Zero;
+        if (!blocks.Read(index).TryUnwrap(out int blockSerial, out error))
+        {
+            return error;
+        }
+
+        return blockSerial == serial ? item.Address : Address.Zero;
     }
 }

@@ -21,7 +21,7 @@ internal sealed class ElementBuffer<T>
     /// <param name="memory">The memory to read from.</param>
     /// <param name="element">The read of 1 element.</param>
     /// <param name="data">The address of the 1st element.</param>
-    /// <param name="count">The number of elements, at most <see cref="ValueBounds.MaxElements"/>.</param>
+    /// <param name="count">The number of elements.</param>
     /// <param name="stride">The size of 1 element in bytes.</param>
     /// <param name="last">The array of the last read or <see langword="null"/>.</param>
     /// <returns>
@@ -31,7 +31,7 @@ internal sealed class ElementBuffer<T>
     {
         if (_values.Length < count)
         {
-            _values = new T[Math.Max(count, Math.Min(_values.Length * 2, ValueBounds.MaxElements))];
+            _values = new T[Math.Max(count, (int)Math.Min(_values.Length * 2L, int.MaxValue))];
         }
 
         var values = _values.AsSpan(0, count);

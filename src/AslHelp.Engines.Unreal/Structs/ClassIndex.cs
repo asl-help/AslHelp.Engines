@@ -324,17 +324,17 @@ internal sealed class ClassIndex(
     /// </remarks>
     /// <param name="klass">The address of the class.</param>
     /// <returns>
-    ///     The address, the name and the slot of each object or a failure when the array doesn't read
+    ///     The address and the name of each object or a failure when the array doesn't read
     ///     or an object doesn't read and the list is empty.
     /// </returns>
-    public Result<IReadOnlyList<(Address Address, string Name, int Slot)>> InstancesOf(Address klass)
+    public Result<IReadOnlyList<(Address Address, string Name)>> InstancesOf(Address klass)
     {
         if (Search(out var skipped) is { } error)
         {
             return error;
         }
 
-        List<(Address, string, int)> instances = [];
+        List<(Address, string)> instances = [];
 
         for (int slot = 0; slot < _slotCount; slot++)
         {
@@ -362,36 +362,17 @@ internal sealed class ClassIndex(
 
             if (!name.StartsWith(DefaultObjectPrefix, StringComparison.Ordinal))
             {
-                instances.Add((obj, name, slot));
+                instances.Add((obj, name));
             }
         }
 
         return ToResult(instances, skipped);
     }
 
-    /// <summary>
-    ///     Checks whether the slot at <paramref name="slot"/> of the array still has the object at <paramref name="obj"/>.
-    /// </summary>
-    /// <remarks>
-    ///     Reads the slot and not the object, because the game clears the slot when it frees the object
-    ///     but the memory of the object keeps its class pointer until the game uses it again.
-    /// </remarks>
-    /// <param name="slot">The slot of the object, 0 or above.</param>
-    /// <param name="obj">The address of the object.</param>
-    /// <returns>
-    ///     <see langword="true"/> when the slot has the object or a failure when the array doesn't read.
-    /// </returns>
-    public Result<bool> IsInSlot(int slot, Address obj)
-    {
-        return _objectArray.ReadItem(slot).TryUnwrap(out var item, out var error)
-            ? item.Address == obj
-            : error;
-    }
-
     // Return the 1st skipped read in place of an empty list, so a broken profile doesn't look like a class without objects.
-    private static Result<IReadOnlyList<T>> ToResult<T>(List<T> items, ResultError? skipped)
+    private static Result<IReadOnlyList<(Address Address, string Name)>> ToResult(List<(Address, string)> items, ResultError? skipped)
     {
-        return items.Count == 0 && skipped is not null ? skipped : Result.Ok<IReadOnlyList<T>>(items);
+        return items.Count == 0 && skipped is not null ? skipped : Result.Ok<IReadOnlyList<(Address, string)>>(items);
     }
 
     // Follow the kept super classes from a class up to the target, which stops at a class outside the array or after 64 levels.
@@ -466,9 +447,12 @@ internal sealed class ClassIndex(
         return error;
     }
 
+    // Return the 1st failure only when no slot reads, because the other slots of an array with 1 unreadable block still have their objects.
     private ResultError? ReadSlots(int count, ref ResultError? skipped)
     {
         int slot = -1;
+        bool anyRead = false;
+        ResultError? failure = null;
 
         foreach (var item in _objectArray.Read(count))
         {
@@ -476,8 +460,18 @@ internal sealed class ClassIndex(
 
             if (!item.TryUnwrap(out var obj, out var error))
             {
-                return error;
+                failure ??= error;
+
+                if (slot < _slotCount)
+                {
+                    RemoveNames(slot);
+                    _slotObjects[slot] = Address.Zero;
+                }
+
+                continue;
             }
+
+            anyRead = true;
 
             // Grow with the slots that read, because a wrong count can be far above the real one.
             if (slot >= _slotObjects.Length)
@@ -580,6 +574,13 @@ internal sealed class ClassIndex(
                 _classesByName[name] = (obj, slot);
             }
         }
+
+        if (failure is not null && !anyRead)
+        {
+            return failure;
+        }
+
+        skipped ??= failure;
 
         return null;
     }

@@ -15,7 +15,7 @@ namespace AslHelp.Engines.Unreal;
 
 /// <summary>
 ///     Represents 1 profile document of the measure tool,
-///     which lists what <see cref="UnrealGame.Attach(IMemoryReader, MemoryModule, UnrealProfile)"/> needs for the versions of 1 group.
+///     which lists what <see cref="UnrealGame.Attach(IMemoryReader, MemoryModule, UnrealProfile, ValueBounds)"/> needs for the versions of 1 group.
 /// </summary>
 public sealed class UnrealProfile
 {
@@ -48,7 +48,8 @@ public sealed class UnrealProfile
     /// <param name="childLayout">The offsets inside a field on the children chain.</param>
     /// <param name="worldLocator">The routes to <c>GWorld</c>.</param>
     /// <param name="engineLocator">The routes to <c>GEngine</c>.</param>
-    /// <param name="hasSubsystems"><see langword="true"/> when the versions of the group have game instance subsystems.</param>
+    /// <param name="subsystemMapOffset">The offset of the subsystem map in the game instance from 4.22 on, otherwise <see langword="null"/>.</param>
+    /// <param name="serialNumberBlocksLocator">The routes to the serial number blocks of 4.0 to 4.10 when the document has them.</param>
     internal UnrealProfile(
         string engine,
         string? key,
@@ -66,7 +67,8 @@ public sealed class UnrealProfile
         ChildLayout childLayout,
         MemoryLocator worldLocator,
         MemoryLocator engineLocator,
-        bool hasSubsystems)
+        int? subsystemMapOffset,
+        MemoryLocator? serialNumberBlocksLocator = null)
     {
         Engine = engine;
         Key = key;
@@ -84,7 +86,8 @@ public sealed class UnrealProfile
         ChildLayout = childLayout;
         WorldLocator = worldLocator;
         EngineLocator = engineLocator;
-        HasSubsystems = hasSubsystems;
+        SubsystemMapOffset = subsystemMapOffset;
+        SerialNumberBlocksLocator = serialNumberBlocksLocator;
     }
 
     /// <summary>
@@ -113,9 +116,14 @@ public sealed class UnrealProfile
     internal MemoryLocator EngineLocator { get; }
 
     /// <summary>
-    ///     Gets whether the versions of the group have game instance subsystems, which came with 4.22.
+    ///     Gets the offset of the subsystem map in the game instance or <see langword="null"/> for versions before 4.22, which don't have subsystems.
     /// </summary>
-    internal bool HasSubsystems { get; }
+    internal int? SubsystemMapOffset { get; }
+
+    /// <summary>
+    ///     Gets the routes to the serial number blocks of 4.0 to 4.10 when the document has them, otherwise <see langword="null"/>.
+    /// </summary>
+    internal MemoryLocator? SerialNumberBlocksLocator { get; }
 
     /// <summary>
     ///     Gets the offsets that the value kinds read, each a failure when the document doesn't have it.
@@ -346,7 +354,7 @@ file sealed class Unreal3ProfileMapper : ProfileMapper
             childLayout,
             worldLocator!,
             engineLocator!,
-            hasSubsystems: false);
+            subsystemMapOffset: null);
     }
 }
 
@@ -394,8 +402,13 @@ file sealed class Unreal4ProfileMapper : ProfileMapper
         var worldLocator = reader.ReadGlobal(UnrealProfile.WorldGlobal);
         var engineLocator = reader.ReadGlobal(UnrealProfile.EngineGlobal);
 
-        // Take the subsystem collection of the game instance as the sign of subsystems, because only 4.22 and later have it.
-        bool hasSubsystems = reader.ReadOffsetOrNull("UGameInstance", "SubsystemCollection") is not null;
+        // Read the subsystem map as optional, because only 4.22 and later have subsystems.
+        int? subsystemCollection = reader.ReadOffsetOrNull("UGameInstance", "SubsystemCollection");
+        int? subsystemMap = reader.ReadOffsetOrNull("FSubsystemCollectionBase", "SubsystemMap");
+        int? subsystemMapOffset = subsystemCollection + subsystemMap;
+
+        // Read the serial number blocks as optional, because only 4.0 to 4.10 keep the serial numbers apart from the object array.
+        var serialNumberBlocksLocator = reader.ReadGlobalOrNull(SerialNumberBlocks.Global);
 
         if (reader.GetFailure() is { } failure)
         {
@@ -419,7 +432,8 @@ file sealed class Unreal4ProfileMapper : ProfileMapper
             childLayout,
             worldLocator!,
             engineLocator!,
-            hasSubsystems);
+            subsystemMapOffset,
+            serialNumberBlocksLocator);
     }
 
     // Read the serial number as optional, because only weak pointers read it.

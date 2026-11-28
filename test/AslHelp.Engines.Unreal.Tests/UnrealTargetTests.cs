@@ -2,6 +2,8 @@ using AslHelp.Engines.Profiles;
 using AslHelp.Memory;
 using NUnit.Framework;
 using System;
+using System.Linq;
+using System.Text.Json;
 
 namespace AslHelp.Engines.Unreal.Tests;
 
@@ -63,13 +65,18 @@ public sealed class UnrealTargetTests
         }
     }
 
-    // A build without a known release fails with the build and the form of the version to pass.
+    // A build without a measured release, like a game on a licensed Unreal Engine 3, reads as 3 and the build.
     [Test]
-    public void FromFileVersion_UnknownUnreal3Build_FailsWithTheBuild()
+    public void FromFileVersion_UnmeasuredUnreal3Build_ReadsAs3AndTheBuild()
     {
-        Assert.That(
-            UnrealTarget.FromFileVersion(FileVersion(null, new Version(1, 0, 8225, 0)), "UDK.exe", 4, null, null).UnwrapErr().Message,
-            Is.EqualTo("The stamp 1.0.8225.0 isn't a known UDK build. Pass the version, like 2010-09 or 4.27.2."));
+        var target = FromFileVersion("1, 0, 8225, 0", new Version(1, 0, 8225, 0), "Game.exe", 4);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(target.Engine, Is.EqualTo(UnrealTarget.Unreal3));
+            Assert.That(target.Version.Text, Is.EqualTo("3.8225"));
+            Assert.That(target.Version.Parts, Is.EqualTo([3, 8225]));
+        }
     }
 
     // Before 4.8 the players don't stamp anything, so detection fails with the module and the hint to pass the version.
@@ -84,6 +91,7 @@ public sealed class UnrealTargetTests
     // A passed version wins over the stamp and picks the engine by its form, also for a file without a stamp.
     [TestCase("4.27.2", UnrealTarget.Unreal4)]
     [TestCase("2010-09", UnrealTarget.Unreal3)]
+    [TestCase("3.8225", UnrealTarget.Unreal3)]
     public void FromFileVersion_VersionOverride_WinsOverTheStamp(string version, string engine)
     {
         var stamped = UnrealTarget.FromFileVersion(FileVersion("5.8.4", new Version(5, 8, 4, 0)), ShippingName, 8, version, null).Unwrap();
@@ -96,14 +104,40 @@ public sealed class UnrealTargetTests
         }
     }
 
-    // A passed version that isn't an Unreal Engine version fails with the text.
+    // A passed version that isn't an Unreal Engine version fails with the text. A version needs a minor, because the pick compares minors.
     [TestCase("beta")]
-    [TestCase("3.5")]
+    [TestCase("3")]
+    [TestCase("4")]
+    [TestCase("2010")]
+    [TestCase("2.5")]
     public void FromFileVersion_VersionOverrideThatIsNotAnEngineVersion_FailsWithTheText(string version)
     {
         Assert.That(
             UnrealTarget.FromFileVersion(null, ShippingName, 8, version, null).UnwrapErr().Message,
-            Is.EqualTo($"'{version}' isn't an Unreal Engine version, like 4.27.2 or 2010-09."));
+            Is.EqualTo($"'{version}' isn't an Unreal Engine version, like 4.27.2, 2010-09 or 3.8225."));
+    }
+
+    // A passed UDK release without a measured player fails with the form to pass instead, because its build isn't known.
+    [Test]
+    public void FromFileVersion_UnmeasuredUdkRelease_FailsWithTheBuildForm()
+    {
+        Assert.That(
+            UnrealTarget.FromFileVersion(null, ShippingName, 4, "2009-11-BETA", null).UnwrapErr().Message,
+            Is.EqualTo("The build of UDK 2009-11-BETA isn't known. Pass 3 and the engine build, like 3.8225."));
+    }
+
+    // Every pinned UDK release with a player is measured, so its documents parse. The build refuses 2009-11-BETA, which needs PhysX.
+    [Test]
+    public void ParseVersion_PinnedUdkReleasesWithAPlayer_Read()
+    {
+        using var stream = typeof(UnrealTargetTests).Assembly.GetManifestResourceStream("unreal3-releases.json")!;
+        using var document = JsonDocument.Parse(stream);
+
+        var releases = document.RootElement.EnumerateArray()
+            .Select(static row => row.GetProperty("version").GetString()!)
+            .Where(static release => release != "2009-11-BETA");
+
+        Assert.That(releases.Where(static release => UnrealTarget.ParseVersion(release) is not { Parts: [3, ..] }), Is.Empty);
     }
 
     // A name that ends with -Debug or -DebugGame is development and any other name is shipping unless the caller passes a configuration.
@@ -162,7 +196,7 @@ public sealed class UnrealTargetTests
 
     // Every run of digits is 1 part, so dots and dashes both split and the text stays as written.
     [TestCase("4.19.2", new[] { 4, 19, 2 })]
-    [TestCase("2010-09", new[] { 2010, 9 })]
+    [TestCase("3.8225", new[] { 3, 8225 })]
     [TestCase("5.8", new[] { 5, 8 })]
     public void ParseVersion_DottedAndDashedText_ReadsTheParts(string text, int[] parts)
     {

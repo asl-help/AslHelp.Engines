@@ -27,6 +27,7 @@ var anyHp = data.Member("Hp").Unwrap().CreateWatcher(ticks);
 
 - the library ships 1 document per group of the measured players, 4.0 to 5.8 and UDK 2010-06 to 2015-02 (see [Profiles](#profiles))
 - the pick takes the document that lists the version. A version without a patch, like a 5.8 stamp, takes the highest listed 5.8.x (a guess when the 5.8.x sit in 2 documents) and a listed 5.8 covers every 5.8.x. If none fits, it guesses the nearest patch of the same minor or else the highest lower version of the same major, like 5.8.4 for 5.9.0. Then `Selection.Warning` has both versions
+- an Unreal Engine 3 game whose build isn't a measured UDK release reads as `3.<build>`, like 3.8225, so a guess takes the nearest lower UDK document. You can pass that form as the version too
 - `ProfileGuessHandling.Disallow` doesn't guess and fails with the version a guess would take
 - the key is `win-x64` or `win-x86` from the pointer size, then `development` when the exe name ends with `-Debug` or `-DebugGame` and `shipping` for any other name. UBT leaves the configuration out of the name of a development build (`Game.exe`), so a name without it is a guess. Pass `UnrealConfiguration.Development` for a development build
 - after the pick, attach checks that name 0 of the name table reads `None`. A document that doesn't fit fails with the detected version and the picked version
@@ -69,7 +70,7 @@ In the 1st example:
 | `EnumProperty` | the type of its underlying property, like `byte` |
 | `NameProperty`, `StrProperty` | `string`, a name with its number like `Actor_4` |
 | `ObjectProperty`, `ClassProperty`, `ComponentProperty`, `ObjectPtrProperty`, `ClassPtrProperty` | `Address`, a path goes on through it |
-| `WeakObjectProperty` (4.11 and later) | `Address` or 0 when the object is gone. A path goes on through it |
+| `WeakObjectProperty` | `Address` or 0 when the object is gone. A path goes on through it. Before 4.11 the serial numbers come from `GSerialNumberBlocksForDebugVisualizersRoot` |
 | `StructProperty` | `StructValue` with each member by name, like `pos["X"]`. A path also goes on into it, like `Member("X")` |
 | `StructProperty` with only numbers of 1 class, like `FVector` | `StructValue` too. `Value<float[]>()` reads it as an array of that number (`double[]` on 5.x) |
 | `ArrayProperty` | an array of the element type, like `int[]`. An array of number structs reads as `float[][]` or `double[][]`, but 1 item reads as a `StructValue` |
@@ -93,7 +94,7 @@ var items = data.Member("Items").Count().Value<int>().Unwrap().CreateWatcher(tic
 - a missing key or an index past the count fails the read. A key of the wrong type, like a string on an array, fails the step
 - `Count()` only works on a collection. `Member("Count")` reads a member called `Count` and fails on a collection
 
-Any other kind fails with the property and its class, like `TextProperty` or `SoftObjectProperty`. A struct with a member of such a kind fails as a `StructValue`, but its other members still read through a step. A `StructValue` that changes allocates on that tick, so `Value<float[]>()` or a step to `X` is cheaper for a vector that moves all the time. A string with more than 512 characters fails. A whole array with more than 1024 elements fails too. A whole read or a key lookup fails on a set or map with more than 1024 slots, used or free. A watcher of a collection keeps its instance while the elements don't change. A profile without the offsets of a kind still attaches and only reads of that kind fail with the missing offsets. Unreal Engine 3 documents don't have the set, map and weak pointer offsets, so those kinds fail there.
+Any other kind fails with the property and its class, like `TextProperty` or `SoftObjectProperty`. A struct with a member of such a kind fails as a `StructValue`, but its other members still read through a step. A `StructValue` that changes allocates on that tick, so `Value<float[]>()` or a step to `X` is cheaper for a vector that moves all the time. A string with more than 512 characters fails. A whole array, set or map with more than 1024 elements fails too. A key lookup fails on a set or map with more than 1024 slots, used or free. Pass `new ValueBounds { MaxChars = 2048, MaxElements = 4096 }` to `UnrealGame.Attach` for other limits of up to 1048576. A watcher of a collection keeps its instance while the elements don't change. A profile without the offsets of a kind still attaches and only reads of that kind fail with the missing offsets. Unreal Engine 3 documents don't have the set, map and weak pointer offsets, so those kinds fail there.
 
 The path types are in `AslHelp.Engines.Unreal.Paths`.
 
@@ -114,10 +115,11 @@ var score = subsystem.Path.Member("Score").Value<int>();
 ```
 
 - `GEngine` starts at the engine object like `GWorld` at the world. A profile needs `globals.GEngine`.
+- A `GWorld` or `GEngine` that isn't found doesn't fail attach, so the other one still reads. A read through it fails and searches the module again after 1 second.
 - `FindPackage` takes a path like `/Script/Engine` in any case. On Unreal Engine 3 it takes a bare name like `Engine`. `GetPackages` lists the packages.
 - A package has `FindClass` and `GetClasses`. A class has `FindProperty` (through its bases), `GetProperties` (its own), `GetInstances` and `GetDerivedClasses`.
 - `GetInstances` lists the live objects of exactly that class without the `Default__` object. It searches the object array like `FindClass`. An object's path fails once the game frees it.
-- `FindSubsystem` gives a root at the 1st live object of a subsystem class. It needs a profile of 4.22 or later. A read finds the object again when it's missing or replaced.
+- `FindSubsystem` gives a root at the subsystem of a class in the subsystem map of the game instance, which it takes from `GEngine` or else from `GWorld`. It needs a profile of 4.22 or later. A read finds the subsystem again when it's missing or replaced.
 - `World` doesn't have any reflected properties on Unreal Engine 3, so start at `GEngine` or at an object from `GetInstances` on that engine.
 
 `ClassOf` returns the real class of an object and `FindClass` finds a loaded class by name. A miss reads the object array again, but only the objects in slots that changed. `UnrealGame` keeps each class with its properties and each package after the 1st read. It isn't thread-safe. `Read<T>` reads the value of 1 property of an object with the types from the table. `UnrealProperty.Accept` calls `VisitValue<T>`, `VisitEnum`, `VisitStruct`, `VisitCollection` or `VisitUnsupported` of your `PropertyVisitor<TResult>`.

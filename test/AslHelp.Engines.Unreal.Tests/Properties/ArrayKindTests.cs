@@ -87,6 +87,18 @@ public sealed class ArrayKindTests(
         }
     }
 
+    // A bound passed at attach replaces the 1024, so a count past it fails with that bound.
+    [Test]
+    public void Read_CountAbovePassedBound_FailsWithThatBound()
+    {
+        var game = _fakeGame.Attach(new ValueBounds { MaxElements = 2 });
+        _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.IntArrayOffset + 0x8, 3);
+
+        Assert.That(
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("IntArray").Read<int[]>().UnwrapErr().Message,
+            Does.EndWith("IntArray has 3 elements, past the limit of 2."));
+    }
+
     // 1025 elements is past the bound of 1024, so the read fails with both numbers before it reads the elements.
     [Test]
     public void Read_CountAboveBound_FailsWithCountAndBound()
@@ -265,7 +277,7 @@ public sealed class ArrayKindTests(
                 Data.Member("Items").Item(1).Item(0).Read<int>().UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.Items[1][0]. Items[1] isn't a collection, so it can't take the index 0."));
             Assert.That(
-                Data.Member("Items").Item(1).Count().Read<int>().UnwrapErr().Message,
+                Data.Member("Items").Item(1).Unwrap().Count().UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.Items[1].Count. Items[1] isn't a collection, so it doesn't have a Count."));
         }
     }

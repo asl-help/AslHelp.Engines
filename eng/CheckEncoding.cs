@@ -31,7 +31,7 @@ foreach (var entry in output.StandardOutput.Split('\0', StringSplitOptions.Remov
     var indexLineEnding = entry[..entry.IndexOf(' ', StringComparison.Ordinal)];
     var path = entry[(entry.IndexOf('\t', StringComparison.Ordinal) + 1)..];
 
-    // Skip a submodule or a symlink, because git shows its index line ending as a bare `i/`.
+    // Skip a submodule, because its entry has no line endings and its path is a folder.
     if (indexLineEnding == "i/")
     {
         continue;

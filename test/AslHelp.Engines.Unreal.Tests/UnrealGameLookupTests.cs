@@ -223,7 +223,7 @@ public sealed class UnrealGameLookupTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(own, Is.Empty);
+            Assert.That(own.Select(static property => property.Name), Is.EqualTo(["GameInstance"]));
             Assert.That(klass.FindProperty("Data").Unwrap().Offset, Is.EqualTo(FakeGame.DataOffset));
         }
     }
@@ -389,19 +389,6 @@ public sealed class UnrealGameLookupTests(
     {
         var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp");
         _fakeGame.WriteClass(_fakeGame.Data, _fakeGame.FixtureGameModeClass);
-
-        Assert.That(
-            hp.Read<int>().UnwrapErr().Message,
-            Is.EqualTo($"Can't read FixtureData.Hp at FixtureData. The FixtureData object at {_fakeGame.Data} was freed."));
-    }
-
-    // The game cleared the slot of the object but its memory still has the class and the values, so the path fails instead of
-    // reading the last values.
-    [Test]
-    public void Path_InstanceWhoseSlotGotCleared_FailsAsFreed()
-    {
-        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp");
-        _fakeGame.FreeObject(_fakeGame.Data);
 
         Assert.That(
             hp.Read<int>().UnwrapErr().Message,

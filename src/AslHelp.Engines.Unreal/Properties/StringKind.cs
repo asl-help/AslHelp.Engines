@@ -47,13 +47,14 @@ internal sealed class StringKind : LayoutKind<StringLayout>
     /// <inheritdoc/>
     protected override Result<PropertyAccess> Bind(UnrealProperty property, ClassReader classReader, StringLayout layout)
     {
-        return new StringAccess(property, layout);
+        return new StringAccess(property, layout, classReader.Bounds.MaxChars);
     }
 }
 
 file sealed class StringAccess(
     UnrealProperty property,
-    StringLayout layout) : ValueAccess<string>(property)
+    StringLayout layout,
+    int maxChars) : ValueAccess<string>(property)
 {
     private char[] _chars = [];
     private readonly StringLayout _layout = layout;
@@ -100,9 +101,9 @@ file sealed class StringAccess(
 
         int length = count - 1;
 
-        if (length > ValueBounds.MaxChars)
+        if (length > maxChars)
         {
-            return ValueError.StringTooLong(Property.Name, length, ValueBounds.MaxChars);
+            return ValueError.StringTooLong(Property.Name, length, maxChars);
         }
 
         var dataAddress = start + _layout.Data;
@@ -119,7 +120,7 @@ file sealed class StringAccess(
 
         if (_chars.Length < length)
         {
-            _chars = new char[ValueBounds.MaxChars];
+            _chars = new char[Math.Max(length, (int)Math.Min(_chars.Length * 2L, int.MaxValue))];
         }
 
         var chars = _chars.AsSpan(0, length);

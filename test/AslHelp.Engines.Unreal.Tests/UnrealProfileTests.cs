@@ -447,13 +447,16 @@ public sealed class UnrealProfileTests
         ];
     }
 
-    // Only documents of 4.22 and later have the subsystem collection of the game instance, so it decides whether the game has subsystems.
-    [TestCase(false)]
-    [TestCase(true)]
-    public void Parse_SubsystemCollection_DecidesHasSubsystems(bool present)
+    // Only documents of 4.22 and later have the subsystem collection and its map, so both decide whether the game has subsystems.
+    // The offset of the map in the game instance adds both.
+    [TestCase(false, false, null)]
+    [TestCase(true, false, null)]
+    [TestCase(true, true, 0x1A8)]
+    public void Parse_SubsystemCollectionAndMap_DecideTheSubsystemMapOffset(bool collection, bool map, int? offset)
     {
-        string json = present ? Set(Item, """{ "SubsystemCollection": "0x1A0" }""", "offsets", "UGameInstance") : Item;
+        string json = collection ? Set(Item, """{ "SubsystemCollection": "0x1A0" }""", "offsets", "UGameInstance") : Item;
+        json = map ? Set(json, """{ "SubsystemMap": "0x8" }""", "offsets", "FSubsystemCollectionBase") : json;
 
-        Assert.That(UnrealProfile.Parse(json).Unwrap().HasSubsystems, Is.EqualTo(present));
+        Assert.That(UnrealProfile.Parse(json).Unwrap().SubsystemMapOffset, Is.EqualTo(offset));
     }
 }

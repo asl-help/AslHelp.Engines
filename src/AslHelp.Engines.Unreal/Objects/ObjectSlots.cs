@@ -102,7 +102,8 @@ internal static class ObjectSlots
     /// </summary>
     /// <remarks>
     ///     Keeps <see cref="Address.Zero"/> for each position of a chunk pointer of 0, because the engine allocates a chunk late.
-    ///     Ends at the 1st read that fails, with the failure as the last item.
+    ///     Gives a failure for each position of a chunk whose pointer doesn't read and from the 1st block of a chunk where no item reads to the end of the chunk, then goes on with the next chunk.
+    ///     Ends with 1 failure when the 1st chunk pointer doesn't read.
     /// </remarks>
     /// <param name="memory">The memory to read from.</param>
     /// <param name="array">The address of the array, for the failure.</param>
@@ -111,7 +112,7 @@ internal static class ObjectSlots
     /// <param name="perChunk">The number of items in 1 chunk.</param>
     /// <param name="item">The offsets inside an item.</param>
     /// <returns>
-    ///     The pointers, then a failure if a read failed.
+    ///     The pointers, with a failure in place of each pointer that doesn't read.
     /// </returns>
     public static IEnumerable<Result<Address>> ReadChunks(
         IMemoryReader memory,
@@ -127,13 +128,16 @@ internal static class ObjectSlots
     /// <summary>
     ///     Enumerates the object pointers of consecutive items, in position order.
     /// </summary>
+    /// <remarks>
+    ///     Ends at the 1st block of 1024 items where no item reads, with the failure as the last item.
+    /// </remarks>
     /// <param name="memory">The memory to read from.</param>
     /// <param name="array">The address of the array, for the failure.</param>
     /// <param name="start">The address of the 1st item.</param>
     /// <param name="count">The number of items to read, above 0.</param>
     /// <param name="item">The offsets inside an item.</param>
     /// <returns>
-    ///     The pointers, then a failure if a read failed.
+    ///     The pointers, with a failure in place of each pointer that doesn't read, then a failure if a block didn't read at all.
     /// </returns>
     public static IEnumerable<Result<Address>> Read(
         IMemoryReader memory,
@@ -180,11 +184,32 @@ internal static class ObjectSlots
     }
 
     /// <summary>
+    ///     Decodes the pointer in <paramref name="bytes"/>.
+    /// </summary>
+    /// <param name="bytes">The 4 or 8 bytes of the pointer.</param>
+    /// <param name="order">The byte order of the game.</param>
+    /// <returns>
+    ///     The pointer.
+    /// </returns>
+    public static Address PointerAt(ReadOnlySpan<byte> bytes, ByteOrder order)
+    {
+        bool littleEndian = order == ByteOrder.LittleEndian;
+
+        return bytes.Length == sizeof(ulong)
+            ? new Address(littleEndian ? BinaryPrimitives.ReadUInt64LittleEndian(bytes) : BinaryPrimitives.ReadUInt64BigEndian(bytes))
+            : new Address(littleEndian ? BinaryPrimitives.ReadUInt32LittleEndian(bytes) : BinaryPrimitives.ReadUInt32BigEndian(bytes));
+    }
+
+    /// <summary>
     ///     Enumerates the object pointers of runs of consecutive items, in position order.
     /// </summary>
     /// <remarks>
     ///     Reads 1024 items at a time when the enumeration moves to them, so a caller can stop early.
-    ///     Ends at the 1st read that fails, with the failure as the last item.
+    ///     Reads the items of a block that doesn't read 1 at a time, so an unreadable item only hides itself.
+    ///     Reads items 1 at a time only until the 1st block where no item reads, so a wrong profile costs at most 1024 extra reads per enumeration.
+    ///     Gives a failure for the rest of a run once a whole block doesn't read or its chunk pointer doesn't read, then goes on with the next run.
+    ///     Ends with 1 failure when the 1st chunk pointer doesn't read.
+    ///     Ends at a run without a table, because the rest of 1 allocation won't read either and reading it 1 item at a time costs 1 read per item.
     ///     Fails before the 1st pointer for a pointer size other than 4 or 8, because only those decode.
     /// </remarks>
     /// <param name="memory">The memory to read from.</param>
@@ -195,7 +220,7 @@ internal static class ObjectSlots
     /// <param name="perRun">The number of items in 1 run.</param>
     /// <param name="item">The offsets inside an item.</param>
     /// <returns>
-    ///     The pointers, then a failure if a read failed.
+    ///     The pointers, with a failure in place of each pointer that doesn't read.
     /// </returns>
     private static IEnumerable<Result<Address>> Enumerate(
         IMemoryReader memory,
@@ -215,6 +240,8 @@ internal static class ObjectSlots
         }
 
         byte[]? buffer = null;
+        ResultError?[]? failures = null;
+        bool deadBlockSeen = false;
         int position = 0;
 
         try
@@ -229,8 +256,23 @@ internal static class ObjectSlots
 
                     if (!memory.ReadPointer(address).TryUnwrap(out start, out var chunkError))
                     {
-                        yield return ObjectArrayError.ChunkPointerUnreadable(array, run, address, chunkError);
-                        yield break;
+                        Result<Address> chunkFailure = ObjectArrayError.ChunkPointerUnreadable(array, run, address, chunkError);
+
+                        // End at the 1st chunk pointer, because a table that doesn't read from its start doesn't have any chunk.
+                        if (run == 0)
+                        {
+                            yield return chunkFailure;
+                            yield break;
+                        }
+
+                        for (int slot = 0; slot < length; slot++)
+                        {
+                            yield return chunkFailure;
+                        }
+
+                        position += length;
+
+                        continue;
                     }
                 }
 
@@ -254,16 +296,46 @@ internal static class ObjectSlots
                     int blockLength = Math.Min(BlockLength, length - done);
                     var block = start + ((long)done * item.Size);
 
-                    if (memory.Read(block, buffer.AsSpan(0, blockLength * item.Size)).TryUnwrapErr(out var error))
+                    if (!memory.Read(block, buffer.AsSpan(0, blockLength * item.Size)).TryUnwrapErr(out var error))
                     {
-                        yield return ObjectArrayError.BlockUnreadable(array, position + done, blockLength, block, error);
+                        for (int slot = 0; slot < blockLength; slot++)
+                        {
+                            yield return PointerAt(buffer.AsSpan((slot * item.Size) + item.ObjectPointer, layout.PointerSize), layout.ByteOrder);
+                        }
+
+                        continue;
+                    }
+
+                    failures ??= ArrayPool<ResultError?>.Shared.Rent(BlockLength);
+
+                    if (!deadBlockSeen && ReadOneByOne(memory, array, position + done, block, blockLength, item, buffer, failures))
+                    {
+                        for (int slot = 0; slot < blockLength; slot++)
+                        {
+                            yield return failures[slot] is { } failure
+                                ? failure
+                                : PointerAt(buffer.AsSpan((slot * item.Size) + item.ObjectPointer, layout.PointerSize), layout.ByteOrder);
+                        }
+
+                        continue;
+                    }
+
+                    deadBlockSeen = true;
+
+                    Result<Address> blockFailure = ObjectArrayError.BlockUnreadable(array, position + done, length - done, block, error);
+
+                    if (table is null)
+                    {
+                        yield return blockFailure;
                         yield break;
                     }
 
-                    for (int slot = 0; slot < blockLength; slot++)
+                    for (int slot = done; slot < length; slot++)
                     {
-                        yield return PointerAt(buffer.AsSpan((slot * item.Size) + item.ObjectPointer, layout.PointerSize), layout.ByteOrder);
+                        yield return blockFailure;
                     }
+
+                    break;
                 }
 
                 position += length;
@@ -275,15 +347,44 @@ internal static class ObjectSlots
             {
                 ArrayPool<byte>.Shared.Return(buffer);
             }
+
+            if (failures is not null)
+            {
+                ArrayPool<ResultError?>.Shared.Return(failures, clearArray: true);
+            }
         }
     }
 
-    private static Address PointerAt(ReadOnlySpan<byte> bytes, ByteOrder order)
+    // Read the pointer of each item of a block into its place in the buffer and the failure of each item that doesn't read into failures.
+    // Return false when no item reads, so the caller can treat the block as gone.
+    private static bool ReadOneByOne(
+        IMemoryReader memory,
+        Address array,
+        int position,
+        Address block,
+        int length,
+        ObjectItemLayout item,
+        byte[] buffer,
+        ResultError?[] failures)
     {
-        bool littleEndian = order == ByteOrder.LittleEndian;
+        int pointerSize = memory.Layout.PointerSize;
+        bool anyRead = false;
 
-        return bytes.Length == sizeof(ulong)
-            ? new Address(littleEndian ? BinaryPrimitives.ReadUInt64LittleEndian(bytes) : BinaryPrimitives.ReadUInt64BigEndian(bytes))
-            : new Address(littleEndian ? BinaryPrimitives.ReadUInt32LittleEndian(bytes) : BinaryPrimitives.ReadUInt32BigEndian(bytes));
+        for (int slot = 0; slot < length; slot++)
+        {
+            var address = block + ((long)slot * item.Size) + item.ObjectPointer;
+
+            if (memory.Read(address, buffer.AsSpan((slot * item.Size) + item.ObjectPointer, pointerSize)).TryUnwrapErr(out var error))
+            {
+                failures[slot] = ObjectArrayError.BlockUnreadable(array, position + slot, 1, address, error);
+            }
+            else
+            {
+                failures[slot] = null;
+                anyRead = true;
+            }
+        }
+
+        return anyRead;
     }
 }

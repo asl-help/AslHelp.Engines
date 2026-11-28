@@ -236,26 +236,27 @@ public sealed class IndirectObjectArrayTests(
         }
     }
 
-    // 2000 pointers with a chunk ending after 1500 give the 1st block of 1024 and then 1 failure with the position of the failed 2nd block.
+    // 2000 pointers with a chunk ending after 1500 read the 2nd block 1 pointer at a time, so the pointers up to 1500 still read and each one after it fails.
     [Test]
-    public void Read_BlockPastReadableMemory_YieldsBlockThenFailure()
+    public void Read_BlockPastReadableMemory_ReadsItsItemsOneByOne()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddIndirectObjectArray(_array, layout, 2000, _chunk);
         memory.Add(_chunk, new byte[1500 * memoryLayout.PointerSize]);
 
         var items = new IndirectObjectArray(memory, _array, layout).Read(2000).ToList();
-        var block = _chunk + (1024 * memoryLayout.PointerSize);
+        var address = _chunk + (1500 * memoryLayout.PointerSize);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(items, Has.Count.EqualTo(1025));
-            Assert.That(items.Take(1024).All(static item => item.IsOk), Is.True);
+            Assert.That(items, Has.Count.EqualTo(2000));
+            Assert.That(items.Take(1500).All(static item => item.IsOk), Is.True);
+            Assert.That(items.Skip(1500).All(static item => item.IsErr), Is.True);
             Assert.That(
-                items[^1].UnwrapErr().Message,
+                items[1500].UnwrapErr().Message,
                 Is.EqualTo(
-                    $"Can't read the 976 object pointers from position 1024 of the object array at {_array}: reading {block} failed. "
-                    + $"No block contains {block}."));
+                    $"Can't read the 1 object pointers from position 1500 of the object array at {_array}: reading {address} failed. "
+                    + $"No block contains {address}."));
         }
     }
 
@@ -276,9 +277,9 @@ public sealed class IndirectObjectArrayTests(
         }
     }
 
-    // A failed block ends the enumeration, so a readable chunk behind it does not put pointers after the failure.
+    // A chunk that doesn't read fails at each of its positions and the chunk behind it still reads.
     [Test]
-    public void Read_BlockOfFirstChunkUnreadable_EndsBeforeNextChunk()
+    public void Read_BlockOfFirstChunkUnreadable_GoesOnWithNextChunk()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddIndirectObjectArray(_array, layout, PointersPerChunk + 1, _chunk, _nextChunk);
@@ -288,9 +289,9 @@ public sealed class IndirectObjectArrayTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(items, Has.Count.EqualTo(1));
-            Assert.That(items[0].IsErr, Is.True);
-            Assert.That(memory.ReadsAt(_array + layout.Objects + memoryLayout.PointerSize), Is.Zero);
+            Assert.That(items, Has.Count.EqualTo(PointersPerChunk + 1));
+            Assert.That(items.Take(PointersPerChunk).All(static item => item.IsErr), Is.True);
+            Assert.That(items[^1].Unwrap(), Is.EqualTo(ObjectAt(PointersPerChunk)));
         }
     }
 

@@ -65,9 +65,9 @@ public sealed class PointerObjectArrayTests(
         Assert.That(ReadAll(new PointerObjectArray(memory, _array), 3), Is.EqualTo(expected));
     }
 
-    // 2000 pointers with memory ending after 1500 give the 1st block of 1024 and then 1 failure with the position of the failed 2nd block.
+    // 2000 pointers with memory ending after 1500 read the 2nd block 1 pointer at a time, so the pointers up to 1500 still read and each one after it fails.
     [Test]
-    public void Read_BlockPastReadableMemory_YieldsBlockThenFailure()
+    public void Read_BlockPastReadableMemory_ReadsItsItemsOneByOne()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.Add(_array, new byte[memoryLayout.PointerSize + sizeof(int)]);
@@ -76,17 +76,18 @@ public sealed class PointerObjectArrayTests(
         memory.Add(_data, new byte[1500 * memoryLayout.PointerSize]);
 
         var items = new PointerObjectArray(memory, _array).Read(2000).ToList();
-        var block = _data + (1024 * memoryLayout.PointerSize);
+        var address = _data + (1500 * memoryLayout.PointerSize);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(items, Has.Count.EqualTo(1025));
-            Assert.That(items.Take(1024).All(static item => item.IsOk), Is.True);
+            Assert.That(items, Has.Count.EqualTo(2000));
+            Assert.That(items.Take(1500).All(static item => item.IsOk), Is.True);
+            Assert.That(items.Skip(1500).All(static item => item.IsErr), Is.True);
             Assert.That(
-                items[^1].UnwrapErr().Message,
+                items[1500].UnwrapErr().Message,
                 Is.EqualTo(
-                    $"Can't read the 976 object pointers from position 1024 of the object array at {_array}: reading {block} failed. "
-                    + $"No block contains {block}."));
+                    $"Can't read the 1 object pointers from position 1500 of the object array at {_array}: reading {address} failed. "
+                    + $"No block contains {address}."));
         }
     }
 

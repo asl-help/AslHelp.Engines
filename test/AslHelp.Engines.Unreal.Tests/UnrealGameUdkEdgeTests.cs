@@ -29,15 +29,19 @@ public sealed class UnrealGameUdkEdgeTests
             Does.StartWith($"Can't find GNames in {ModuleName}. "));
     }
 
-    // A GWorld signature that isn't in the module fails attach with GWorld.
+    // A GWorld signature that isn't in the module still attaches, so the paths from GEngine read. A read from GWorld fails with GWorld.
     [Test]
-    public void Attach_GWorldWithoutMatch_FailsWithGWorld()
+    public void Attach_GWorldWithoutMatch_AttachesAndFailsTheReadsOfGWorld()
     {
         string json = Set(Document, $$"""{ "2010-09": {{MissingRoute}} }""", "globals", "GWorld");
 
-        Assert.That(
-            UnrealGame.Attach(_fakeGame.Memory, _fakeGame.Module, UnrealProfile.Parse(json).Unwrap()).UnwrapErr().Message,
-            Does.StartWith($"Can't find GWorld in {ModuleName}. "));
+        var game = UnrealGame.Attach(_fakeGame.Memory, _fakeGame.Module, UnrealProfile.Parse(json).Unwrap()).Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(game.GWorld.Path.Read<Address>().UnwrapErr().Message, Does.StartWith($"Can't read GWorld. Can't find GWorld in {ModuleName}. "));
+            Assert.That(game.GEngine.Path.Read<Address>().IsOk, Is.True);
+        }
     }
 
     // A version without a route of its own doesn't fail, because attach tries the routes each global has.

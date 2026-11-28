@@ -87,13 +87,25 @@ public sealed class SetKindTests(
             Is.EquivalentTo(expected));
     }
 
+    // A bound passed at attach replaces the 1024 for the slots too.
+    [Test]
+    public void Element_MoreSlotsThanPassedBound_FailsWithThatBound()
+    {
+        var game = _fakeGame.Attach(new ValueBounds { MaxElements = 2 });
+        _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.IntSetOffset + 0x8, 3);
+
+        Assert.That(
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("IntSet").Item(11).Read<bool>().UnwrapErr().Message,
+            Does.EndWith("IntSet has 3 elements, past the limit of 2."));
+    }
+
     // 1025 slots is past the bound, so a lookup fails before it reads any slot.
     [Test]
     public void Element_MoreSlotsThanBound_Fails()
     {
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.IntSetOffset + 0x8, 1025);
 
-        Assert.That(IntSet.Item(11).Read<bool>().UnwrapErr().Message, Does.EndWith("IntSet has 1025 slots, past the limit of 1024."));
+        Assert.That(IntSet.Item(11).Read<bool>().UnwrapErr().Message, Does.EndWith("IntSet has 1025 elements, past the limit of 1024."));
     }
 
     // A watcher of a set that doesn't change keeps its set, so Changed stays false.

@@ -1,6 +1,7 @@
 using AslHelp.Engines.Unreal.Errors;
 using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
+using System;
 using System.Collections.Generic;
 
 namespace AslHelp.Engines.Unreal.Properties;
@@ -60,7 +61,7 @@ internal sealed class SetKind : LayoutKind<SetPropertyLayout>
             return error;
         }
 
-        SparseArray sparseArray = new(property, layout.Set.SparseArray, layout.Set.Elements);
+        SparseArray sparseArray = new(property.Name, layout.Set.SparseArray, property.Offset + layout.Set.Elements, classReader.Bounds.MaxElements);
 
         return element.Accept(new SetAccessFactory(property, sparseArray, slotSize, elementProperty.ClassName));
     }
@@ -92,7 +93,7 @@ file sealed class SetElements<T>(
     SparseLookup<T> lookup,
     ValueAccess<T> element) : CollectionAccess(property)
 {
-    public override ValueAccess<int> Count { get; } = sparseArray.Count;
+    public override ValueAccess<int> Count { get; } = sparseArray.CreateCount(property);
 
     public override PropertyAccess Element { get; } = typeof(T) == typeof(Address) ? element : new ContainsAccess(property);
 
@@ -151,7 +152,7 @@ file sealed class SetValueAccess<T>(
 
         if (_slots.Length < slots.SlotCount)
         {
-            _slots = new T[ValueBounds.MaxElements];
+            _slots = new T[Math.Max(slots.SlotCount, (int)Math.Min(_slots.Length * 2L, int.MaxValue))];
         }
 
         _items.Clear();

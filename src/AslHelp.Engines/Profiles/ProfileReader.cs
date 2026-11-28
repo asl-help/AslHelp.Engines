@@ -167,6 +167,37 @@ public sealed class ProfileReader
     }
 
     /// <summary>
+    ///     Reads the routes of the global with the key <paramref name="name"/> under <c>globals</c> when the document has it.
+    /// </summary>
+    /// <param name="name">The key of the global.</param>
+    /// <returns>
+    ///     The locator or <see langword="null"/> when the global is missing, which doesn't fail the document.
+    ///     <see cref="GetFailure"/> returns the failure for a global that isn't a locator and for a document without <c>globals</c>.
+    /// </returns>
+    public MemoryLocator? ReadGlobalOrNull(string name)
+    {
+        _globals ??= FindSection("globals");
+
+        if (_globals is not { ValueKind: JsonValueKind.Object } globals
+            || !globals.TryGetProperty(name, out var value)
+            || value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<MemoryLocator>(value);
+        }
+        catch (JsonException ex)
+        {
+            // Catch here, because the locator converter only throws.
+            _invalid ??= ProfileDocumentError.GlobalUnreadable(name, ex.Message);
+            return null;
+        }
+    }
+
+    /// <summary>
     ///     Reads the object with the key <paramref name="name"/> at the root.
     /// </summary>
     /// <param name="name">The key.</param>

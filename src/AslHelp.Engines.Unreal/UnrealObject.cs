@@ -8,8 +8,7 @@ namespace AslHelp.Engines.Unreal;
 ///     Represents a live object of a class, which paths can start at.
 /// </summary>
 /// <remarks>
-///     A path from the object reads its slot of the object array and its class pointer first. It fails once the game freed the object
-///     or the address has an object of another class.
+///     A path from the object reads its class pointer first and fails once the address has an object of another class.
 ///     Isn't thread-safe.
 /// </remarks>
 public sealed class UnrealObject
@@ -23,14 +22,12 @@ public sealed class UnrealObject
     /// <param name="address">The address of the object.</param>
     /// <param name="klass">The class of the object.</param>
     /// <param name="name">The name of the object.</param>
-    /// <param name="slot">The slot of the object in the object array.</param>
-    internal UnrealObject(ClassReader classReader, Address address, UnrealClass klass, string name, int slot)
+    internal UnrealObject(ClassReader classReader, Address address, UnrealClass klass, string name)
     {
         _classReader = classReader;
         Address = address;
         Class = klass;
         Name = name;
-        Slot = slot;
     }
 
     /// <summary>
@@ -55,11 +52,6 @@ public sealed class UnrealObject
     ///     The text of the path starts with the name of the class.
     /// </remarks>
     public UnrealPath Path => Root.Path;
-
-    /// <summary>
-    ///     Gets the slot of the object in the object array.
-    /// </summary>
-    internal int Slot { get; }
 
     private UnrealRoot Root => field ??= new UnrealRoot(_classReader, PathRoot.Object(_classReader, this), Class.Name);
 

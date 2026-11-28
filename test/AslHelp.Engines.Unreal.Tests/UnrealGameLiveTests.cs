@@ -235,6 +235,19 @@ public sealed class UnrealGameLiveTests(
         });
     }
 
+    // The weak pointer resolves to Items[1] on every version, because 4.0 to 4.10 keep the serial numbers in blocks apart from the object array.
+    [Test]
+    public void Read_RealPlayer_ReadsTheWeakPointer()
+    {
+        WithAttachedPlayer(game =>
+        {
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
+            var shield = data.Member("Items").Item(1).Read<Address>().Unwrap();
+
+            Assert.That(data.Member("WeakItem").Read<Address>().Unwrap(), Is.EqualTo(shield));
+        });
+    }
+
     // Typed paths read the arrays, the maps, the set and the weak pointer of FixtureData with the values BeginPlay sets.
     [Test]
     public void Read_RealPlayer_ReadsCollectionsThroughTypedPaths()
@@ -416,7 +429,7 @@ public sealed class UnrealGameLiveTests(
 
         WithAttachedPlayer(game => Assert.That(
             game.FindSubsystem("FixtureSubsystem").UnwrapErr().Message,
-            Is.EqualTo("Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile.")));
+            Is.EqualTo("Subsystems need 4.22 or later, UGameInstance.SubsystemCollection and FSubsystemCollectionBase.SubsystemMap in the profile.")));
     }
 
     // From 4.22 on the fixture subsystem sets SubsystemValue when the game instance creates it.

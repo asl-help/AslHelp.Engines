@@ -184,6 +184,19 @@ internal sealed class FakeGame
     public const int SubsystemValueOffset = 0x80;
 
     /// <summary>
+    ///     The offset of <c>GameInstance</c> in the engine object, which <c>GameEngine</c> declares like in the real engine.
+    /// </summary>
+    public const int GameInstanceOffset = 0x98;
+
+    /// <summary>
+    ///     The offset of <c>OwningGameInstance</c> in the world.
+    /// </summary>
+    public const int OwningGameInstanceOffset = 0x88;
+
+    // The offset of the subsystem map in the game instance, the sum of the 2 offsets of SubsystemDocument.
+    private const int SubsystemMapOffset = 0x48;
+
+    /// <summary>
     ///     The value of <c>Speed</c>.
     /// </summary>
     public const float Speed = 2.5f;
@@ -367,6 +380,8 @@ internal sealed class FakeGame
         "SubsystemValue",
         "Default__FixtureData",
         "Default__FixtureSubsystem",
+        "GameInstance",
+        "OwningGameInstance",
         "/Script/Late",
         "ObjectSet",
         "ObjectDict",
@@ -375,6 +390,7 @@ internal sealed class FakeGame
         "HP",
     ];
 
+    private readonly Address _subsystemPairs;
     private readonly Address _coordType;
     private readonly Address _coreUObjectPackage;
     private readonly Address _defaultData;
@@ -443,6 +459,9 @@ internal sealed class FakeGame
         GEngineSlot = start + 0x12_1000;
         Engine = start + 0x2B_0000;
         Subsystem = start + 0x2B_1000;
+        GameInstance = start + 0x2B_3000;
+        GameInstanceClass = start + 0x2A_8000;
+        _subsystemPairs = start + 0x2B_4000;
         World = start + 0x20_0000;
         GameMode = start + 0x22_0000;
         BaseGameMode = start + 0x22_3000;
@@ -584,6 +603,17 @@ internal sealed class FakeGame
     public Address Subsystem { get; }
 
     /// <summary>
+    ///     Gets the address of the game instance, which <c>GEngine.GameInstance</c> points at. Its subsystem map is empty until a test
+    ///     writes it with <see cref="WriteSubsystemMap"/>.
+    /// </summary>
+    public Address GameInstance { get; }
+
+    /// <summary>
+    ///     Gets the address of <c>GameInstance</c>.
+    /// </summary>
+    public Address GameInstanceClass { get; }
+
+    /// <summary>
     ///     Gets the address of <c>FixtureSubsystem</c>.
     /// </summary>
     public Address SubsystemClass { get; }
@@ -683,6 +713,40 @@ internal sealed class FakeGame
     }
 
     /// <summary>
+    ///     Makes the object pointer of the item at <paramref name="slot"/> unreadable, like a page of the array the game freed.
+    /// </summary>
+    /// <param name="slot">The position of the item.</param>
+    public void FailObjectSlot(int slot)
+    {
+        Memory.Fail(_items + ((long)slot * _item.Size) + _item.ObjectPointer);
+    }
+
+    /// <summary>
+    ///     Makes the object pointer of the item that has <paramref name="obj"/> unreadable.
+    /// </summary>
+    /// <param name="obj">The address of the object.</param>
+    public void FailObjectSlotOf(Address obj)
+    {
+        for (int slot = 0; slot < _itemCount; slot++)
+        {
+            if (Memory.ReadPointer(_items + ((long)slot * _item.Size) + _item.ObjectPointer).Unwrap() == obj)
+            {
+                FailObjectSlot(slot);
+
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Makes the pairs of the subsystem map unreadable, like when the game moved them after the map was read.
+    /// </summary>
+    public void FailSubsystemPairs()
+    {
+        Memory.Fail(_subsystemPairs);
+    }
+
+    /// <summary>
     ///     Adds <paramref name="obj"/> after the last item of the object array and raises the count, like when the game creates an object.
     /// </summary>
     /// <param name="obj">The address of the object.</param>
@@ -700,27 +764,6 @@ internal sealed class FakeGame
     public void ReplaceLastObject(Address obj)
     {
         Memory.WritePointer(_items + ((_itemCount - 1) * _item.Size) + _item.ObjectPointer, obj);
-    }
-
-    /// <summary>
-    ///     Writes 0 into the item of the object array that has <paramref name="obj"/> without changing the object,
-    ///     like when the game frees an object and doesn't use its memory again yet.
-    /// </summary>
-    /// <param name="obj">The address of the object.</param>
-    public void FreeObject(Address obj)
-    {
-        for (long slot = 0; slot < _itemCount; slot++)
-        {
-            var pointer = _items + (slot * _item.Size) + _item.ObjectPointer;
-
-            if (Memory.ReadPointer(pointer).Unwrap() == obj)
-            {
-                Memory.WritePointer(pointer, Address.Zero);
-                return;
-            }
-        }
-
-        throw new ArgumentException($"The object array doesn't have {obj}.", nameof(obj));
     }
 
     /// <summary>
@@ -824,6 +867,49 @@ internal sealed class FakeGame
     }
 
     /// <summary>
+    ///     Writes the subsystem map of the game instance with 1 used slot per pair, in order.
+    /// </summary>
+    /// <param name="pairs">The class and the subsystem of each slot.</param>
+    public void WriteSubsystemMap(params (Address Class, Address Subsystem)[] pairs)
+    {
+        int stride = (2 * Memory.Layout.PointerSize) + (2 * sizeof(int));
+
+        for (int i = 0; i < pairs.Length; i++)
+        {
+            Memory.WritePointer(_subsystemPairs + (i * stride), pairs[i].Class);
+            Memory.WritePointer(_subsystemPairs + (i * stride) + Memory.Layout.PointerSize, pairs[i].Subsystem);
+        }
+
+        WriteSparse(GameInstance + SubsystemMapOffset, _subsystemPairs, pairs.Length, 0, (1u << pairs.Length) - 1);
+    }
+
+    /// <summary>
+    ///     Writes the document of <paramref name="field"/> with the subsystem collection of 4.22 and later.
+    /// </summary>
+    /// <param name="field">The property shape.</param>
+    /// <returns>
+    ///     The document.
+    /// </returns>
+    public static string SubsystemDocument(string field)
+    {
+        string document = JsonEdits.Set(Document(field, "indirect", "flat"), """{ "SubsystemCollection": "0x40" }""", "offsets", "UGameInstance");
+
+        return JsonEdits.Set(document, """{ "SubsystemMap": "0x8" }""", "offsets", "FSubsystemCollectionBase");
+    }
+
+    /// <summary>
+    ///     Attaches to the game with the document of the shape and <paramref name="bounds"/>.
+    /// </summary>
+    /// <param name="bounds">The largest string and collection that a read takes.</param>
+    /// <returns>
+    ///     The game.
+    /// </returns>
+    public UnrealGame Attach(ValueBounds bounds)
+    {
+        return UnrealGame.Attach(Memory, Module, UnrealProfile.Parse(Document(_shape, "indirect", "flat")).Unwrap(), bounds).Unwrap();
+    }
+
+    /// <summary>
     ///     Gets the address of the property <paramref name="name"/> of <c>FixtureData</c>, of <c>FixtureGameMode</c> or of <c>World</c>.
     /// </summary>
     /// <param name="name">The name of the property, like <c>Coord</c>, <c>Data</c> or <c>GameMode</c>.</param>
@@ -912,6 +998,8 @@ internal sealed class FakeGame
             OtherData,
             _defaultData,
             Engine,
+            GameInstanceClass,
+            GameInstance,
         ];
 
         _itemCount = objects.Length;
@@ -951,6 +1039,7 @@ internal sealed class FakeGame
         AddClass(EngineClass, "Engine", Address.Zero, _enginePackage);
         AddClass(GameEngineClass, "GameEngine", EngineClass, _enginePackage);
         AddClass(SubsystemClass, "FixtureSubsystem", Address.Zero, _fixturePackage);
+        AddClass(GameInstanceClass, "GameInstance", Address.Zero, _enginePackage);
         AddStruct(_coordType, "FixtureCoord");
         AddStruct(_vectorType, "FixtureVector");
         AddStruct(_doubleVectorType, "FixtureVector3d");
@@ -960,10 +1049,11 @@ internal sealed class FakeGame
         int pointerSize = Memory.Layout.PointerSize;
 
         LinkProperties(EngineClass, AddProperty(EngineClass, "EngineData", "Data", "ObjectProperty", DataOffset, pointerSize));
+        LinkProperties(GameEngineClass, AddProperty(GameEngineClass, "GameInstance", "ObjectProperty", GameInstanceOffset, pointerSize));
         LinkProperties(SubsystemClass, AddProperty(SubsystemClass, "SubsystemValue", "IntProperty", SubsystemValueOffset, sizeof(int)));
         AddProperty(_worldClass, _gameModeProperty, "GameMode", "ObjectProperty", GameModeOffset, pointerSize);
         AddProperty(_otherGameModeClass, _otherDataProperty, "Data", "ObjectProperty", OtherDataOffset, pointerSize);
-        LinkProperties(_worldClass, _gameModeProperty);
+        LinkProperties(_worldClass, _gameModeProperty, AddProperty(_worldClass, "OwningGameInstance", "ObjectProperty", OwningGameInstanceOffset, pointerSize));
         LinkProperties(_otherGameModeClass, _otherDataProperty);
         LinkProperties(FixtureGameModeClass, AddProperty(FixtureGameModeClass, "Data", "ObjectProperty", DataOffset, pointerSize));
         _properties["GameMode"] = _gameModeProperty;
@@ -1141,9 +1231,13 @@ internal sealed class FakeGame
         Memory.AddObject(_defaultData, ObjectLayout, Id("Default__FixtureData"), klass: FixtureDataClass);
         Memory.AddObject(Engine, ObjectLayout, Id("GameEngine"), number: 1, klass: GameEngineClass);
         Memory.AddObject(Subsystem, ObjectLayout, Id("FixtureSubsystem"), number: 1, klass: SubsystemClass);
+        Memory.AddObject(GameInstance, ObjectLayout, Id("GameInstance"), klass: GameInstanceClass);
+        Memory.Add(_subsystemPairs, new byte[0x1000]);
         Memory.Add(StringData, new byte[0x1000]);
 
         Memory.WritePointer(Engine + DataOffset, Data);
+        Memory.WritePointer(Engine + GameInstanceOffset, GameInstance);
+        WriteSubsystemMap();
         Memory.WriteInt32(Subsystem + SubsystemValueOffset, SubsystemValue);
         Memory.WritePointer(World + GameModeOffset, GameMode);
         Memory.WritePointer(GameMode + DataOffset, Data);
@@ -1287,7 +1381,12 @@ internal sealed class FakeGame
     // Writes the header of a sparse array member of the data object with its allocation bits inside it.
     private void WriteSparse(int offset, Address slots, int slotCount, int freeCount, uint bits)
     {
-        var sparse = Data + offset;
+        WriteSparse(Data + offset, slots, slotCount, freeCount, bits);
+    }
+
+    // Writes the header of a sparse array with its allocation bits inside it.
+    private void WriteSparse(Address sparse, Address slots, int slotCount, int freeCount, uint bits)
+    {
         Memory.WritePointer(sparse, slots);
         Memory.WriteInt32(sparse + 0x8, slotCount);
         Memory.Write(sparse + 0x10, bits);

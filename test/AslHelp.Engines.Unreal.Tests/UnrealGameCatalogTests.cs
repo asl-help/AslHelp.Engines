@@ -71,13 +71,27 @@ public sealed class UnrealGameCatalogTests(
     [Test]
     public void Attach_DocumentWhoseRoutesMiss_FailsWithThePickedVersionAndTheTarget()
     {
-        var catalog = Catalog(Set(Document(), MissingRoute, "globals", "GWorld"));
+        var catalog = Catalog(Set(Document(), MissingRoute, "globals", "GUObjectArray"));
 
         string message = UnrealGame.Attach(_fakeGame.Memory, _fakeGame.Module, Select(catalog, "4.0")).UnwrapErr().Message;
 
         Assert.That(
             message,
-            Does.StartWith($"The 4.0 profile doesn't fit the game (unreal4 4.0 {Key}). Can't find GWorld in game.exe. ")
+            Does.StartWith($"The 4.0 profile doesn't fit the game (unreal4 4.0 {Key}). Can't find GUObjectArray in game.exe. ")
+                .And.EndWith("Check the version and the configuration."));
+    }
+
+    // A picked document whose GWorld route misses still attaches. A read through GWorld fails with the picked version and the target.
+    [Test]
+    public void Attach_DocumentWhoseGWorldRouteMisses_FailsTheReadWithThePickedVersionAndTheTarget()
+    {
+        var catalog = Catalog(Set(Document(), MissingRoute, "globals", "GWorld"));
+
+        var game = UnrealGame.Attach(_fakeGame.Memory, _fakeGame.Module, Select(catalog, "4.0")).Unwrap();
+
+        Assert.That(
+            game.GWorld.Path.Read<Address>().UnwrapErr().Message,
+            Does.StartWith($"Can't read GWorld. The 4.0 profile doesn't fit the game (unreal4 4.0 {Key}). Can't find GWorld in game.exe. ")
                 .And.EndWith("Check the version and the configuration."));
     }
 

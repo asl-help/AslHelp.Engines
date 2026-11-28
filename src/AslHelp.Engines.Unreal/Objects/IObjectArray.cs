@@ -22,11 +22,12 @@ public interface IObjectArray
     /// <remarks>
     ///     Reads the memory when the enumeration moves to it, so a caller can stop early.
     ///     Keeps <see cref="Address.Zero"/> for an empty position, so the position of a pointer stays the index of its object.
-    ///     Ends at the 1st read that fails, with the failure as the last item, so the failure comes where the pointers stop.
+    ///     Gives a failure in place of each pointer that doesn't read and goes on, so 1 unreadable block or chunk doesn't hide the objects behind it.
+    ///     Ends with a failure as the last item when the array itself doesn't read or a block of 1 allocation doesn't read at all.
     /// </remarks>
     /// <param name="count">The number of pointers to read.</param>
     /// <returns>
-    ///     The first <paramref name="count"/> pointers or fewer when the array is shorter, then a failure if a read failed.
+    ///     The first <paramref name="count"/> pointers or fewer when the array is shorter, with a failure in place of each pointer that doesn't read.
     ///     A count of the array outside 0 to 64M or past its chunks gives only the failure.
     /// </returns>
     IEnumerable<Result<Address>> Read(int count);

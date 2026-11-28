@@ -251,6 +251,6 @@ public sealed class UnrealProfileUdkTests
     [Test]
     public void Parse_Unreal3Document_DoesNotHaveSubsystems()
     {
-        Assert.That(UnrealProfile.Parse(Document).Unwrap().HasSubsystems, Is.False);
+        Assert.That(UnrealProfile.Parse(Document).Unwrap().SubsystemMapOffset, Is.Null);
     }
 }

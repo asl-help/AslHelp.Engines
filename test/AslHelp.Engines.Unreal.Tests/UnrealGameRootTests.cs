@@ -103,16 +103,16 @@ public sealed class UnrealGameRootTests(
         {
             Assert.That(
                 result.UnwrapErr().Message,
-                Is.EqualTo("Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile."));
+                Is.EqualTo("Subsystems need 4.22 or later, UGameInstance.SubsystemCollection and FSubsystemCollectionBase.SubsystemMap in the profile."));
             Assert.That(_fakeGame.Memory.Reads, Is.EqualTo(reads));
         }
     }
 
-    // The root finds the live object of the class and its text is the class.
+    // The root finds the subsystem of the class in the subsystem map of the game instance and its text is the class.
     [Test]
-    public void FindSubsystem_LiveSubsystem_ReadsItsValue()
+    public void FindSubsystem_SubsystemInTheMap_ReadsItsValue()
     {
-        _fakeGame.AddObject(_fakeGame.Subsystem);
+        _fakeGame.WriteSubsystemMap((_fakeGame.SubsystemClass, _fakeGame.Subsystem));
 
         var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
 
@@ -123,17 +123,14 @@ public sealed class UnrealGameRootTests(
         }
     }
 
-    // A missing subsystem fails without reading a class pointer again on the same array and reads once the game creates it.
+    // A subsystem that isn't in the map yet fails and reads once the game adds it.
     [Test]
     public void FindSubsystem_SubsystemThatAppearsLater_FailsThenReads()
     {
         var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
 
         var failure = value.Read<int>();
-        int classReads = _fakeGame.Memory.ReadsAt(_fakeGame.World + FakeGame.ObjectLayout.Class);
-        _ = value.Read<int>();
-        int secondReads = _fakeGame.Memory.ReadsAt(_fakeGame.World + FakeGame.ObjectLayout.Class) - classReads;
-        _fakeGame.AddObject(_fakeGame.Subsystem);
+        _fakeGame.WriteSubsystemMap((_fakeGame.SubsystemClass, _fakeGame.Subsystem));
 
         using (Assert.EnterMultipleScope())
         {
@@ -141,49 +138,81 @@ public sealed class UnrealGameRootTests(
                 failure.UnwrapErr().Message,
                 Is.EqualTo(
                     "Can't read FixtureSubsystem.SubsystemValue at FixtureSubsystem. "
-                    + "Can't find a live object of the class FixtureSubsystem."));
-            Assert.That(secondReads, Is.Zero);
+                    + "The game instance doesn't have a subsystem of the class FixtureSubsystem."));
             Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
         }
     }
 
-    // The game counts the array up to its highest slot, so a subsystem in the slot of a freed object leaves the count as it was.
+    // A live object of the class that the game instance doesn't have, like one of another game instance, isn't the subsystem.
     [Test]
-    public void FindSubsystem_SubsystemInTheSlotOfAFreedObject_FailsThenReads()
+    public void FindSubsystem_LiveObjectNotInTheMap_Fails()
     {
-        _ = _fakeGame.CreateObject("Default__FixtureSubsystem", _fakeGame.SubsystemClass);
+        _fakeGame.AddObject(_fakeGame.Subsystem);
+        _fakeGame.WriteSubsystemMap((_fakeGame.FixtureGameModeClass, _fakeGame.GameMode));
+
         var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
 
-        var failure = value.Read<int>();
-        _fakeGame.ReplaceLastObject(_fakeGame.Subsystem);
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(failure.UnwrapErr().Message, Does.EndWith("Can't find a live object of the class FixtureSubsystem."));
-            Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
-        }
+        Assert.That(value.Read<int>().UnwrapErr().Message, Does.EndWith("The game instance doesn't have a subsystem of the class FixtureSubsystem."));
     }
 
-    // The kept object got another class, so the root searches again and reads the new subsystem.
+    // An engine without a game instance gives the game instance of the world, so the subsystem still reads.
+    [Test]
+    public void FindSubsystem_EngineWithoutGameInstance_ReadsThroughTheWorld()
+    {
+        _fakeGame.WriteSubsystemMap((_fakeGame.SubsystemClass, _fakeGame.Subsystem));
+        _fakeGame.Memory.WritePointer(_fakeGame.Engine + FakeGame.GameInstanceOffset, Address.Zero);
+        _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.OwningGameInstanceOffset, _fakeGame.GameInstance);
+
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
+
+        Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
+    }
+
+    // A null GEngine still passes the step check, because GameEngine declares GameInstance. The subsystem then reads through the world.
+    [Test]
+    public void FindSubsystem_GEngineNull_ReadsThroughTheWorld()
+    {
+        _fakeGame.WriteSubsystemMap((_fakeGame.SubsystemClass, _fakeGame.Subsystem));
+        _fakeGame.Memory.WritePointer(_fakeGame.GEngineSlot, Address.Zero);
+        _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.OwningGameInstanceOffset, _fakeGame.GameInstance);
+
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
+
+        Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
+    }
+
+    // Without a game instance on the engine or the world, as while a level loads, the read fails.
+    [Test]
+    public void FindSubsystem_NoGameInstance_Fails()
+    {
+        _fakeGame.Memory.WritePointer(_fakeGame.Engine + FakeGame.GameInstanceOffset, Address.Zero);
+
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
+
+        Assert.That(value.Read<int>().UnwrapErr().Message, Does.EndWith("The game instance doesn't have a subsystem of the class FixtureSubsystem."));
+    }
+
+    // The kept object got another class, so the root searches the map again and reads the new subsystem.
     [Test]
     public void FindSubsystem_SubsystemReplaced_FollowsTheNewObject()
     {
-        _fakeGame.AddObject(_fakeGame.Subsystem);
+        _fakeGame.WriteSubsystemMap((_fakeGame.SubsystemClass, _fakeGame.Subsystem));
         var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
         _ = value.Read<int>().Unwrap();
 
         _fakeGame.WriteClass(_fakeGame.Subsystem, _fakeGame.FixtureGameModeClass);
         var replacement = _fakeGame.CreateObject("FixtureSubsystem", _fakeGame.SubsystemClass);
         _fakeGame.Memory.WriteInt32(replacement + FakeGame.SubsystemValueOffset, 17);
+        _fakeGame.WriteSubsystemMap((_fakeGame.SubsystemClass, replacement));
 
         Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(17));
     }
 
-    // Once found, a read costs the class pointer of the subsystem, its class with the name and the value, without a pass over the array.
+    // Once found, a read costs the class pointer of the subsystem, its class with the name and the value, without a pass over the map.
     [Test]
     public void FindSubsystem_SteadyRead_ReadsOnlyTheClassPointerAndTheValue()
     {
-        _fakeGame.AddObject(_fakeGame.Subsystem);
+        _fakeGame.WriteSubsystemMap((_fakeGame.SubsystemClass, _fakeGame.Subsystem));
         var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
         _ = value.Read<int>().Unwrap();
         int reads = _fakeGame.Memory.Reads;
@@ -197,7 +226,7 @@ public sealed class UnrealGameRootTests(
     [Test]
     public void FindSubsystem_SameClassTwice_SharesTheSteps()
     {
-        _fakeGame.AddObject(_fakeGame.Subsystem);
+        _fakeGame.WriteSubsystemMap((_fakeGame.SubsystemClass, _fakeGame.Subsystem));
         var game = SubsystemGame();
         ManualTicks ticks = new();
         var first = game.FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Unwrap().CreateWatcher(ticks);
@@ -215,22 +244,9 @@ public sealed class UnrealGameRootTests(
         }
     }
 
-    // The default object of the subsystem class isn't the subsystem.
-    [Test]
-    public void FindSubsystem_DefaultObjectOnly_FailsWithoutALiveObject()
-    {
-        _ = _fakeGame.CreateObject("Default__FixtureSubsystem", _fakeGame.SubsystemClass);
-
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
-
-        Assert.That(value.Read<int>().UnwrapErr().Message, Does.EndWith("Can't find a live object of the class FixtureSubsystem."));
-    }
-
-    // Attaches with a document of 4.22 or later, which has the subsystem collection.
+    // Attaches with a document of 4.22 or later, which has the subsystem map.
     private UnrealGame SubsystemGame()
     {
-        string document = FakeGame.Document(shape, "indirect", "flat");
-
-        return _fakeGame.Attach(Set(document, """{ "SubsystemCollection": "0x100" }""", "offsets", "UGameInstance"));
+        return _fakeGame.Attach(FakeGame.SubsystemDocument(shape));
     }
 }

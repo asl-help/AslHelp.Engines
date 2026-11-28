@@ -379,7 +379,7 @@ public sealed class ObjectArrayEdgeTests(
         }
     }
 
-    // A chunk of 1500 takes a block of 1024 and a block of 476, so a failed 2nd block of chunk 1 is at position 2524 with length 476.
+    // A chunk of 1500 takes a block of 1024 and a block of 476, so a failed 2nd block of chunk 1 fails from position 2524 with length 476.
     [Test]
     public void Read_ChunkedSecondBlockOfSecondChunkUnreadable_FailsWithPositionInTheArray()
     {
@@ -395,7 +395,8 @@ public sealed class ObjectArrayEdgeTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(items.Take(2524).Select(static read => read.Unwrap()), Is.EqualTo(Objects(0, 2524)));
-            Assert.That(items, Has.Count.EqualTo(2525));
+            Assert.That(items, Has.Count.EqualTo(3000));
+            Assert.That(items.Skip(2524).Select(static read => read.UnwrapErr().Message).Distinct().Count(), Is.EqualTo(1));
             Assert.That(
                 items[^1].UnwrapErr().Message,
                 Is.EqualTo(
@@ -451,9 +452,9 @@ public sealed class ObjectArrayEdgeTests(
         }
     }
 
-    // A chunk pointer at the top of the address range is 1 failure with that address and doesn't throw.
+    // A chunk pointer at the top of the address range fails at each position of the chunk with that address and doesn't throw.
     [Test]
-    public void Read_ChunkedChunkAtTopOfAddressRange_YieldsOneFailure()
+    public void Read_ChunkedChunkAtTopOfAddressRange_FailsAtEachPosition()
     {
         var memory = MemoryWithChunks(3, TopOfAddressRange);
 
@@ -461,8 +462,8 @@ public sealed class ObjectArrayEdgeTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(items, Has.Count.EqualTo(1));
-            Assert.That(items[0].UnwrapErr().Message, Does.Contain($"reading {TopOfAddressRange} failed"));
+            Assert.That(items, Has.Count.EqualTo(3));
+            Assert.That(items.Select(static read => read.UnwrapErr().Message), Has.All.Contain($"reading {TopOfAddressRange} failed"));
         }
     }
 

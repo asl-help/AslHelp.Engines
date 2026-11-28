@@ -53,21 +53,21 @@ public sealed class UnrealGameUdkCatalogTests
     public void Select_TargetNoDocumentFits_FailsWithTheVersion()
     {
         Assert.That(
-            Catalog(Document).Select(Target("2009-11"), ProfileGuessHandling.Allow).UnwrapErr().Message,
-            Is.EqualTo($"No profile fits unreal3 2009-11 {Key}. Add a profile that lists 2009-11."));
+            Catalog(Document).Select(Target("3.5860"), ProfileGuessHandling.Allow).UnwrapErr().Message,
+            Is.EqualTo($"No profile fits unreal3 3.5860 {Key}. Add a profile that lists 3.5860."));
     }
 
     // A picked document whose routes don't find a global fails with the picked version, the target and the cause.
     [Test]
     public void Attach_DocumentWhoseRoutesMiss_FailsWithThePickedVersionAndTheTarget()
     {
-        var catalog = Catalog(Set(Document, MissingRoute, "globals", "GWorld"));
+        var catalog = Catalog(Set(Document, MissingRoute, "globals", "GObjObjects"));
 
         string message = UnrealGame.Attach(_fakeGame.Memory, _fakeGame.Module, Select(catalog, "2010-09")).UnwrapErr().Message;
 
         Assert.That(
             message,
-            Does.StartWith($"The 2010-09 profile doesn't fit the game (unreal3 2010-09 {Key}). Can't find GWorld in {ModuleName}. ")
+            Does.StartWith($"The 2010-09 profile doesn't fit the game (unreal3 2010-09 {Key}). Can't find GObjObjects in {ModuleName}. ")
                 .And.EndWith("Check the version and the configuration."));
     }
 

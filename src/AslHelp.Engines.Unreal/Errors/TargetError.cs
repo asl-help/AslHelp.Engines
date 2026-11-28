@@ -6,15 +6,28 @@ namespace AslHelp.Engines.Unreal.Errors;
 internal abstract record TargetError : ResultError
 {
     /// <summary>
-    ///     Creates the error for an Unreal Engine 3 stamp whose build isn't a known UDK release.
+    ///     Creates the error for a module file that doesn't open or read.
     /// </summary>
-    /// <param name="build">The engine build of the stamp.</param>
+    /// <param name="path">The full path of the file.</param>
+    /// <param name="reason">The message of the failed read.</param>
     /// <returns>
     ///     The error.
     /// </returns>
-    public static TargetError BuildUnknown(int build)
+    public static TargetError ModuleFileUnreadable(string path, string reason)
     {
-        return new BuildUnknownError(build);
+        return new ModuleFileUnreadableError(path, reason);
+    }
+
+    /// <summary>
+    ///     Creates the error for a module whose path Windows didn't return, so its file version can't be read.
+    /// </summary>
+    /// <param name="module">The file name of the module.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static TargetError ModulePathUnknown(string module)
+    {
+        return new ModulePathUnknownError(module);
     }
 
     /// <summary>
@@ -27,6 +40,18 @@ internal abstract record TargetError : ResultError
     public static TargetError PointerSizeUnsupported(byte pointerSize)
     {
         return new PointerSizeUnsupportedError(pointerSize);
+    }
+
+    /// <summary>
+    ///     Creates the error for a passed UDK release whose engine build isn't known, because no player of it is measured.
+    /// </summary>
+    /// <param name="release">The text of the release.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static TargetError ReleaseUnmeasured(string release)
+    {
+        return new ReleaseUnmeasuredError(release);
     }
 
     /// <summary>
@@ -54,16 +79,29 @@ internal abstract record TargetError : ResultError
     }
 }
 
-file sealed record BuildUnknownError(
-    int Build) : TargetError
+file sealed record ModuleFileUnreadableError(
+    string Path,
+    string Reason) : TargetError
 {
-    public override string Message => SR.FormatTargetBuildUnknown(Build);
+    public override string Message => SR.FormatTargetModuleFileUnreadable(Path, Reason);
+}
+
+file sealed record ModulePathUnknownError(
+    string Module) : TargetError
+{
+    public override string Message => SR.FormatTargetModulePathUnknown(Module);
 }
 
 file sealed record PointerSizeUnsupportedError(
     byte PointerSize) : TargetError
 {
     public override string Message => SR.FormatTargetPointerSizeUnsupported(PointerSize);
+}
+
+file sealed record ReleaseUnmeasuredError(
+    string Release) : TargetError
+{
+    public override string Message => SR.FormatTargetReleaseUnmeasured(Release);
 }
 
 file sealed record StampMissingError(

@@ -93,6 +93,28 @@ public sealed class UnrealGameLookupEdgeTests(
         }
     }
 
+    // An object pointer that doesn't read only hides its own slot, so the class in a later slot still shows up.
+    [Test]
+    public void FindClass_EarlierObjectSlotUnreadable_StillFindsTheClass()
+    {
+        _fakeGame.FailObjectSlot(0);
+
+        Assert.That(_game.FindClass("FixtureData").Unwrap().Address, Is.EqualTo(_fakeGame.FixtureDataClass));
+    }
+
+    // A search drops the class of a slot that stopped reading, so a later lookup fails with the search and doesn't return the kept class.
+    [Test]
+    public void FindClass_SlotOfKeptClassUnreadable_FailsWithTheSearch()
+    {
+        _ = _game.FindClass("FixtureData").Unwrap();
+        _fakeGame.FailObjectSlotOf(_fakeGame.FixtureDataClass);
+        _ = _game.FindClass("Missing");
+
+        Assert.That(
+            _game.FindClass("FixtureData").UnwrapErr().Message,
+            Does.StartWith("Can't search the object array for the class FixtureData."));
+    }
+
     // A class lookup in another case gives the instance of the exact lookup, so it doesn't replace the kept class.
     [Test]
     public void FindClass_NameInOtherCaseThenExact_ReturnsTheSameInstance()
@@ -107,11 +129,11 @@ public sealed class UnrealGameLookupEdgeTests(
         }
     }
 
-    // The class of a subsystem ignores case like FindClass, so a lowercase name reads the live subsystem.
+    // The class of a subsystem ignores case like FindClass, so a lowercase name reads the subsystem.
     [Test]
     public void FindSubsystem_NameInOtherCase_ReadsTheSubsystem()
     {
-        _fakeGame.AddObject(_fakeGame.Subsystem);
+        _fakeGame.WriteSubsystemMap((_fakeGame.SubsystemClass, _fakeGame.Subsystem));
 
         var value = SubsystemGame().FindSubsystem("fixturesubsystem").Unwrap().Path.Member("subsystemvalue");
 
@@ -160,17 +182,30 @@ public sealed class UnrealGameLookupEdgeTests(
         Assert.That(klass.GetInstances().UnwrapErr().Message, Does.StartWith("Can't read "));
     }
 
-    // 2 live subsystems of 1 class give the 1st in array order.
+    // 2 live subsystems of 1 class give the one in the map of the game instance, not the 1st in array order.
     [Test]
-    public void FindSubsystem_TwoLiveObjects_ReadsTheFirstInArrayOrder()
+    public void FindSubsystem_TwoLiveObjects_ReadsTheOneInTheMap()
     {
         _fakeGame.AddObject(_fakeGame.Subsystem);
         var other = _fakeGame.CreateObject("FixtureSubsystem", _fakeGame.SubsystemClass);
         _fakeGame.Memory.WriteInt32(other + FakeGame.SubsystemValueOffset, 17);
+        _fakeGame.WriteSubsystemMap((_fakeGame.SubsystemClass, other));
 
         var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
 
-        Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
+        Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(17));
+    }
+
+    // The pairs of the map don't read, so the read fails with that read and not with a missing subsystem.
+    [Test]
+    public void FindSubsystem_PairsUnreadable_FailsWithTheRead()
+    {
+        _fakeGame.WriteSubsystemMap((_fakeGame.SubsystemClass, _fakeGame.Subsystem));
+        _fakeGame.FailSubsystemPairs();
+
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
+
+        Assert.That(value.Read<int>().UnwrapErr().Message, Does.Contain("Can't read SubsystemMap of the object at"));
     }
 
     // A class that isn't loaded fails the read with the class lookup and not with a missing object.
@@ -189,11 +224,9 @@ public sealed class UnrealGameLookupEdgeTests(
         Assert.That(() => SubsystemGame().FindSubsystem(null!), Throws.TypeOf<ArgumentNullException>());
     }
 
-    // Attaches with a document of 4.22 or later, which has the subsystem collection.
+    // Attaches with a document of 4.22 or later, which has the subsystem map.
     private UnrealGame SubsystemGame()
     {
-        string document = FakeGame.Document(shape, "indirect", "flat");
-
-        return _fakeGame.Attach(Set(document, """{ "SubsystemCollection": "0x100" }""", "offsets", "UGameInstance"));
+        return _fakeGame.Attach(FakeGame.SubsystemDocument(shape));
     }
 }

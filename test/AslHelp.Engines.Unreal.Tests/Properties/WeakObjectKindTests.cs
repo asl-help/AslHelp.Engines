@@ -1,6 +1,10 @@
+using AslHelp.Engines.Unreal.Objects;
 using AslHelp.Engines.Unreal.Paths;
 using AslHelp.Memory;
+using AslHelp.Memory.Locating;
 using NUnit.Framework;
+using System;
+using System.Text.Json;
 using static AslHelp.Engines.Unreal.Tests.JsonEdits;
 
 namespace AslHelp.Engines.Unreal.Tests.Properties;
@@ -79,5 +83,98 @@ public sealed class WeakObjectKindTests(
         Assert.That(
             game.GWorld.Path.Member("GameMode").Member("Data").Member("WeakItem").Read<Address>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.WeakItem. Can't resolve WeakItem: the object array doesn't have serial numbers."));
+    }
+
+    // 4.0 to 4.10 keep the serial numbers in blocks apart from the items, so a weak pointer reads its serial number from the block of its index.
+    [TestCase(77, true)]
+    [TestCase(78, false)]
+    public void Read_SerialNumberBlocks_ComparesTheSerialOfTheBlock(int blockSerial, bool matches)
+    {
+        var game = AttachWithSerialNumberBlocks(out var block);
+        _fakeGame.Memory.WriteInt32(block + (1 * sizeof(int)), blockSerial);
+
+        Assert.That(
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("WeakItem").Read<Address>().Unwrap(),
+            Is.EqualTo(matches ? _fakeGame.World : Address.Zero));
+    }
+
+    // The engine allocates a block on the 1st weak pointer into it, so a slot whose block is missing reads as a stale pointer.
+    [Test]
+    public void Read_SerialNumberBlockNotAllocated_ReturnsZero()
+    {
+        var game = AttachWithSerialNumberBlocks(out _, allocateBlock: false);
+
+        Assert.That(game.GWorld.Path.Member("GameMode").Member("Data").Member("WeakItem").Read<Address>().Unwrap(), Is.EqualTo(Address.Zero));
+    }
+
+    // The engine allocates the table on the 1st weak pointer, so a table pointer of 0 reads as a stale pointer.
+    [Test]
+    public void Read_SerialNumberTableNotAllocated_ReturnsZero()
+    {
+        var game = AttachWithSerialNumberBlocks(out _);
+        _fakeGame.Memory.WritePointer(_fakeGame.Module.Range.Start + 0x900, Address.Zero);
+
+        Assert.That(game.GWorld.Path.Member("GameMode").Member("Data").Member("WeakItem").Read<Address>().Unwrap(), Is.EqualTo(Address.Zero));
+    }
+
+    // The block of the index doesn't read, so the weak pointer fails and doesn't read as a stale pointer.
+    [Test]
+    public void Read_SerialNumberBlockUnreadable_Fails()
+    {
+        var game = AttachWithSerialNumberBlocks(out var block);
+        _fakeGame.Memory.Fail(block + (1 * sizeof(int)));
+
+        Assert.That(game.GWorld.Path.Member("GameMode").Member("Data").Member("WeakItem").Read<Address>().IsErr, Is.True);
+    }
+
+    // A block has the serial numbers of 16384 slots, so the slot 16385 reads the 2nd int of the block in the 2nd table entry.
+    [Test]
+    public void Read_IndexInSecondBlock_ReadsTheBlockOfTheSecondTableEntry()
+    {
+        var memory = _fakeGame.Memory;
+        var root = _fakeGame.Module.Range.Start + 0x900;
+        var table = start + 0x7C_0000;
+        var secondBlock = start + 0x7C_1000;
+
+        memory.Add(table, new byte[0x1000]);
+        memory.Add(secondBlock, new byte[0x1000]);
+        memory.WriteGlobalReference(_fakeGame.Module.Range.Start + 0x600, [0xF1, 0xF2, 0xF3], root);
+        memory.WritePointer(root, table);
+        memory.WritePointer(table + memory.Layout.PointerSize, secondBlock);
+        memory.WriteInt32(secondBlock + sizeof(int), 91);
+
+        var locator = JsonSerializer.Deserialize<MemoryLocator>("""{ "4.0": [{ "forward": "F1 F2 F3 ????????", "offset": 3 }, { "read": "global" }] }""")!;
+        SerialNumberBlocks blocks = new(memory, new GlobalPointer(memory, _fakeGame.Module, locator, TimeSpan.Zero));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(blocks.Read((16 * 1024) + 1).Unwrap(), Is.EqualTo(91));
+            Assert.That(blocks.Read(1).Unwrap(), Is.Zero);
+        }
+    }
+
+    // Attach with a document whose items don't have serial numbers and whose GSerialNumberBlocksForDebugVisualizersRoot points at a
+    // table with 1 block for the indices 0 to 16383.
+    private UnrealGame AttachWithSerialNumberBlocks(out Address block, bool allocateBlock = true)
+    {
+        var memory = _fakeGame.Memory;
+        var root = _fakeGame.Module.Range.Start + 0x900;
+        var table = start + 0x7C_0000;
+        block = start + 0x7C_1000;
+
+        memory.Add(table, new byte[0x1000]);
+        memory.Add(block, new byte[16 * 1024 * sizeof(int)]);
+        memory.WriteGlobalReference(_fakeGame.Module.Range.Start + 0x600, [0xF1, 0xF2, 0xF3], root);
+        memory.WritePointer(root, table);
+        memory.WritePointer(table, allocateBlock ? block : Address.Zero);
+
+        string document = Remove(FakeGame.Document(shape, "indirect", "flat"), "offsets", "FUObjectItem", "SerialNumber");
+        document = Set(
+            document,
+            """{ "4.0": [{ "forward": "F1 F2 F3 ????????", "offset": 3 }, { "read": "global" }] }""",
+            "globals",
+            "GSerialNumberBlocksForDebugVisualizersRoot");
+
+        return _fakeGame.Attach(document);
     }
 }

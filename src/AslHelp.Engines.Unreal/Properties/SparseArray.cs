@@ -42,6 +42,48 @@ internal sealed class SparseArray
     public ValueAccess<int> Count { get; }
 
     /// <summary>
+    ///     Finds the used slot at the position that <paramref name="key"/> gives, counting only the used slots in slot order.
+    /// </summary>
+    /// <remarks>
+    ///     Gives a set of objects and a map keyed by objects an index, because a path key can't be an address.
+    ///     The position of an element moves when the game frees a slot in front of it.
+    /// </remarks>
+    /// <param name="memory">The memory to read from.</param>
+    /// <param name="container">The address of the object or struct with the property.</param>
+    /// <param name="slotSize">The size of 1 slot in bytes.</param>
+    /// <param name="key">The position as written in the path.</param>
+    /// <returns>
+    ///     The address of the slot or a failure when the key isn't an integer, the position isn't below the number of used slots or a read fails.
+    /// </returns>
+    public Result<Address> FindUsed(IMemoryReader memory, Address container, int slotSize, ElementKey key)
+    {
+        if (!key.As<int>(this, _property.Name).TryUnwrap(out int position, out var error)
+            || !ReadSlots(memory, container).TryUnwrap(out var slots, out error))
+        {
+            return error;
+        }
+
+        int used = 0;
+
+        for (int slot = 0; slot < slots.SlotCount; slot++)
+        {
+            if (!IsUsed(slot))
+            {
+                continue;
+            }
+
+            if (used == position)
+            {
+                return slots.Data + ((long)slot * slotSize);
+            }
+
+            used++;
+        }
+
+        return key.OutOfRange(_property.Name, position, used);
+    }
+
+    /// <summary>
     ///     Checks whether the slot <paramref name="slot"/> of the last <see cref="ReadSlots"/> is used.
     /// </summary>
     /// <param name="slot">The slot, below the slot count of the last read.</param>

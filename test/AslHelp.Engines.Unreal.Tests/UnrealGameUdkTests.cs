@@ -1,3 +1,4 @@
+using AslHelp.Memory;
 using AslHelp.Memory.Watching;
 using NUnit.Framework;
 using System.Linq;
@@ -24,7 +25,7 @@ public sealed class UnrealGameUdkTests
     {
         var game = _fakeGame.Attach();
 
-        var world = game.GWorld.Path.Read().Unwrap();
+        var world = game.GWorld.Path.Read<Address>().Unwrap();
 
         using (Assert.EnterMultipleScope())
         {
@@ -41,9 +42,9 @@ public sealed class UnrealGameUdkTests
     {
         var game = _fakeGame.Attach();
 
-        var intValue = game.GWorld.Path.Member("Game").Member("FixtureData").Member("IntValue").Value<int>();
+        var intValue = game.GWorld.Path.Member("Game").Member("FixtureData").Member("IntValue");
 
-        Assert.That(intValue.Read().Unwrap(), Is.EqualTo(IntValue));
+        Assert.That(intValue.Read<int>().Unwrap(), Is.EqualTo(IntValue));
     }
 
     // FindClass finds the class past the empty slot of the object array and returns the class ClassOf returns.
@@ -115,9 +116,9 @@ public sealed class UnrealGameUdkTests
 
         Assert.That(
             (
-                data.Member("bFirst").Value<bool>().Read().Unwrap(),
-                data.Member("bSecond").Value<bool>().Read().Unwrap(),
-                data.Member("bThird").Value<bool>().Read().Unwrap()),
+                data.Member("bFirst").Read<bool>().Unwrap(),
+                data.Member("bSecond").Read<bool>().Unwrap(),
+                data.Member("bThird").Read<bool>().Unwrap()),
             Is.EqualTo((true, false, true)));
     }
 
@@ -127,7 +128,7 @@ public sealed class UnrealGameUdkTests
     {
         var data = _fakeGame.Attach().GWorld.Path.Member("Game").Member("FixtureData");
 
-        Assert.That(data.Member("StringValue").Value<string>().Read().Unwrap(), Is.EqualTo(StringText));
+        Assert.That(data.Member("StringValue").Read<string>().Unwrap(), Is.EqualTo(StringText));
     }
 
     // NameValue is an id and a number in the layout of the document.
@@ -136,7 +137,7 @@ public sealed class UnrealGameUdkTests
     {
         var data = _fakeGame.Attach().GWorld.Path.Member("Game").Member("FixtureData");
 
-        Assert.That(data.Member("NameValue").Value<string>().Read().Unwrap(), Is.EqualTo(NameText));
+        Assert.That(data.Member("NameValue").Read<string>().Unwrap(), Is.EqualTo(NameText));
     }
 
     // An unreal3 document without the bool mask or the name id fails with the paths of Unreal Engine 3 and not with those of 4 and 5.
@@ -150,10 +151,10 @@ public sealed class UnrealGameUdkTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                data.Member("bFirst").Value<bool>().Read().UnwrapErr().Message,
+                data.Member("bFirst").Read<bool>().UnwrapErr().Message,
                 Does.EndWith("Can't read BoolProperty: the profile doesn't have offsets.UBoolProperty.BitMask."));
             Assert.That(
-                data.Member("NameValue").Value<string>().Read().UnwrapErr().Message,
+                data.Member("NameValue").Read<string>().UnwrapErr().Message,
                 Does.EndWith("Can't read NameProperty: the profile doesn't have offsets.FName.Index."));
         }
     }
@@ -168,7 +169,7 @@ public sealed class UnrealGameUdkTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                game.GWorld.Path.Member("Game").Member("FixtureData").Member("Coord").Member("X").Value<int>().Read().Unwrap(),
+                game.GWorld.Path.Member("Game").Member("FixtureData").Member("Coord").Member("X").Read<int>().Unwrap(),
                 Is.EqualTo(CoordX));
             Assert.That(watcher.Current, Is.EqualTo(CoordY));
         }

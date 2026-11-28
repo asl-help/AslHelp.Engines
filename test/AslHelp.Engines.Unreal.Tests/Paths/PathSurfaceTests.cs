@@ -9,18 +9,22 @@ namespace AslHelp.Engines.Unreal.Tests.Paths;
 
 public sealed class PathSurfaceTests
 {
-    // Values reach a script only through watchers, so a path doesn't have a public read, a value property or a conversion.
+    // A path reads its value through a watcher or its 2 Read methods, never through a value property or a conversion.
     // Value<T> only gives the source of a typed watcher, whose type isn't public.
     [Test]
-    public void PublicMembers_Paths_DoNotReadValues()
+    public void PublicMembers_Paths_ReadOnlyThroughWatchersAndRead()
     {
         var flags = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
 
         string[] names = [.. typeof(UnrealPath).GetMembers(flags).Select(static member => member.Name)];
+        var reads = typeof(UnrealPath).GetMethods(flags).Where(static method => method.Name == "Read").ToArray();
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(names, Has.None.AnyOf("Read", "Current", "Old", "op_Implicit", "op_Explicit"));
+            Assert.That(names, Has.None.AnyOf("Current", "Old", "op_Implicit", "op_Explicit"));
+            Assert.That(names, Has.Member("get_IsChecked"));
+            Assert.That(reads, Has.Length.EqualTo(2));
+            Assert.That(reads.Count(static method => method.IsGenericMethodDefinition), Is.EqualTo(1));
             Assert.That(typeof(UnrealValuePath<int>).IsPublic, Is.False);
         }
     }

@@ -40,7 +40,7 @@ public sealed class ValueKindEdgeTests(
         _fakeGame.Memory.WritePointer(kind + FakeGame.StructTypeOffset, kind);
 
         Assert.That(
-            Data.Member("Kind").Value<byte>().Read().UnwrapErr().Message,
+            Data.Member("Kind").Read<byte>().UnwrapErr().Message,
             Is.EqualTo(
                 "Can't read GWorld.GameMode.Data.Kind. The underlying property of Kind is EnumProperty, which isn't a number. "
                 + "Check UnderlyingProp of EnumProperty in the profile (0x70)."));
@@ -54,7 +54,7 @@ public sealed class ValueKindEdgeTests(
         _fakeGame.Memory.WritePointer(kind + FakeGame.StructTypeOffset, _fakeGame.PropertyAddress("StringValue"));
 
         Assert.That(
-            Data.Member("Kind").Value<byte>().Read().UnwrapErr().Message,
+            Data.Member("Kind").Read<byte>().UnwrapErr().Message,
             Is.EqualTo(
                 "Can't read GWorld.GameMode.Data.Kind. The underlying property of Kind is StrProperty, which isn't a number. "
                 + "Check UnderlyingProp of EnumProperty in the profile (0x70)."));
@@ -66,15 +66,15 @@ public sealed class ValueKindEdgeTests(
     {
         var pointer = _fakeGame.PropertyAddress("Kind") + FakeGame.StructTypeOffset;
         _fakeGame.Memory.WritePointer(pointer, _fakeGame.UnreadableAddress);
-        var kind = Data.Member("Kind").Value<byte>();
+        var kind = Data.Member("Kind");
 
-        var failed = kind.Read();
+        var failed = kind.Read<byte>();
         _fakeGame.Memory.WritePointer(pointer, _fakeGame.PropertyAddress("KindUnderlying"));
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(failed.UnwrapErr().Message, Does.StartWith("Can't read GWorld.GameMode.Data.Kind. "));
-            Assert.That(kind.Read().Unwrap(), Is.EqualTo(FakeGame.Kind));
+            Assert.That(kind.Read<byte>().Unwrap(), Is.EqualTo(FakeGame.Kind));
         }
     }
 
@@ -85,15 +85,15 @@ public sealed class ValueKindEdgeTests(
         var pointer = _fakeGame.PropertyAddress("Coord") + FakeGame.StructTypeOffset;
         var coordType = _fakeGame.Memory.ReadPointer(pointer).Unwrap();
         _fakeGame.Memory.WritePointer(pointer, _fakeGame.UnreadableAddress);
-        var x = Data.Member("Coord").Member("X").Value<int>();
+        var x = Data.Member("Coord").Member("X");
 
-        var failed = x.Read();
+        var failed = x.Read<int>();
         _fakeGame.Memory.WritePointer(pointer, coordType);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(failed.UnwrapErr().Message, Does.StartWith("Can't read GWorld.GameMode.Data.Coord.X at GWorld.GameMode.Data.Coord. "));
-            Assert.That(x.Read().Unwrap(), Is.EqualTo(FakeGame.CoordX));
+            Assert.That(x.Read<int>().Unwrap(), Is.EqualTo(FakeGame.CoordX));
         }
     }
 
@@ -105,7 +105,7 @@ public sealed class ValueKindEdgeTests(
         _fakeGame.Memory.WriteInt32(name + 4, -1);
 
         Assert.That(
-            Data.Member("NameValue").Value<string>().Read().UnwrapErr().Message,
+            Data.Member("NameValue").Read<string>().UnwrapErr().Message,
             Is.EqualTo($"Can't read GWorld.GameMode.Data.NameValue. The name at {name} has the number -1, which is below 0."));
     }
 
@@ -113,17 +113,17 @@ public sealed class ValueKindEdgeTests(
     [Test]
     public void Read_NameIdPastTableThenNone_FailsThenReadsNone()
     {
-        var nameValue = Data.Member("NameValue").Value<string>();
-        _ = nameValue.Read().Unwrap();
+        var nameValue = Data.Member("NameValue");
+        _ = nameValue.Read<string>().Unwrap();
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.NameValueOffset, 100_000);
 
-        var failed = nameValue.Read();
+        var failed = nameValue.Read<string>();
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.NameValueOffset, 0);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(failed.UnwrapErr().Message, Does.StartWith("Can't read GWorld.GameMode.Data.NameValue. "));
-            Assert.That(nameValue.Read().Unwrap(), Is.EqualTo("None"));
+            Assert.That(nameValue.Read<string>().Unwrap(), Is.EqualTo("None"));
         }
     }
 
@@ -136,7 +136,7 @@ public sealed class ValueKindEdgeTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                Data.Member("StringValue").Value<string>().Read().UnwrapErr().Message,
+                Data.Member("StringValue").Read<string>().UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.StringValue. StringValue has 2147483646 characters, past the limit of 512."));
             Assert.That(_fakeGame.Memory.ReadsAt(_fakeGame.Data + FakeGame.StringValueOffset), Is.Zero);
         }
@@ -148,7 +148,7 @@ public sealed class ValueKindEdgeTests(
     {
         _fakeGame.WriteString("ab\0cd");
 
-        Assert.That(Data.Member("StringValue").Value<string>().Read().Unwrap(), Is.EqualTo("ab\0cd"));
+        Assert.That(Data.Member("StringValue").Read<string>().Unwrap(), Is.EqualTo("ab\0cd"));
     }
 
     // A surrogate pair is 2 UTF-16 units in the count, so it comes back whole.
@@ -157,7 +157,7 @@ public sealed class ValueKindEdgeTests(
     {
         _fakeGame.WriteString("x😀y");
 
-        Assert.That(Data.Member("StringValue").Value<string>().Read().Unwrap(), Is.EqualTo("x😀y"));
+        Assert.That(Data.Member("StringValue").Read<string>().Unwrap(), Is.EqualTo("x😀y"));
     }
 
     // A short text after a long one reuses the buffer and doesn't keep characters of the long one.
@@ -189,7 +189,7 @@ public sealed class ValueKindEdgeTests(
         _fakeGame.Memory.WritePointer(_fakeGame.Data + FakeGame.StringValueOffset, data);
 
         Assert.That(
-            Data.Member("StringValue").Value<string>().Read().UnwrapErr().Message,
+            Data.Member("StringValue").Read<string>().UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read GWorld.GameMode.Data.StringValue. Can't read StringValue of the object at {_fakeGame.Data}: "
                 + $"reading {data} failed. No block contains {data}."));

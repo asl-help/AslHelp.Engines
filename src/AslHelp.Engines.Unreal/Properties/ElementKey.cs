@@ -83,6 +83,20 @@ internal sealed class ElementKey
     }
 
     /// <summary>
+    ///     Checks whether the key converts to <typeparamref name="TKey"/>, like <see cref="As{TKey}"/>.
+    /// </summary>
+    /// <typeparam name="TKey">The key type of the collection.</typeparam>
+    /// <param name="collection">The collection, for the kept result.</param>
+    /// <param name="property">The name of the collection, for the failure.</param>
+    /// <returns>
+    ///     A success or the failure of <see cref="As{TKey}"/>.
+    /// </returns>
+    public Result Check<TKey>(object collection, string property)
+    {
+        return As<TKey>(collection, property).TryUnwrapErr(out var error) ? error : Result.Ok();
+    }
+
+    /// <summary>
     ///     Returns the failure for a map that doesn't have the key.
     /// </summary>
     /// <param name="property">The name of the map.</param>
@@ -95,9 +109,9 @@ internal sealed class ElementKey
     }
 
     /// <summary>
-    ///     Returns the failure for an index outside the <paramref name="count"/> elements of an array.
+    ///     Returns the failure for an index outside the <paramref name="count"/> elements of an array or the used slots of a set or map.
     /// </summary>
-    /// <param name="property">The name of the array.</param>
+    /// <param name="property">The name of the collection.</param>
     /// <param name="index">The index, which is the key converted by <see cref="As{TKey}"/>.</param>
     /// <param name="count">The number of elements.</param>
     /// <returns>

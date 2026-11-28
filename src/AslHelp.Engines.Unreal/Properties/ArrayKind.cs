@@ -100,6 +100,11 @@ file sealed class ArrayElements(
 
     public int Stride { get; } = stride;
 
+    public override Result CheckKey(ElementKey key)
+    {
+        return key.Check<int>(this, Property.Name);
+    }
+
     public override Result<Address> FindElement(IMemoryReader memory, Address container, ElementKey key)
     {
         if (!key.As<int>(this, Property.Name).TryUnwrap(out int index, out var error)

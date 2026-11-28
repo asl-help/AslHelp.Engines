@@ -38,6 +38,13 @@ public sealed class UnrealGameUdkLookupTests
             Is.SameAs(_game.FindClass("FixtureData").Unwrap()));
     }
 
+    // The engine ignores case in class names, so fixturedata finds FixtureData under its real name.
+    [Test]
+    public void FindClass_NameInOtherCase_ReturnsTheClassWithItsRealName()
+    {
+        Assert.That(_game.FindClass("fixturedata").Unwrap(), Is.SameAs(_game.FindClass("FixtureData").Unwrap()));
+    }
+
     // FixtureData has 2 live objects and a default object, so the list has the 2 objects in array order with their name numbers.
     [Test]
     public void GetInstances_ClassWithTwoObjects_ReturnsBothInArrayOrder()
@@ -53,7 +60,7 @@ public sealed class UnrealGameUdkLookupTests
     {
         var data = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap().Single(static instance => instance.Name == "FixtureData_0");
 
-        Assert.That(data.Path.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(FakeUdkGame.IntValue));
+        Assert.That(data.Path.Member("IntValue").Read<int>().Unwrap(), Is.EqualTo(FakeUdkGame.IntValue));
     }
 
     // Engine has GameEngine below it and Object has the property classes 2 levels below it. Neither list has the class itself.

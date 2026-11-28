@@ -50,7 +50,7 @@ public sealed class UnrealPathEdgeTests(
         var pointer = gameMode + FakeGame.DataOffset;
 
         Assert.That(
-            Data.Read().UnwrapErr().Message,
+            Data.Read<Address>().UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read GWorld.GameMode.Data. Can't read Data of the object at {gameMode}: reading {pointer} failed. "
                 + $"No block contains {pointer}."));
@@ -63,7 +63,7 @@ public sealed class UnrealPathEdgeTests(
         _fakeGame.Memory.WritePointer(_fakeGame.GameMode + ClassOffset, Address.Zero);
 
         Assert.That(
-            Data.Read().UnwrapErr().Message,
+            Data.Read<Address>().UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read GWorld.GameMode.Data. The class pointer of the object at {_fakeGame.GameMode} is 0. "
                 + "Check ObjectLayout.Class (0x10)."));
@@ -77,7 +77,7 @@ public sealed class UnrealPathEdgeTests(
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, garbage);
 
         Assert.That(
-            Data.Read().UnwrapErr().Message,
+            Data.Read<Address>().UnwrapErr().Message,
             Does.StartWith($"Can't read GWorld.GameMode.Data. Can't read the class of the object at {garbage}: "));
     }
 
@@ -94,7 +94,7 @@ public sealed class UnrealPathEdgeTests(
         {
             Assert.That(data.IsOk, Is.True);
             Assert.That(
-                data.Read().UnwrapErr().Message,
+                data.Read<Address>().UnwrapErr().Message,
                 Does.StartWith($"Can't read GWorld.GameMode.Data. Can't read the class of the object at {garbage}: "));
         }
     }
@@ -126,7 +126,7 @@ public sealed class UnrealPathEdgeTests(
                 Is.EqualTo(
                     "Can't read GWorld.GameMode.Data.IntArray.Count. "
                     + "IntArray is a collection, so it takes an index or Count, not the member Count."));
-            Assert.That(intArray.Count().Value<int>().Read().Unwrap(), Is.EqualTo(3));
+            Assert.That(intArray.Count().Read<int>().Unwrap(), Is.EqualTo(3));
         }
     }
 
@@ -177,7 +177,7 @@ public sealed class UnrealPathEdgeTests(
             Assert.That(
                 position.Count().UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.Position.Count. Position isn't a collection, so it doesn't have a Count."));
-            Assert.That(position.Member("X").Value<float>().Read().Unwrap(), Is.EqualTo(1f));
+            Assert.That(position.Member("X").Read<float>().Unwrap(), Is.EqualTo(1f));
         }
     }
 
@@ -230,14 +230,14 @@ public sealed class UnrealPathEdgeTests(
     public void Read_ClassReplacedAtTheSameAddress_UsesTheOffsetOfTheNewClass()
     {
         var data = Data;
-        var before = data.Read();
+        var before = data.Read<Address>();
 
         _fakeGame.ReplaceFixtureGameModeClass();
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(before.Unwrap(), Is.EqualTo(_fakeGame.Data));
-            Assert.That(data.Read().Unwrap(), Is.EqualTo(_fakeGame.OtherData));
+            Assert.That(data.Read<Address>().Unwrap(), Is.EqualTo(_fakeGame.OtherData));
         }
     }
 
@@ -247,10 +247,10 @@ public sealed class UnrealPathEdgeTests(
     {
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.World);
         var path = Enumerable.Range(0, HopCount).Aggregate(Result.Ok<IMemberPath>(_game.GWorld.Path), (prefix, _) => prefix.Member("GameMode"));
-        _ = path.Read().Unwrap();
+        _ = path.Read<Address>().Unwrap();
 
         int reads = _fakeGame.Memory.Reads;
-        var world = path.Read().Unwrap();
+        var world = path.Read<Address>().Unwrap();
 
         using (Assert.EnterMultipleScope())
         {
@@ -266,13 +266,13 @@ public sealed class UnrealPathEdgeTests(
     {
         var data = Data;
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
-        _ = data.Read().UnwrapErr();
+        _ = data.Read<Address>().UnwrapErr();
 
         long before = GC.GetAllocatedBytesForCurrentThread();
 
         for (int count = 0; count < ProbeCount; count++)
         {
-            _ = data.Read();
+            _ = data.Read<Address>();
         }
 
         Assert.That(GC.GetAllocatedBytesForCurrentThread() - before, Is.Zero);
@@ -284,13 +284,13 @@ public sealed class UnrealPathEdgeTests(
     {
         var data = Data;
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.BaseGameMode);
-        _ = data.Read().UnwrapErr();
+        _ = data.Read<Address>().UnwrapErr();
 
         long before = GC.GetAllocatedBytesForCurrentThread();
 
         for (int count = 0; count < ProbeCount; count++)
         {
-            _ = data.Read();
+            _ = data.Read<Address>();
         }
 
         Assert.That(GC.GetAllocatedBytesForCurrentThread() - before, Is.Zero);
@@ -304,14 +304,14 @@ public sealed class UnrealPathEdgeTests(
         var mana = gameMode.Member("Mana");
         var data = gameMode.Member("Data");
 
-        var failure = mana.Read();
+        var failure = mana.Read<Address>();
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
                 failure.UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Mana. Class FixtureGameMode doesn't have a property Mana."));
-            Assert.That(data.Read().Unwrap(), Is.EqualTo(_fakeGame.Data));
+            Assert.That(data.Read<Address>().Unwrap(), Is.EqualTo(_fakeGame.Data));
         }
     }
 
@@ -320,7 +320,7 @@ public sealed class UnrealPathEdgeTests(
     public void Read_NonAsciiMember_FailsWithTheNameAsIs()
     {
         Assert.That(
-            _game.GWorld.Path.Member("ゲーム ü").Read().UnwrapErr().Message,
+            _game.GWorld.Path.Member("ゲーム ü").Read<Address>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.ゲーム ü. Class World doesn't have a property ゲーム ü."));
     }
 
@@ -328,14 +328,14 @@ public sealed class UnrealPathEdgeTests(
     [Test]
     public void Read_WrongKindSteadyState_DoesNotAllocate()
     {
-        var speed = _game.GWorld.Path.Member("GameMode").Member("Data").Member("Speed").Value<int>();
-        _ = speed.Read().UnwrapErr();
+        var speed = _game.GWorld.Path.Member("GameMode").Member("Data").Member("Speed");
+        _ = speed.Read<int>().UnwrapErr();
 
         long before = GC.GetAllocatedBytesForCurrentThread();
 
         for (int count = 0; count < 1000; count++)
         {
-            _ = speed.Read();
+            _ = speed.Read<int>();
         }
 
         Assert.That(GC.GetAllocatedBytesForCurrentThread() - before, Is.Zero);

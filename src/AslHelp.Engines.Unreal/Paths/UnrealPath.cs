@@ -1,3 +1,4 @@
+using AslHelp.Engines.Errors;
 using AslHelp.Engines.Unreal.Properties;
 using AslHelp.Memory;
 using AslHelp.Memory.Watching;
@@ -13,8 +14,12 @@ namespace AslHelp.Engines.Unreal.Paths;
 ///     <para>
 ///         Each step reads the path once with the classes the game has now. A member that the class doesn't have, a member after a value
 ///         or after a collection, an index or <c>Count</c> after a member that isn't a collection and a key of the wrong type fail on the step.
-///         When the path doesn't read yet, like on a null object or a root that isn't there, the step succeeds and the watcher fails each
-///         read until the path reads.
+///         When the path doesn't read yet, like on a null object or a root that isn't there, the step checks the same rules against the class
+///         that each property declares, starting at the 1st segment that doesn't read. The step fails when neither the declared class
+///         nor a loaded class derived from it has the member. It can pass once the game loads a derived class with the member.
+///         A step that the declared classes can't confirm succeeds with <see cref="IsChecked"/> <see langword="false"/>
+///         and the 1st read that reaches it fails with a shape mismatch when it doesn't fit.
+///         Names of members ignore case like the engine, but the exact name wins.
 ///     </para>
 ///     <para>
 ///         Each read looks the member up on the real class of the object it's read from again,
@@ -47,6 +52,17 @@ public sealed class UnrealPath : IMemberPath
     {
         _memberPath = memberPath;
     }
+
+    /// <summary>
+    ///     Gets a value indicating whether a step or a read checked the last step of the path against the classes of the game.
+    /// </summary>
+    /// <remarks>
+    ///     A step on a live object checks the real class of the object. When an object on the way is null,
+    ///     the step checks the class that each property declares instead, starting at the class of the root.
+    ///     It stays unchecked when only a loaded derived class has a member or a declared class doesn't read,
+    ///     until a read of the path reaches the step.
+    /// </remarks>
+    public bool IsChecked => _memberPath.IsChecked;
 
     /// <summary>
     ///     Creates the path to the number of elements of the array, set or map at the end of this path.
@@ -148,7 +164,8 @@ public sealed class UnrealPath : IMemberPath
     /// </typeparam>
     /// <returns>
     ///     The source or a failure when the kind at the end doesn't read as <typeparamref name="T"/>.
-    ///     A path that doesn't read yet fails each read of the watcher instead.
+    ///     When <see cref="IsChecked"/> is <see langword="false"/>, <typeparamref name="T"/> isn't checked either
+    ///     and each read of the watcher fails with a shape mismatch when it doesn't fit.
     /// </returns>
     public Result<IWatcherSource<T>> Value<T>()
     {
@@ -158,14 +175,36 @@ public sealed class UnrealPath : IMemberPath
     }
 
     /// <summary>
-    ///     Reads the address of the object or struct at the end of the path.
+    ///     Reads the value at the end of the path once, in the type of the kind of its property.
     /// </summary>
+    /// <remarks>
+    ///     Reads the whole path and doesn't use or change the reads that the watchers of a tick share,
+    ///     so a write in the current tick shows up. Returns the same types as <see cref="CreateWatcher"/>.
+    /// </remarks>
     /// <returns>
-    ///     The address or a failure. An object pointer of 0 at the end returns <see cref="Address.Zero"/>.
+    ///     The value or a <see cref="MemberPathError"/>.
     /// </returns>
-    internal Result<Address> Read()
+    public Result<object?> Read()
     {
-        return _memberPath.ReadContainer();
+        return _memberPath.ReadBoxed(null, null);
+    }
+
+    /// <summary>
+    ///     Reads the value of type <typeparamref name="T"/> at the end of the path once.
+    /// </summary>
+    /// <remarks>
+    ///     Reads like <see cref="Read()"/>.
+    /// </remarks>
+    /// <typeparam name="T">
+    ///     The type of the value, like <see cref="int"/> for an <c>IntProperty</c>. <see cref="UnrealGame.Read{T}"/> lists the types.
+    ///     The path of a root alone reads as an <see cref="Address"/>.
+    /// </typeparam>
+    /// <returns>
+    ///     The value or a <see cref="MemberPathError"/>. It's a shape mismatch when the kind at the end doesn't read as <typeparamref name="T"/>.
+    /// </returns>
+    public Result<T> Read<T>()
+    {
+        return _memberPath.ReadValue<T>(null, default);
     }
 
     private static Result<IMemberPath> Step(Result<MemberPath> memberPath)

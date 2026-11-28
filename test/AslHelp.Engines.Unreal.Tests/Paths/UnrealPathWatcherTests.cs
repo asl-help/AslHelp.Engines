@@ -1,3 +1,4 @@
+using AslHelp.Engines.Errors;
 using AslHelp.Memory;
 using AslHelp.Memory.Watching;
 using NUnit.Framework;
@@ -181,6 +182,16 @@ public sealed class UnrealPathWatcherTests(
         Assert.That(
             () => watcher.Current,
             Throws.InvalidOperationException.With.Message.Contains("TextValue is TextProperty, which the library doesn't read."));
+    }
+
+    // The kind doesn't depend on memory, so the failure is a shape mismatch and a later read can't work.
+    [Test]
+    public void CreateWatcher_UnsupportedKind_FailsAsShapeMismatch()
+    {
+        var watcher = Watch("TextValue");
+        _ = watcher.Current;
+
+        Assert.That(watcher.Error, Is.InstanceOf<MemberPathError>().With.Property(nameof(MemberPathError.IsShapeMismatch)).True);
     }
 
     // The path of the global alone reads the address of the world, 0 while the slot is 0.

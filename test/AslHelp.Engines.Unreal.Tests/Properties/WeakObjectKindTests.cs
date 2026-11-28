@@ -38,8 +38,8 @@ public sealed class WeakObjectKindTests(
     {
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(Data.Member("WeakItem").Value<Address>().Read().Unwrap(), Is.EqualTo(_fakeGame.World));
-            Assert.That(Data.Member("WeakItem").Member("GameMode").Read().Unwrap(), Is.EqualTo(_fakeGame.GameMode));
+            Assert.That(Data.Member("WeakItem").Read<Address>().Unwrap(), Is.EqualTo(_fakeGame.World));
+            Assert.That(Data.Member("WeakItem").Member("GameMode").Read<Address>().Unwrap(), Is.EqualTo(_fakeGame.GameMode));
         }
     }
 
@@ -51,9 +51,9 @@ public sealed class WeakObjectKindTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(Data.Member("WeakItem").Value<Address>().Read().Unwrap(), Is.EqualTo(Address.Zero));
+            Assert.That(Data.Member("WeakItem").Read<Address>().Unwrap(), Is.EqualTo(Address.Zero));
             Assert.That(
-                Data.Member("WeakItem").Member("Hp").Value<int>().Read().UnwrapErr().Message,
+                Data.Member("WeakItem").Member("Hp").Read<int>().UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.WeakItem.Hp: GWorld.GameMode.Data.WeakItem is null."));
         }
     }
@@ -67,7 +67,7 @@ public sealed class WeakObjectKindTests(
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.WeakItemOffset, index);
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.WeakItemOffset + 4, serial);
 
-        Assert.That(Data.Member("WeakItem").Value<Address>().Read().Unwrap(), Is.EqualTo(Address.Zero));
+        Assert.That(Data.Member("WeakItem").Read<Address>().Unwrap(), Is.EqualTo(Address.Zero));
     }
 
     // A document without FUObjectItem.SerialNumber gives items without serial numbers, so a weak pointer fails with the property.
@@ -77,7 +77,7 @@ public sealed class WeakObjectKindTests(
         var game = _fakeGame.Attach(Remove(FakeGame.Document(shape, "indirect", "flat"), "offsets", "FUObjectItem", "SerialNumber"));
 
         Assert.That(
-            game.GWorld.Path.Member("GameMode").Member("Data").Member("WeakItem").Value<Address>().Read().UnwrapErr().Message,
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("WeakItem").Read<Address>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.WeakItem. Can't resolve WeakItem: the object array doesn't have serial numbers."));
     }
 }

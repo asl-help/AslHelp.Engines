@@ -23,7 +23,7 @@ public sealed class StringKindTests(
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;
 
-    private Result<IWatcherSource<string>> StringValue => _game.GWorld.Path.Member("GameMode").Member("Data").Member("StringValue").Value<string>();
+    private Result<IMemberPath> StringValue => _game.GWorld.Path.Member("GameMode").Member("Data").Member("StringValue");
 
     [SetUp]
     public void SetUp()
@@ -36,7 +36,7 @@ public sealed class StringKindTests(
     [Test]
     public void Read_String_ReadsTheTextWithoutTheTerminator()
     {
-        Assert.That(StringValue.Read().Unwrap(), Is.EqualTo(FakeGame.StringText));
+        Assert.That(StringValue.Read<string>().Unwrap(), Is.EqualTo(FakeGame.StringText));
     }
 
     // Counts 0 and 1 are empty, so the read doesn't touch the data pointer, which points nowhere here.
@@ -49,7 +49,7 @@ public sealed class StringKindTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(StringValue.Read().Unwrap(), Is.Empty);
+            Assert.That(StringValue.Read<string>().Unwrap(), Is.Empty);
             Assert.That(_fakeGame.Memory.ReadsAt(_fakeGame.Data + FakeGame.StringValueOffset), Is.Zero);
         }
     }
@@ -60,7 +60,7 @@ public sealed class StringKindTests(
     {
         _fakeGame.WriteString("ü-日本-ё");
 
-        Assert.That(StringValue.Read().Unwrap(), Is.EqualTo("ü-日本-ё"));
+        Assert.That(StringValue.Read<string>().Unwrap(), Is.EqualTo("ü-日本-ё"));
     }
 
     // A count of 514 is 513 characters, past the 512 a read takes, so it fails with both numbers before it reads the characters.
@@ -70,7 +70,7 @@ public sealed class StringKindTests(
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.StringCountOffset, 514);
 
         Assert.That(
-            StringValue.Read().UnwrapErr().Message,
+            StringValue.Read<string>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.StringValue. StringValue has 513 characters, past the limit of 512."));
     }
 
@@ -81,7 +81,7 @@ public sealed class StringKindTests(
         string text = new('x', 512);
         _fakeGame.WriteString(text);
 
-        Assert.That(StringValue.Read().Unwrap(), Is.EqualTo(text));
+        Assert.That(StringValue.Read<string>().Unwrap(), Is.EqualTo(text));
     }
 
     // A negative count comes from a damaged header and fails with the count.
@@ -91,7 +91,7 @@ public sealed class StringKindTests(
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.StringCountOffset, -1);
 
         Assert.That(
-            StringValue.Read().UnwrapErr().Message,
+            StringValue.Read<string>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.StringValue. StringValue has the count -1, which is below 0."));
     }
 
@@ -103,7 +103,7 @@ public sealed class StringKindTests(
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.StringCountOffset, 5);
 
         Assert.That(
-            StringValue.Read().UnwrapErr().Message,
+            StringValue.Read<string>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.StringValue. StringValue has 4 characters, but its data pointer is 0."));
     }
 
@@ -112,7 +112,7 @@ public sealed class StringKindTests(
     public void CreateWatcher_SameCharactersInNewBuffer_KeepsTheText()
     {
         ManualTicks ticks = new();
-        var watcher = StringValue.Unwrap().CreateWatcher(ticks);
+        var watcher = StringValue.Value<string>().Unwrap().CreateWatcher(ticks);
         string? first = watcher.Current;
         var otherBuffer = _fakeGame.StringData + 0x800;
 
@@ -134,7 +134,7 @@ public sealed class StringKindTests(
         var game = _fakeGame.Attach(Remove(FakeGame.Document(shape, "indirect", "flat"), "offsets", "FScriptArray"));
 
         Assert.That(
-            game.GWorld.Path.Member("GameMode").Member("Data").Member("StringValue").Value<string>().Read().UnwrapErr().Message,
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("StringValue").Read<string>().UnwrapErr().Message,
             Is.EqualTo(
                 "Can't read GWorld.GameMode.Data.StringValue. Can't read StrProperty: the profile doesn't have "
                 + "offsets.FScriptArray.Data, offsets.FScriptArray.ArrayNum."));

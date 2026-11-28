@@ -20,6 +20,10 @@ namespace AslHelp.Engines.Unreal;
 /// </remarks>
 public sealed class UnrealGame
 {
+    // Check the steps after a null GEngine or GWorld against the classes that the engine declares them as.
+    private const string EngineClassName = "Engine";
+    private const string WorldClassName = "World";
+
     private static readonly Lazy<ProfileCatalog<UnrealProfile>> _shippedCatalog = new(UnrealProfile.CreateCatalog);
 
     private readonly ClassReader _classReader;
@@ -47,8 +51,8 @@ public sealed class UnrealGame
         PropertyReader = propertyReader;
         ObjectArray = objectArray;
         _classReader = classReader;
-        GWorld = new UnrealRoot(classReader, PathRoot.Global(gWorldSlot), UnrealProfile.WorldGlobal);
-        GEngine = new UnrealRoot(classReader, PathRoot.Global(gEngineSlot), UnrealProfile.EngineGlobal);
+        GWorld = new UnrealRoot(classReader, PathRoot.Global(classReader, gWorldSlot, WorldClassName), UnrealProfile.WorldGlobal);
+        GEngine = new UnrealRoot(classReader, PathRoot.Global(classReader, gEngineSlot, EngineClassName), UnrealProfile.EngineGlobal);
         _hasSubsystems = hasSubsystems;
     }
 
@@ -239,8 +243,10 @@ public sealed class UnrealGame
     ///     Finds the loaded class called <paramref name="name"/>.
     /// </summary>
     /// <remarks>
-    ///     Compares ordinally. Returns an object of the object array whose class is <c>Class</c> or derives from it,
+    ///     Ignores case like the engine, but a class with the exact name wins.
+    ///     Returns an object of the object array whose class is <c>Class</c> or derives from it,
     ///     as <c>BlueprintGeneratedClass</c> does. When 2 classes have the name, returns the one a call found 1st, in array order within 1 call.
+    ///     A name that only matches in another case reads every kept class name on each call.
     ///     The 1st call reads every object of the array and keeps the name of every class and every package.
     ///     A later call checks the name and the class of a kept class. A miss reads the array again,
     ///     the objects in array slots that changed and the name of each kept Blueprint class.
@@ -286,7 +292,7 @@ public sealed class UnrealGame
     /// <remarks>
     ///     Doesn't read memory and doesn't check that the class is a subsystem. A read of a path from the root finds the object and keeps it,
     ///     so a subsystem that the game creates later shows up and a read finds a replaced subsystem again.
-    ///     Returns the same root on each call with an ordinally equal name.
+    ///     Finds the class like <see cref="FindClass"/>. Returns the same root on each call with an ordinally equal name.
     ///     Isn't thread-safe.
     /// </remarks>
     /// <param name="className">The name of the class without a prefix, like <c>MySubsystem</c>.</param>

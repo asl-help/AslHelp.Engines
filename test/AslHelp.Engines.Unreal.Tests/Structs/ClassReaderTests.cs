@@ -99,11 +99,19 @@ public sealed class ClassReaderTests(
         Assert.That(CreateReader(memory).Find("Pawn").UnwrapErr().Message, Is.EqualTo("Can't find a loaded class called Pawn."));
     }
 
-    // Find compares ordinally, like StructReader.DerivesFrom, so a name in another case fails.
+    // The engine ignores case in names, so pawn finds Pawn under its real name and a later exact lookup still finds it.
     [Test]
-    public void Find_NameInOtherCase_Fails()
+    public void Find_NameInOtherCase_ReturnsTheClass()
     {
-        Assert.That(CreateReader(MemoryWithGame()).Find("pawn").IsErr, Is.True);
+        var reader = CreateReader(MemoryWithGame());
+
+        var pawn = reader.Find("pawn").Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That((pawn.Address, pawn.Name), Is.EqualTo((_pawn, "Pawn")));
+            Assert.That(reader.Find("Pawn").Unwrap(), Is.SameAs(pawn));
+        }
     }
 
     // A miss doesn't get kept, so a class added to the array after the 1st call shows up on the 2nd.

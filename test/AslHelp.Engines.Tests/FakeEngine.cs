@@ -1,3 +1,4 @@
+using AslHelp.Engines.Errors;
 using AslHelp.Memory;
 using AslHelp.Memory.Watching;
 using System;
@@ -92,6 +93,8 @@ internal sealed class FakeStruct(
 file sealed class FakePath(
     FakeNode node) : IMemberPath
 {
+    public bool IsChecked => node.IsChecked;
+
     public static FakePath Root(FakeObject root)
     {
         return new FakePath(new FakeNode(root, null, null));
@@ -124,8 +127,18 @@ file sealed class FakePath(
         return Step(new MemberStep(name));
     }
 
-    // Read the value at the end, once per tick of a watcher's counter and every time for a step check.
-    public Result<T> Read<T>(ITickCounter? ticks)
+    public Result<object?> Read()
+    {
+        return node.Read(null, out _).TryUnwrap(out object? value, out var error) ? Result.Ok(ToValue(value)) : error;
+    }
+
+    public Result<T> Read<T>()
+    {
+        return ReadValue<T>(null);
+    }
+
+    // Read the value at the end, once per tick of a watcher's counter and every time for a step check or a direct read.
+    public Result<T> ReadValue<T>(ITickCounter? ticks)
     {
         if (!node.Read(ticks, out _).TryUnwrap(out object? value, out var error))
         {
@@ -171,6 +184,9 @@ file sealed class FakeNode(
 {
     private readonly Dictionary<FakeStep, FakeNode> _children = [];
     private readonly TickMemo<Result<object?>> _value = new();
+
+    // Check the root at once and a step once a read reaches it on an object or struct.
+    public bool IsChecked { get; private set; } = parent is null;
 
     public FakeNode Child(FakeStep childStep)
     {
@@ -223,12 +239,15 @@ file sealed class FakeNode(
             return error is NullObjectError nullObject ? new NullObjectError(this, nullObject.Start) : error;
         }
 
+        if (current is null)
+        {
+            return new NullObjectError(this, parent);
+        }
+
+        IsChecked = true;
+
         switch (step, current)
         {
-            case (_, null):
-            {
-                return new NullObjectError(this, parent);
-            }
             case (MemberStep member, FakeObject obj):
             {
                 if (!obj.TryRead(member.Name, out current))
@@ -301,7 +320,7 @@ file sealed class FakeWatcher<T> : Watcher<T>
 
     protected override Result<T> Read()
     {
-        return _path.Read<T>(Ticks);
+        return _path.ReadValue<T>(Ticks);
     }
 }
 file abstract record FakeStep;
@@ -334,35 +353,45 @@ file sealed record MemberStep(
 
 file sealed record MismatchError(
     FakeNode Start,
-    FakeStep Step) : ResultError
+    FakeStep Step) : MemberPathError
 {
+    public override bool IsShapeMismatch => true;
+
     public override string Message => $"{Start} doesn't take {Step}.";
 }
 
 file sealed record MissingItemError(
     FakeNode Start,
-    FakeStep Step) : ResultError
+    FakeStep Step) : MemberPathError
 {
+    public override bool IsShapeMismatch => false;
+
     public override string Message => $"{Start} doesn't have the item {Step}.";
 }
 
 file sealed record MissingMemberError(
     string TypeName,
-    string Name) : ResultError
+    string Name) : MemberPathError
 {
+    public override bool IsShapeMismatch => true;
+
     public override string Message => $"{TypeName} doesn't have a member {Name}.";
 }
 
 file sealed record NullObjectError(
     FakeNode Path,
-    FakeNode Start) : ResultError
+    FakeNode Start) : MemberPathError
 {
+    public override bool IsShapeMismatch => false;
+
     public override string Message => $"Can't read {Path}: {Start} is null.";
 }
 
 file sealed record WrongTypeError(
     FakeNode Path,
-    string TypeName) : ResultError
+    string TypeName) : MemberPathError
 {
+    public override bool IsShapeMismatch => true;
+
     public override string Message => $"{Path} isn't a {TypeName}.";
 }

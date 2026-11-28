@@ -44,6 +44,29 @@ public static class MemberPathExtensions
         }
 
         /// <summary>
+        ///     Reads the value at the end of the path once, in the type the engine reads it as.
+        /// </summary>
+        /// <returns>
+        ///     The value or the failure of the path or of the read.
+        /// </returns>
+        public Result<object?> Read()
+        {
+            return path.TryUnwrap(out var end, out var error) ? end.Read() : error;
+        }
+
+        /// <summary>
+        ///     Reads the value of type <typeparamref name="T"/> at the end of the path once.
+        /// </summary>
+        /// <typeparam name="T">The type of the value.</typeparam>
+        /// <returns>
+        ///     The value or the failure of the path or of the read.
+        /// </returns>
+        public Result<T> Read<T>()
+        {
+            return path.TryUnwrap(out var end, out var error) ? end.Read<T>() : error;
+        }
+
+        /// <summary>
         ///     Creates the source of a typed watcher for the value at the end of the path.
         /// </summary>
         /// <typeparam name="T">The type of the value.</typeparam>

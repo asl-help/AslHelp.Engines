@@ -1,3 +1,4 @@
+using AslHelp.Engines.Errors;
 using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using NUnit.Framework;
@@ -40,7 +41,7 @@ public sealed class UnrealPathTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(readsAfterGet, Is.EqualTo(reads));
-            Assert.That(gWorld.Read().Unwrap(), Is.EqualTo(_fakeGame.World));
+            Assert.That(gWorld.Read<Address>().Unwrap(), Is.EqualTo(_fakeGame.World));
         }
     }
 
@@ -50,14 +51,14 @@ public sealed class UnrealPathTests(
     {
         _fakeGame.Memory.WritePointer(_fakeGame.GWorldSlot, Address.Zero);
 
-        Assert.That(_game.GWorld.Path.Read().Unwrap(), Is.EqualTo(Address.Zero));
+        Assert.That(_game.GWorld.Path.Read<Address>().Unwrap(), Is.EqualTo(Address.Zero));
     }
 
     // GameMode is read from the world and Data from the game mode.
     [Test]
     public void Read_TwoObjectHops_ReadsTheDataObject()
     {
-        Assert.That(_game.GWorld.Path.Member("GameMode").Member("Data").Read().Unwrap(), Is.EqualTo(_fakeGame.Data));
+        Assert.That(_game.GWorld.Path.Member("GameMode").Member("Data").Read<Address>().Unwrap(), Is.EqualTo(_fakeGame.Data));
     }
 
     // Data is a property of FixtureGameMode and not of GameModeBase, so the hop reads the class of the object and not a declared class.
@@ -66,9 +67,9 @@ public sealed class UnrealPathTests(
     {
         var data = _game.GWorld.Path.Member("GameMode").Member("Data");
 
-        var fromFixtureGameMode = data.Read();
+        var fromFixtureGameMode = data.Read<Address>();
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.BaseGameMode);
-        var fromGameModeBase = data.Read();
+        var fromGameModeBase = data.Read<Address>();
 
         using (Assert.EnterMultipleScope())
         {
@@ -85,12 +86,12 @@ public sealed class UnrealPathTests(
     {
         var data = _game.GWorld.Path.Member("GameMode").Member("Data");
 
-        var first = data.Read();
+        var first = data.Read<Address>();
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.OtherGameMode);
-        var other = data.Read();
+        var other = data.Read<Address>();
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.GameMode);
         int reads = _fakeGame.Memory.Reads;
-        var back = data.Read();
+        var back = data.Read<Address>();
 
         using (Assert.EnterMultipleScope())
         {
@@ -108,7 +109,7 @@ public sealed class UnrealPathTests(
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
 
         Assert.That(
-            _game.GWorld.Path.Member("GameMode").Member("Data").Read().UnwrapErr().Message,
+            _game.GWorld.Path.Member("GameMode").Member("Data").Read<Address>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data: GWorld.GameMode is null."));
     }
 
@@ -118,7 +119,9 @@ public sealed class UnrealPathTests(
     {
         _fakeGame.Memory.WritePointer(_fakeGame.GWorldSlot, Address.Zero);
 
-        Assert.That(_game.GWorld.Path.Member("GameMode").Read().UnwrapErr().Message, Is.EqualTo("Can't read GWorld.GameMode: GWorld is null."));
+        Assert.That(
+            _game.GWorld.Path.Member("GameMode").Read<Address>().UnwrapErr().Message,
+            Is.EqualTo("Can't read GWorld.GameMode: GWorld is null."));
     }
 
     // A path returns the same error for a null object on each read, because a loading game fails that way on every tick.
@@ -128,8 +131,8 @@ public sealed class UnrealPathTests(
         var data = _game.GWorld.Path.Member("GameMode").Member("Data");
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
 
-        var first = data.Read().UnwrapErr();
-        var second = data.Read().UnwrapErr();
+        var first = data.Read<Address>().UnwrapErr();
+        var second = data.Read<Address>().UnwrapErr();
 
         Assert.That(second, Is.SameAs(first));
     }
@@ -141,9 +144,9 @@ public sealed class UnrealPathTests(
         var data = _game.GWorld.Path.Member("GameMode").Member("Data");
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.BaseGameMode);
 
-        var first = data.Read().UnwrapErr();
+        var first = data.Read<Address>().UnwrapErr();
         int reads = _fakeGame.Memory.Reads;
-        var second = data.Read().UnwrapErr();
+        var second = data.Read<Address>().UnwrapErr();
 
         using (Assert.EnterMultipleScope())
         {
@@ -159,13 +162,13 @@ public sealed class UnrealPathTests(
         var data = _game.GWorld.Path.Member("GameMode").Member("Data");
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
 
-        var failure = data.Read();
+        var failure = data.Read<Address>();
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.GameMode);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(failure.IsErr, Is.True);
-            Assert.That(data.Read().Unwrap(), Is.EqualTo(_fakeGame.Data));
+            Assert.That(data.Read<Address>().Unwrap(), Is.EqualTo(_fakeGame.Data));
         }
     }
 
@@ -176,7 +179,7 @@ public sealed class UnrealPathTests(
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.UnreadableAddress);
 
         Assert.That(
-            _game.GWorld.Path.Member("GameMode").Member("Data").Read().UnwrapErr().Message,
+            _game.GWorld.Path.Member("GameMode").Member("Data").Read<Address>().UnwrapErr().Message,
             Does.StartWith($"Can't read GWorld.GameMode.Data. Can't read the class of the object at {_fakeGame.UnreadableAddress}: "));
     }
 
@@ -189,25 +192,6 @@ public sealed class UnrealPathTests(
             Is.EqualTo("Can't read GWorld.Mana. Class World doesn't have a property Mana."));
     }
 
-    // A step after a null game mode can't check the name, so the read fails with the class once the game mode is there.
-    [Test]
-    public void Member_MisspelledNameAfterANullObject_FailsWhenTheWatcherReads()
-    {
-        _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
-        var mana = _game.GWorld.Path.Member("GameMode").Member("Mana");
-
-        string nullObject = mana.Read().UnwrapErr().Message;
-        _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.GameMode);
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(nullObject, Is.EqualTo("Can't read GWorld.GameMode.Mana: GWorld.GameMode is null."));
-            Assert.That(
-                mana.Read().UnwrapErr().Message,
-                Is.EqualTo("Can't read GWorld.GameMode.Mana. Class FixtureGameMode doesn't have a property Mana."));
-        }
-    }
-
     // A hop doesn't keep a failed lookup, so the path reads once the properties of the class read.
     [Test]
     public void Read_PropertiesReadableAfterAFailure_ReadsTheMember()
@@ -215,23 +199,27 @@ public sealed class UnrealPathTests(
         _fakeGame.Memory.WritePointer(_fakeGame.FixtureGameModeClass + FakeGame.SuperStructOffset, _fakeGame.UnreadableAddress);
         var data = _game.GWorld.Path.Member("GameMode").Member("Data");
 
-        var failure = data.Read();
+        var failure = data.Read<Address>();
         _fakeGame.Memory.WritePointer(_fakeGame.FixtureGameModeClass + FakeGame.SuperStructOffset, _fakeGame.GameModeBaseClass);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(failure.UnwrapErr().Message, Does.StartWith("Can't read GWorld.GameMode.Data. "));
-            Assert.That(data.Read().Unwrap(), Is.EqualTo(_fakeGame.Data));
+            Assert.That(data.Read<Address>().Unwrap(), Is.EqualTo(_fakeGame.Data));
         }
     }
 
-    // Hp is an IntProperty, so an object hop through it fails with its kind.
+    // Hp is an IntProperty, so a read as an address fails as a shape mismatch with both types.
     [Test]
-    public void Read_IntMemberAsObjectHop_FailsWithWrongKind()
+    public void Read_IntMemberAsAddress_FailsWithAShapeMismatch()
     {
-        Assert.That(
-            _game.GWorld.Path.Member("GameMode").Member("Data").Member("Hp").Read().UnwrapErr().Message,
-            Is.EqualTo("Can't read GWorld.GameMode.Data.Hp. Hp is IntProperty, which doesn't have members."));
+        var error = _game.GWorld.Path.Member("GameMode").Member("Data").Member("Hp").Read<Address>().UnwrapErr();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(error.Message, Is.EqualTo("Can't read GWorld.GameMode.Data.Hp. Hp is IntProperty, which reads as Int32, not Address."));
+            Assert.That(error, Is.InstanceOf<MemberPathError>().With.Property(nameof(MemberPathError.IsShapeMismatch)).True);
+        }
     }
 
     // Member throws on a null name.

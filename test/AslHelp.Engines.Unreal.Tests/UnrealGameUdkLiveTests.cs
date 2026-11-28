@@ -1,3 +1,4 @@
+using AslHelp.Engines.Errors;
 using AslHelp.Engines.Profiles;
 using AslHelp.Memory;
 using AslHelp.Memory.Remote;
@@ -35,7 +36,7 @@ public sealed class UnrealGameUdkLiveTests
     {
         WithAttachedPlayer(game =>
         {
-            var world = game.GWorld.Path.Read().Unwrap();
+            var world = game.GWorld.Path.Read<Address>().Unwrap();
 
             using (Assert.EnterMultipleScope())
             {
@@ -57,10 +58,37 @@ public sealed class UnrealGameUdkLiveTests
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(game.FindClass("World").Unwrap().GetProperties().Unwrap(), Is.Empty);
-                Assert.That(data.Path.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(1337));
-                Assert.That(data.Path.Member("Hp").Value<int>().Read().Unwrap(), Is.InRange(1, 1000));
+                Assert.That(data.Path.Member("IntValue").Read<int>().Unwrap(), Is.EqualTo(1337));
+                Assert.That(data.Path.Member("Hp").Read<int>().Unwrap(), Is.InRange(1, 1000));
             }
         });
+    }
+
+    // A direct read gives the value of a watcher, boxed or typed and with the name in any case.
+    [Test]
+    public void Read_RealPlayerIntValueInAnyCase_EqualsTheWatcherValue()
+    {
+        WithAttachedPlayer(game =>
+        {
+            var data = game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap().Single().Path;
+            var watcher = data.Member("IntValue").Value<int>().Unwrap().CreateWatcher(new ManualTicks());
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(data.Member("IntValue").Read().Unwrap(), Is.EqualTo(watcher.Current));
+                Assert.That(data.Member("intvalue").Read<int>().Unwrap(), Is.EqualTo(1337));
+                Assert.That(data.Member("IntValue").Unwrap().IsChecked, Is.True);
+            }
+        });
+    }
+
+    // Neither FixtureData nor a derived class has Hpp, so the typo fails on the step as a shape mismatch.
+    [Test]
+    public void Member_RealPlayerTypo_FailsWithAShapeMismatch()
+    {
+        WithAttachedPlayer(game => Assert.That(
+            game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap().Single().Path.Member("Hpp").UnwrapErr(),
+            Is.InstanceOf<MemberPathError>().With.Property(nameof(MemberPathError.IsShapeMismatch)).True));
     }
 
     // The value kinds that Unreal Engine 3 stores in its own way read the values PostBeginPlay sets, bools through their 4-byte masks.
@@ -169,9 +197,9 @@ public sealed class UnrealGameUdkLiveTests
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(data.Member("Position").Member("X").Value<float>().Read().Unwrap(), Is.EqualTo(1f));
-                Assert.That(data.Member("Position").Member("Y").Value<float>().Read().Unwrap(), Is.EqualTo(2f));
-                Assert.That(data.Member("Position").Member("Z").Value<float>().Read().Unwrap(), Is.EqualTo(3f));
+                Assert.That(data.Member("Position").Member("X").Read<float>().Unwrap(), Is.EqualTo(1f));
+                Assert.That(data.Member("Position").Member("Y").Read<float>().Unwrap(), Is.EqualTo(2f));
+                Assert.That(data.Member("Position").Member("Z").Read<float>().Unwrap(), Is.EqualTo(3f));
                 Assert.That(position?.Names, Is.EqualTo(["X", "Y", "Z"]));
                 Assert.That(position?.Values, Is.EqualTo([1f, 2f, 3f]));
             }
@@ -202,8 +230,8 @@ public sealed class UnrealGameUdkLiveTests
         {
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(game.ClassOf(game.GEngine.Path.Read().Unwrap()).Unwrap().Name, Is.EqualTo("GameEngine"));
-                Assert.That(game.GEngine.Path.Member("TinyFontName").Value<string>().Read().Unwrap(), Is.EqualTo("EngineFonts.TinyFont"));
+                Assert.That(game.ClassOf(game.GEngine.Path.Read<Address>().Unwrap()).Unwrap().Name, Is.EqualTo("GameEngine"));
+                Assert.That(game.GEngine.Path.Member("TinyFontName").Read<string>().Unwrap(), Is.EqualTo("EngineFonts.TinyFont"));
             }
         });
     }
@@ -224,7 +252,7 @@ public sealed class UnrealGameUdkLiveTests
                     Is.EqualTo(new ProfileTarget(UnrealTarget.Unreal3, UnrealTarget.ParseVersion("2010-09")!, "win-x86-shipping")));
                 Assert.That(game.Selection.Entry.Source, Is.EqualTo("Profiles/unreal3-2010-09.json"));
                 Assert.That(game.Selection.Match, Is.EqualTo(ProfileMatch.Listed));
-                Assert.That(data.Path.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(1337));
+                Assert.That(data.Path.Member("IntValue").Read<int>().Unwrap(), Is.EqualTo(1337));
             }
         });
     }

@@ -44,7 +44,7 @@ public sealed class UnrealPackage
     ///     Finds the loaded class of the package called <paramref name="name"/>.
     /// </summary>
     /// <remarks>
-    ///     Compares ordinally, like <see cref="UnrealGame.FindClass"/>.
+    ///     Ignores case and lets the exact name win, like <see cref="UnrealGame.FindClass"/>.
     /// </remarks>
     /// <param name="name">The name of the class without a prefix, like <c>Actor</c>.</param>
     /// <returns>
@@ -62,15 +62,22 @@ public sealed class UnrealPackage
             return error;
         }
 
+        UnrealClass? otherCase = null;
+
         foreach (var klass in classes)
         {
             if (string.Equals(klass.Name, name, StringComparison.Ordinal))
             {
                 return klass;
             }
+
+            if (otherCase is null && string.Equals(klass.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                otherCase = klass;
+            }
         }
 
-        return PackageError.ClassNotFound(Name, name);
+        return otherCase is null ? PackageError.ClassNotFound(Name, name) : otherCase;
     }
 
     /// <summary>

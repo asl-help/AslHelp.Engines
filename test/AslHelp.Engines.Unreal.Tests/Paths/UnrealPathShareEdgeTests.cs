@@ -392,8 +392,7 @@ public sealed class UnrealPathShareEdgeTests(
         }
     }
 
-    // Steps compare members ordinally, so a member in another case, with an accent or empty is its own path and fails with its own text.
-    [TestCase("hp")]
+    // A member with an accent or an empty member is its own path and fails with its own text.
     [TestCase("Hpé")]
     [TestCase("")]
     public void Member_NameThatOnlyLooksEqual_FailsWithItsOwnText(string name)
@@ -407,6 +406,19 @@ public sealed class UnrealPathShareEdgeTests(
         {
             Assert.That(other.UnwrapErr().Message, Does.StartWith($"Can't read GWorld.GameMode.Data.{name}. "));
             Assert.That(hp.Current, Is.EqualTo(FakeGame.Hp));
+        }
+    }
+
+    // The engine ignores case in names, so hp reads Hp and the path prints the name as written.
+    [Test]
+    public void Member_NameInOtherCase_ReadsTheSameValue()
+    {
+        var hp = _game.GWorld.Path.Member("GameMode").Member("Data").Member("hp").Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(hp.Read<int>().Unwrap(), Is.EqualTo(FakeGame.Hp));
+            Assert.That(hp.ToString(), Is.EqualTo("GWorld.GameMode.Data.hp"));
         }
     }
 

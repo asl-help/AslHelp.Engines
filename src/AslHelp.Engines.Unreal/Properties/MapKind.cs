@@ -10,6 +10,7 @@ namespace AslHelp.Engines.Unreal.Properties;
 /// </summary>
 /// <remarks>
 ///     A key after the map reads its value or steps into it, like <c>Dict["two"]</c> or <c>CoordDict[5].X</c>.
+///     A map keyed by objects takes the position among the used pairs instead.
 ///     The key and the value of a pair sit at the offsets of the key and value properties. Only the used slots of the sparse array count.
 /// </remarks>
 internal sealed class MapKind : LayoutKind<MapPropertyLayout>
@@ -123,8 +124,19 @@ file sealed class MapElements<TKey>(
 
     public SparseArray SparseArray { get; } = sparseArray;
 
+    public override Result CheckKey(ElementKey key)
+    {
+        return typeof(TKey) == typeof(Address) ? key.Check<int>(SparseArray, Property.Name) : key.Check<TKey>(this, Property.Name);
+    }
+
     public override Result<Address> FindElement(IMemoryReader memory, Address container, ElementKey key)
     {
+        // Find a pair of a map keyed by objects by its position, because a path key can't be an address.
+        if (typeof(TKey) == typeof(Address))
+        {
+            return SparseArray.FindUsed(memory, container, Lookup.SlotSize, key);
+        }
+
         if (!key.As<TKey>(this, Property.Name).TryUnwrap(out var value, out var error)
             || !Lookup.Find(memory, container, value, key).TryUnwrap(out var slot, out error))
         {

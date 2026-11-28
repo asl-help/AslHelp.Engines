@@ -40,7 +40,7 @@ public sealed class UnrealValuePathEdgeTests(
     public void Read_WrongKindInTheMiddle_FailsAtThatHop()
     {
         Assert.That(
-            _game.GWorld.Path.Member("GameMode").Member("Data").Member("Hp").Member("Speed").Value<int>().Read().UnwrapErr().Message,
+            _game.GWorld.Path.Member("GameMode").Member("Data").Member("Hp").Member("Speed").Read<int>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.Hp.Speed at GWorld.GameMode.Data.Hp. Hp is IntProperty, which doesn't have members."));
     }
 
@@ -80,13 +80,13 @@ public sealed class UnrealValuePathEdgeTests(
     [Test]
     public void Read_NullMovesToALaterHop_FailsWithTheLaterHop()
     {
-        var hp = Hp;
+        var hp = _game.GWorld.Path.Member("GameMode").Member("Data").Member("Hp");
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
-        string gameModeNull = hp.Read().UnwrapErr().Message;
+        string gameModeNull = hp.Read<int>().UnwrapErr().Message;
 
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.GameMode);
         _fakeGame.Memory.WritePointer(_fakeGame.GameMode + FakeGame.DataOffset, Address.Zero);
-        string dataNull = hp.Read().UnwrapErr().Message;
+        string dataNull = hp.Read<int>().UnwrapErr().Message;
 
         using (Assert.EnterMultipleScope())
         {

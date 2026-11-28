@@ -19,18 +19,28 @@ internal abstract class PathRoot
     public abstract Result<Address> Read();
 
     /// <summary>
+    ///     Reads the class that the object of the root has or is declared as, which a step checks while the object isn't there.
+    /// </summary>
+    /// <returns>
+    ///     The class or a failure when the class isn't loaded or doesn't read.
+    /// </returns>
+    public abstract Result<UnrealClass> ReadDeclaredClass();
+
+    /// <summary>
     ///     Creates the root at the object in the slot of a global, like <c>GWorld</c>.
     /// </summary>
     /// <remarks>
     ///     Reads the pointer in the slot on each read, so an object that the game sets later shows up.
     /// </remarks>
+    /// <param name="classReader">The reader of the game.</param>
     /// <param name="globalSlot">The slot of the global.</param>
+    /// <param name="className">The name of the class that the global is declared as, like <c>World</c>.</param>
     /// <returns>
     ///     The root.
     /// </returns>
-    public static PathRoot Global(GlobalPointer globalSlot)
+    public static PathRoot Global(ClassReader classReader, GlobalPointer globalSlot, string className)
     {
-        return new GlobalRoot(globalSlot);
+        return new GlobalRoot(classReader, globalSlot, className);
     }
 
     /// <summary>
@@ -71,11 +81,18 @@ internal abstract class PathRoot
 }
 
 file sealed class GlobalRoot(
-    GlobalPointer globalSlot) : PathRoot
+    ClassReader classReader,
+    GlobalPointer globalSlot,
+    string className) : PathRoot
 {
     public override Result<Address> Read()
     {
         return globalSlot.Read();
+    }
+
+    public override Result<UnrealClass> ReadDeclaredClass()
+    {
+        return classReader.Find(className);
     }
 }
 
@@ -94,6 +111,11 @@ file sealed class ObjectRoot(
         }
 
         return live ? obj.Address : _goneError ??= RootError.ObjectGone(obj.Class.Name, obj.Address);
+    }
+
+    public override Result<UnrealClass> ReadDeclaredClass()
+    {
+        return obj.Class;
     }
 }
 
@@ -131,5 +153,10 @@ file sealed class FirstObjectRoot(
         _object = objects[0];
 
         return _object.Address;
+    }
+
+    public override Result<UnrealClass> ReadDeclaredClass()
+    {
+        return classReader.Find(className);
     }
 }

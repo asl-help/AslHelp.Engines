@@ -36,21 +36,21 @@ public sealed class EnumKindTests(
     [Test]
     public void Read_EnumWithByteUnderlying_ReadsByte()
     {
-        Assert.That(Data.Member("Kind").Value<byte>().Read().Unwrap(), Is.EqualTo(FakeGame.Kind));
+        Assert.That(Data.Member("Kind").Read<byte>().Unwrap(), Is.EqualTo(FakeGame.Kind));
     }
 
     // WideKind has an IntProperty as its underlying property, so it reads as 4 bytes.
     [Test]
     public void Read_EnumWithIntUnderlying_ReadsInt32()
     {
-        Assert.That(Data.Member("WideKind").Value<int>().Read().Unwrap(), Is.EqualTo(FakeGame.WideKind));
+        Assert.That(Data.Member("WideKind").Read<int>().Unwrap(), Is.EqualTo(FakeGame.WideKind));
     }
 
     // LongKind has an Int64Property as its underlying property, so it reads as 8 bytes.
     [Test]
     public void Read_EnumWithInt64Underlying_ReadsInt64()
     {
-        Assert.That(Data.Member("LongKind").Value<long>().Read().Unwrap(), Is.EqualTo(FakeGame.LongKind));
+        Assert.That(Data.Member("LongKind").Read<long>().Unwrap(), Is.EqualTo(FakeGame.LongKind));
     }
 
     // An enum read as another type than its underlying property fails with the enum, its class and both types.
@@ -58,7 +58,7 @@ public sealed class EnumKindTests(
     public void Read_EnumAsAnotherType_FailsWithTheUnderlyingType()
     {
         Assert.That(
-            Data.Member("Kind").Value<int>().Read().UnwrapErr().Message,
+            Data.Member("Kind").Read<int>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.Kind. Kind is EnumProperty, which reads as Byte, not Int32."));
     }
 
@@ -70,7 +70,7 @@ public sealed class EnumKindTests(
         _fakeGame.Memory.WritePointer(kind + FakeGame.StructTypeOffset, Address.Zero);
 
         Assert.That(
-            Data.Member("Kind").Value<byte>().Read().UnwrapErr().Message,
+            Data.Member("Kind").Read<byte>().UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read GWorld.GameMode.Data.Kind. The underlying property pointer of Kind at {kind} is 0. "
                 + "Check UnderlyingProp of EnumProperty in the profile (0x70)."));
@@ -84,7 +84,7 @@ public sealed class EnumKindTests(
         var game = _fakeGame.Attach(Remove(FakeGame.Document(shape, "indirect", "flat"), "offsets", enumType));
 
         Assert.That(
-            game.GWorld.Path.Member("GameMode").Member("Data").Member("Kind").Value<byte>().Read().UnwrapErr().Message,
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("Kind").Read<byte>().UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read GWorld.GameMode.Data.Kind. Can't read EnumProperty: the profile doesn't have offsets.{enumType}.UnderlyingProp."));
     }

@@ -50,11 +50,15 @@ In the 1st example:
 
 - `ticks` is the `ITickCounter` of your host
 - `GWorld` is a root and its `.Path` starts at the world
-- each step returns a `Result`. A typo or a wrong `T` fails the step when the object is there. When it isn't, like a world that's still loading, the step works and each read fails until it's there
+- each step returns a `Result`. A typo or a wrong `T` fails the step when the object is there
+- when the object isn't there, like a world that's still loading, the step checks the class the property declares, like `GameModeBase` for `AuthorityGameMode`. The step fails on a key of the wrong type and when neither that class nor a loaded class derived from it has the member. It can pass once the game loads a derived class with the member, so try it again later. A member that only a derived class has works, but `IsChecked` stays false until a read gets there
+- a failed step or read is a `MemberPathError`. `IsShapeMismatch` is true when the path doesn't fit the classes, like the typo the 1st read finds after an unchecked step. It's false for a read that can work later, like on a null object
+- class and property names ignore case like the engine, but the exact name wins
 - each read looks the member up on the real class of the object, so `FixtureData` shows up on the game mode even though `AuthorityGameMode` is declared as `AGameModeBase`
 - `Member(name)` goes through an object pointer or into a struct, picked by the kind of the property
 - `Value<T>()` gives a watcher of `T`. The path itself gives a `Watcher<object?>` with the value in the type from the table
 - a failed read makes the watcher follow its `FailAction`. With the default `Clear` it shows the default of `T`
+- `Read()` and `Read<T>()` read the value once without a watcher, like `data.Member("Hp").Read<int>()`. They read the whole path and don't touch the reads the watchers of a tick share
 
 | Property | `T` and what a boxed watcher gives |
 |---|---|
@@ -84,9 +88,10 @@ var items = data.Member("Items").Count().Value<int>().Unwrap().CreateWatcher(tic
 - `Item` takes an integer, a `string` or a `bool` as a `PathKey`
 - a string key matches name and string keys, an integer matches any integer or enum key
 - `Item(key).Value<bool>()` on a set reads whether the set has the key
+- on a set of objects or a map keyed by objects the key is the position among the used items, like `Item(1).Member("Hp")`. It moves when the game removes an item in front of it
 - an array or map of mixed structs doesn't read as 1 value, so index it
 - a missing key or an index past the count fails the read. A key of the wrong type, like a string on an array, fails the step
-- `Count()` only works on a collection. `Member("Count")` reads a member called `Count`
+- `Count()` only works on a collection. `Member("Count")` reads a member called `Count` and fails on a collection
 
 Any other kind fails with the property and its class, like `TextProperty` or `SoftObjectProperty`. A struct with a member of such a kind fails as a `StructValue`, but its other members still read through a step. A `StructValue` that changes allocates on that tick, so `Value<float[]>()` or a step to `X` is cheaper for a vector that moves all the time. A string with more than 512 characters fails. A whole array with more than 1024 elements fails too. A whole read or a key lookup fails on a set or map with more than 1024 slots, used or free. A watcher of a collection keeps its instance while the elements don't change. A profile without the offsets of a kind still attaches and only reads of that kind fail with the missing offsets. Unreal Engine 3 documents don't have the set, map and weak pointer offsets, so those kinds fail there.
 
@@ -119,7 +124,8 @@ var score = subsystem.Path.Member("Score").Value<int>();
 
 `AslHelp.Engines` has the types an engine library implements. Code that only uses them doesn't depend on `AslHelp.Engines.Unreal`:
 
-- `IMemberPath`: the steps `Member(name)`, `Item(key)`, `Count()` and `Value<T>()` return a `Result`. The path itself is an `IWatcherSource<object?>` and `ToString` gives it as written
+- `IMemberPath`: the steps `Member(name)`, `Item(key)`, `Count()` and `Value<T>()` return a `Result`. `Read()` and `Read<T>()` read the value once and `IsChecked` is false for a step the engine couldn't check yet. The path itself is an `IWatcherSource<object?>` and `ToString` gives it as written
+- `MemberPathError`: the base of the path errors of an engine. `IsShapeMismatch` is true for a typo and false for a read that can work later
 - `PathKey`: an index or key. `PathKey.TryCreate(object)` takes any integer, a `string` or a `bool`
 - `StructValue`: a struct with its members by name, with value equality so `Changed` works
 - `IWatcherSource` and `IWatcherSource<T>`: something a host can create a watcher from

@@ -1,3 +1,4 @@
+using AslHelp.Engines.Errors;
 using AslHelp.Engines.Profiles;
 using AslHelp.Engines.Unreal.Objects;
 using AslHelp.Memory;
@@ -36,7 +37,7 @@ public sealed class UnrealGameLiveTests
     {
         WithAttachedPlayer(game =>
         {
-            var world = game.GWorld.Path.Read().Unwrap();
+            var world = game.GWorld.Path.Read<Address>().Unwrap();
 
             using (Assert.EnterMultipleScope())
             {
@@ -53,7 +54,7 @@ public sealed class UnrealGameLiveTests
     {
         WithAttachedPlayer(game =>
         {
-            var world = game.GWorld.Path.Read().Unwrap();
+            var world = game.GWorld.Path.Read<Address>().Unwrap();
             var gameMode = game.Read<Address>(world, game.ClassOf(world).Unwrap().FindProperty("AuthorityGameMode").Unwrap()).Unwrap();
             var gameModeClass = game.ClassOf(gameMode).Unwrap();
             var data = game.Read<Address>(gameMode, gameModeClass.FindProperty("FixtureData").Unwrap()).Unwrap();
@@ -86,14 +87,41 @@ public sealed class UnrealGameLiveTests
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(data.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(1337));
-                Assert.That(data.Member("Hp").Value<int>().Read().Unwrap(), Is.InRange(1, 1000));
+                Assert.That(data.Member("IntValue").Read<int>().Unwrap(), Is.EqualTo(1337));
+                Assert.That(data.Member("Hp").Read<int>().Unwrap(), Is.InRange(1, 1000));
                 Assert.That(firstHp, Is.InRange(1, 1000));
                 Assert.That(hp.Current, Is.InRange(1, 1000));
                 Assert.That(intValue.Current, Is.EqualTo(1337));
                 Assert.That(intValue.Changed, Is.False);
             }
         });
+    }
+
+    // A direct read gives the value of a watcher, boxed or typed and with the name in any case.
+    [Test]
+    public void Read_RealPlayerIntValueInAnyCase_EqualsTheWatcherValue()
+    {
+        WithAttachedPlayer(game =>
+        {
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
+            var watcher = data.Member("IntValue").Value<int>().Unwrap().CreateWatcher(new ManualTicks());
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(data.Member("IntValue").Read().Unwrap(), Is.EqualTo(watcher.Current));
+                Assert.That(data.Member("intvalue").Read<int>().Unwrap(), Is.EqualTo(1337));
+                Assert.That(data.Member("IntValue").Unwrap().IsChecked, Is.True);
+            }
+        });
+    }
+
+    // Neither FixtureData nor a derived class has Hpp, so the typo fails on the step as a shape mismatch.
+    [Test]
+    public void Member_RealPlayerTypo_FailsWithAShapeMismatch()
+    {
+        WithAttachedPlayer(game => Assert.That(
+            game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData").Member("Hpp").UnwrapErr(),
+            Is.InstanceOf<MemberPathError>().With.Property(nameof(MemberPathError.IsShapeMismatch)).True));
     }
 
     // Typed paths read every value kind of FixtureData with the values BeginPlay sets, Coord through its struct offset.
@@ -106,21 +134,21 @@ public sealed class UnrealGameLiveTests
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(data.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(1337));
-                Assert.That(data.Member("LongValue").Value<long>().Read().Unwrap(), Is.EqualTo(9_000_000_000));
-                Assert.That(data.Member("FloatValue").Value<float>().Read().Unwrap(), Is.EqualTo(3.5f));
-                Assert.That(data.Member("DoubleValue").Value<double>().Read().Unwrap(), Is.EqualTo(2.718281828));
-                Assert.That(data.Member("BoolValue").Value<bool>().Read().Unwrap(), Is.True);
-                Assert.That(data.Member("bFirst").Value<bool>().Read().Unwrap(), Is.True);
-                Assert.That(data.Member("bSecond").Value<bool>().Read().Unwrap(), Is.False);
-                Assert.That(data.Member("bThird").Value<bool>().Read().Unwrap(), Is.True);
-                Assert.That(data.Member("Kind").Value<byte>().Read().Unwrap(), Is.EqualTo(1));
-                Assert.That(data.Member("OldKind").Value<byte>().Read().Unwrap(), Is.EqualTo(1));
-                Assert.That(data.Member("StringValue").Value<string>().Read().Unwrap(), Is.EqualTo("hello-fixture"));
-                Assert.That(data.Member("NameValue").Value<string>().Read().Unwrap(), Is.EqualTo("fixture-name"));
-                Assert.That(data.Member("Coord").Member("X").Value<int>().Read().Unwrap(), Is.EqualTo(7));
-                Assert.That(data.Member("Coord").Member("Y").Value<int>().Read().Unwrap(), Is.EqualTo(9));
-                Assert.That(data.Member("Hp").Value<int>().Read().Unwrap(), Is.InRange(1, 1000));
+                Assert.That(data.Member("IntValue").Read<int>().Unwrap(), Is.EqualTo(1337));
+                Assert.That(data.Member("LongValue").Read<long>().Unwrap(), Is.EqualTo(9_000_000_000));
+                Assert.That(data.Member("FloatValue").Read<float>().Unwrap(), Is.EqualTo(3.5f));
+                Assert.That(data.Member("DoubleValue").Read<double>().Unwrap(), Is.EqualTo(2.718281828));
+                Assert.That(data.Member("BoolValue").Read<bool>().Unwrap(), Is.True);
+                Assert.That(data.Member("bFirst").Read<bool>().Unwrap(), Is.True);
+                Assert.That(data.Member("bSecond").Read<bool>().Unwrap(), Is.False);
+                Assert.That(data.Member("bThird").Read<bool>().Unwrap(), Is.True);
+                Assert.That(data.Member("Kind").Read<byte>().Unwrap(), Is.EqualTo(1));
+                Assert.That(data.Member("OldKind").Read<byte>().Unwrap(), Is.EqualTo(1));
+                Assert.That(data.Member("StringValue").Read<string>().Unwrap(), Is.EqualTo("hello-fixture"));
+                Assert.That(data.Member("NameValue").Read<string>().Unwrap(), Is.EqualTo("fixture-name"));
+                Assert.That(data.Member("Coord").Member("X").Read<int>().Unwrap(), Is.EqualTo(7));
+                Assert.That(data.Member("Coord").Member("Y").Read<int>().Unwrap(), Is.EqualTo(9));
+                Assert.That(data.Member("Hp").Read<int>().Unwrap(), Is.InRange(1, 1000));
             }
         });
     }
@@ -201,24 +229,24 @@ public sealed class UnrealGameLiveTests
             int[][] coordArray = [[1, 2], [3, 4]];
             HashSet<int> intSet = [11, 22, 33];
             Dictionary<string, int> dict = new() { ["one"] = 1, ["two"] = 2, ["three"] = 3 };
-            var shield = data.Member("Items").Item(1).Value<Address>().Read().Unwrap();
+            var shield = data.Member("Items").Item(1).Read<Address>().Unwrap();
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(data.Member("IntArray").Value<int[]>().Read().Unwrap(), Is.EqualTo(intArray));
-                Assert.That(data.Member("StringArray").Value<string[]>().Read().Unwrap(), Is.EqualTo(stringArray));
-                Assert.That(data.Member("CoordArray").Value<int[][]>().Read().Unwrap(), Is.EqualTo(coordArray));
-                Assert.That(data.Member("CoordArray").Item(1).Member("X").Value<int>().Read().Unwrap(), Is.EqualTo(3));
-                Assert.That(data.Member("Items").Item(1).Member("Count").Value<int>().Read().Unwrap(), Is.EqualTo(3));
+                Assert.That(data.Member("IntArray").Read<int[]>().Unwrap(), Is.EqualTo(intArray));
+                Assert.That(data.Member("StringArray").Read<string[]>().Unwrap(), Is.EqualTo(stringArray));
+                Assert.That(data.Member("CoordArray").Read<int[][]>().Unwrap(), Is.EqualTo(coordArray));
+                Assert.That(data.Member("CoordArray").Item(1).Member("X").Read<int>().Unwrap(), Is.EqualTo(3));
+                Assert.That(data.Member("Items").Item(1).Member("Count").Read<int>().Unwrap(), Is.EqualTo(3));
                 Assert.That(data.Member("Items").Item(1).Count().IsErr, Is.True);
-                Assert.That(data.Member("Items").Count().Value<int>().Read().Unwrap(), Is.EqualTo(2));
-                Assert.That(data.Member("Dict").Value<Dictionary<string, int>>().Read().Unwrap(), Is.EquivalentTo(dict));
-                Assert.That(data.Member("Dict").Item("two").Value<int>().Read().Unwrap(), Is.EqualTo(2));
-                Assert.That(data.Member("IntDict").Item(5).Value<int>().Read().Unwrap(), Is.EqualTo(50));
-                Assert.That(data.Member("IntSet").Value<HashSet<int>>().Read().Unwrap(), Is.EquivalentTo(intSet));
-                Assert.That(data.Member("IntSet").Item(22).Value<bool>().Read().Unwrap(), Is.True);
-                Assert.That(data.Member("WeakItem").Value<Address>().Read().Unwrap(), Is.EqualTo(shield));
-                Assert.That(data.Member("WeakItem").Member("ItemName").Value<string>().Read().Unwrap(), Is.EqualTo("shield"));
+                Assert.That(data.Member("Items").Count().Read<int>().Unwrap(), Is.EqualTo(2));
+                Assert.That(data.Member("Dict").Read<Dictionary<string, int>>().Unwrap(), Is.EquivalentTo(dict));
+                Assert.That(data.Member("Dict").Item("two").Read<int>().Unwrap(), Is.EqualTo(2));
+                Assert.That(data.Member("IntDict").Item(5).Read<int>().Unwrap(), Is.EqualTo(50));
+                Assert.That(data.Member("IntSet").Read<HashSet<int>>().Unwrap(), Is.EquivalentTo(intSet));
+                Assert.That(data.Member("IntSet").Item(22).Read<bool>().Unwrap(), Is.True);
+                Assert.That(data.Member("WeakItem").Read<Address>().Unwrap(), Is.EqualTo(shield));
+                Assert.That(data.Member("WeakItem").Member("ItemName").Read<string>().Unwrap(), Is.EqualTo("shield"));
             }
         });
     }
@@ -317,9 +345,9 @@ public sealed class UnrealGameLiveTests
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(
-                    items.Select(static item => item.Path.Member("ItemName").Value<string>().Read().Unwrap()),
+                    items.Select(static item => item.Path.Member("ItemName").Read<string>().Unwrap()),
                     Is.EqualTo(["sword", "shield"]));
-                Assert.That(data.Single().Path.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(1337));
+                Assert.That(data.Single().Path.Member("IntValue").Read<int>().Unwrap(), Is.EqualTo(1337));
             }
         });
     }
@@ -349,9 +377,9 @@ public sealed class UnrealGameLiveTests
         WithAttachedPlayer(game =>
         {
             var world = game.GEngine.Path.Member("GameViewport").Member("World");
-            var intValue = world.Member("AuthorityGameMode").Member("FixtureData").Member("IntValue").Value<int>();
+            var intValue = world.Member("AuthorityGameMode").Member("FixtureData").Member("IntValue");
 
-            Assert.That(intValue.Read().Unwrap(), Is.EqualTo(1337));
+            Assert.That(intValue.Read<int>().Unwrap(), Is.EqualTo(1337));
         });
     }
 
@@ -371,7 +399,7 @@ public sealed class UnrealGameLiveTests
         WithPlayer((memory, module) =>
         {
             var game = UnrealGame.Attach(memory, module, ProfileGuessHandling.Disallow).Unwrap();
-            var world = game.GWorld.Path.Read().Unwrap();
+            var world = game.GWorld.Path.Read<Address>().Unwrap();
 
             using (Assert.EnterMultipleScope())
             {

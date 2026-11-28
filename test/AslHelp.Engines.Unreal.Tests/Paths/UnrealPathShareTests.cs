@@ -145,13 +145,13 @@ public sealed class UnrealPathShareTests(
     public void Read_WithoutAWatcherInTheSameTick_ReadsThePathAgain()
     {
         var watcher = Hp().CreateWatcher(new ManualTicks());
-        var hp = _game.GWorld.Path.Member("GameMode").Member("Data").Member("Hp").Value<int>();
-        _ = hp.Read().Unwrap();
+        var hp = _game.GWorld.Path.Member("GameMode").Member("Data").Member("Hp");
+        _ = hp.Read<int>().Unwrap();
         _ = watcher.Current;
 
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.HpOffset, 990);
         int reads = _fakeGame.Memory.Reads;
-        int value = hp.Read().Unwrap();
+        int value = hp.Read<int>().Unwrap();
         int readsOfTheRead = _fakeGame.Memory.Reads - reads;
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
 
@@ -160,7 +160,7 @@ public sealed class UnrealPathShareTests(
             Assert.That(value, Is.EqualTo(990));
             Assert.That(readsOfTheRead, Is.EqualTo(1 + (3 * 3)));
             Assert.That(watcher.Current, Is.EqualTo(FakeGame.Hp));
-            Assert.That(hp.Read().UnwrapErr().Message, Is.EqualTo("Can't read GWorld.GameMode.Data.Hp: GWorld.GameMode is null."));
+            Assert.That(hp.Read<int>().UnwrapErr().Message, Is.EqualTo("Can't read GWorld.GameMode.Data.Hp: GWorld.GameMode is null."));
         }
     }
 

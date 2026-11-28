@@ -1,3 +1,4 @@
+using AslHelp.Engines.Errors;
 using AslHelp.Memory.Watching;
 using NUnit.Framework;
 using System.Collections.Generic;
@@ -279,6 +280,101 @@ public sealed class MemberPathTests
             Assert.That(typo.Item(1).UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
             Assert.That(typo.Count().UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
             Assert.That(typo.Value<int>().UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
+        }
+    }
+
+    // A direct read gives the value boxed or typed without creating a watcher.
+    [Test]
+    public void Read_ValueAtTheEnd_ReturnsItWithoutAWatcher()
+    {
+        var health = _player.Path.Member("Stats").Member("Health");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(health.Read().Unwrap(), Is.EqualTo(100));
+            Assert.That(health.Read<int>().Unwrap(), Is.EqualTo(100));
+            Assert.That(_player.Path.Member("Position").Read<StructValue>().Unwrap()["Y"], Is.EqualTo(2f));
+        }
+    }
+
+    // A direct read in the tick of a watcher reads Player again and sees a write, while the watcher keeps the value of its tick.
+    [Test]
+    public void Read_InsideATickOfAWatcher_ReadsTheGameAgain()
+    {
+        ManualTicks ticks = new();
+        var world = World();
+        var name = world.Path.Member("Player").Member("Name").Unwrap();
+        var watcher = name.CreateWatcher(ticks);
+        _ = watcher.Current;
+        int worldReads = world.Reads;
+
+        _player.Members["Name"] = "villain";
+        object? read = name.Read().Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(read, Is.EqualTo("villain"));
+            Assert.That(world.Reads - worldReads, Is.EqualTo(1));
+            Assert.That(watcher.Current, Is.EqualTo("hero"));
+        }
+    }
+
+    // Health is an int, so a read as a string fails with the text of the path.
+    [Test]
+    public void Read_WrongType_Fails()
+    {
+        var error = _player.Path.Member("Stats").Member("Health").Read<string>().UnwrapErr();
+
+        Assert.That(error.Message, Is.EqualTo("player.Stats.Health isn't a String."));
+    }
+
+    // The read of a failed step returns the error of the step itself.
+    [Test]
+    public void Read_OnAFailedStep_PassesTheFailureOn()
+    {
+        var typo = _player.Path.Member("Stats").Member("Helth");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(typo.Read().UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
+            Assert.That(typo.Read<int>().UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
+        }
+    }
+
+    // A step past a null object can't be checked until a read reaches it with the object there.
+    [Test]
+    public void IsChecked_StepOnANullObject_IsFalseUntilARead()
+    {
+        var health = _player.Path.Member("Target").Member("Health").Unwrap();
+        bool before = health.IsChecked;
+
+        _player.Members["Target"] = _stats;
+        _ = health.Read().Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_player.Path.IsChecked, Is.True);
+            Assert.That(_player.Path.Member("Stats").Unwrap().IsChecked, Is.True);
+            Assert.That(before, Is.False);
+            Assert.That(health.IsChecked, Is.True);
+        }
+    }
+
+    // A typo written while the object is null passes the step, then the 1st read with the object fails as a shape mismatch.
+    [Test]
+    public void Read_MissingMemberAfterTheObjectShowsUp_FailsWithAShapeMismatch()
+    {
+        var typo = _player.Path.Member("Target").Member("Helth").Unwrap();
+        var nullObject = typo.Read().UnwrapErr();
+
+        _player.Members["Target"] = _stats;
+        var missing = typo.Read().UnwrapErr();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(nullObject, Is.InstanceOf<MemberPathError>().With.Property(nameof(MemberPathError.IsShapeMismatch)).False);
+            Assert.That(missing, Is.InstanceOf<MemberPathError>().With.Property(nameof(MemberPathError.IsShapeMismatch)).True);
+            Assert.That(missing.Message, Is.EqualTo("Stats doesn't have a member Helth."));
         }
     }
 

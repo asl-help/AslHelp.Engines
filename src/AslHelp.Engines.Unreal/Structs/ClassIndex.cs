@@ -78,13 +78,18 @@ internal sealed class ClassIndex(
     private Address[] _slotObjects = [];
 
     private bool _slotsOutdated;
+
+    // Count each change of the kept classes, so a caller can keep what it found on them until they change.
+    private int _version;
     private readonly StructReader _structReader = structReader;
 
     /// <summary>
     ///     Finds the loaded class called <paramref name="name"/>.
     /// </summary>
     /// <remarks>
-    ///     Compares ordinally. Returns a class a search found before while its name still matches and its class still derives from <c>Class</c>.
+    ///     Ignores case like the engine. A class with the exact name wins. Otherwise returns the class in the lowest slot whose name matches
+    ///     in another case. Searches again on each call with such a name, because the index only keeps exact names.
+    ///     Returns a class a search found before while its name still matches and its class still derives from <c>Class</c>.
     ///     Otherwise reads the array and, for each slot whose object changed since the last search, the class pointer of the object
     ///     and the name of each object whose class is <c>Class</c> or derives from it, as <c>BlueprintGeneratedClass</c> does.
     ///     Keeps the 1st class it finds for each name, in array order within 1 search,
@@ -97,9 +102,9 @@ internal sealed class ClassIndex(
     /// </remarks>
     /// <param name="name">The name of the class, like <c>Actor</c> or <c>BP_Player_C</c>.</param>
     /// <returns>
-    ///     The address of the class or a failure when no loaded class has the name or a read of the search fails.
+    ///     The address and the name of the class or a failure when no loaded class has the name or a read of the search fails.
     /// </returns>
-    public Result<Address> FindClass(string name)
+    public Result<(Address Address, string Name)> FindClass(string name)
     {
         // Skip the kept class while every slot has to be read again, because the name can give another class after that.
         if (!_slotsOutdated && _classesByName.TryGetValue(name, out var kept))
@@ -110,7 +115,7 @@ internal sealed class ClassIndex(
                 && DerivesFromMetaclass(keptClass).TryUnwrap(out bool keptIsClass, out _)
                 && keptIsClass)
             {
-                return kept.Address;
+                return (kept.Address, name);
             }
 
             // Read every slot again, because the kept class doesn't match and its slot can still have its address.
@@ -120,9 +125,9 @@ internal sealed class ClassIndex(
         var error = Search(out var skipped);
 
         // Return a class from the slots before a failed read of the array, so the result doesn't depend on an earlier call.
-        if (_classesByName.TryGetValue(name, out var found))
+        if (_classesByName.TryGetValue(name, out var found) || FindClassIgnoringCase(name, out found))
         {
-            return found.Address;
+            return (found.Address, _classNamesBySlot[found.Slot]);
         }
 
         if (error is not null)
@@ -246,6 +251,22 @@ internal sealed class ClassIndex(
         }
 
         return ToResult(classes, skipped);
+    }
+
+    /// <summary>
+    ///     Searches like <see cref="FindClass"/> and reads a number that changes each time the loaded classes change.
+    /// </summary>
+    /// <returns>
+    ///     The number or a failure when the array doesn't read.
+    /// </returns>
+    public Result<int> ReadVersion()
+    {
+        if (Search(out _) is { } error)
+        {
+            return error;
+        }
+
+        return _version;
     }
 
     /// <summary>
@@ -405,6 +426,7 @@ internal sealed class ClassIndex(
             _classesByName.Clear();
             _classLinks.Clear();
             _classNamesBySlot.Clear();
+            _version++;
             _derivesFromMetaclass.Clear();
             _packagesByName.Clear();
             _packageNamesBySlot.Clear();
@@ -536,6 +558,7 @@ internal sealed class ClassIndex(
             _slotObjects[slot] = obj;
 
             _classNamesBySlot[slot] = name;
+            _version++;
 
             if (klass != _metaclass)
             {
@@ -663,6 +686,30 @@ internal sealed class ClassIndex(
         return true;
     }
 
+    // Find the kept class in the lowest slot whose name matches in another case. Don't keep it, because _classesByName only keeps exact names.
+    private bool FindClassIgnoringCase(string name, out (Address Address, int Slot) found)
+    {
+        found = default;
+        int first = int.MaxValue;
+
+        foreach (var klass in _classNamesBySlot)
+        {
+            if (klass.Key < first && string.Equals(klass.Value, name, StringComparison.OrdinalIgnoreCase))
+            {
+                first = klass.Key;
+            }
+        }
+
+        if (first == int.MaxValue)
+        {
+            return false;
+        }
+
+        found = (_slotObjects[first], first);
+
+        return true;
+    }
+
     // Read the outer object and the super class of the class in a slot once.
     private Result<(Address Outer, Address Super)> LinksOf(int slot)
     {
@@ -716,6 +763,7 @@ internal sealed class ClassIndex(
         {
             _blueprintSlots.Remove(slot);
             _classNamesBySlot.Remove(slot);
+            _version++;
 
             if (_classesByName.TryGetValue(className, out var kept) && kept.Slot == slot)
             {

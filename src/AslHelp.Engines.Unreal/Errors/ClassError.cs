@@ -48,6 +48,19 @@ internal abstract record ClassError : ResultError
     }
 
     /// <summary>
+    ///     Creates the error for a name that neither a declared class nor a loaded class derived from it has as a property.
+    /// </summary>
+    /// <param name="className">The name of the declared class.</param>
+    /// <param name="name">The name of the property.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static ClassError PropertyNotDeclared(string className, string name)
+    {
+        return new PropertyNotDeclaredError(className, name);
+    }
+
+    /// <summary>
     ///     Creates the error for a name that no class on the super chain of a class declares as a property.
     /// </summary>
     /// <param name="className">The name of the class.</param>
@@ -92,6 +105,13 @@ file sealed record NullError(
     int Offset) : ClassError
 {
     public override string Message => SR.FormatClassNull(Object, Offset.ToString("X", CultureInfo.InvariantCulture));
+}
+
+file sealed record PropertyNotDeclaredError(
+    string ClassName,
+    string Name) : ClassError
+{
+    public override string Message => SR.FormatClassPropertyNotDeclared(ClassName, Name);
 }
 
 file sealed record PropertyNotFoundError(

@@ -105,4 +105,28 @@ internal abstract class PropertyAccess(
     {
         return _notContainerError ??= ValueError.NotContainer(Property.Name, Property.ClassName);
     }
+
+    /// <summary>
+    ///     Moves a path into the class, the struct type or the collection that this property declares, without an object to read from.
+    /// </summary>
+    /// <remarks>
+    ///     Returns what <see cref="Step"/> returns when the step doesn't read memory.
+    ///     A kind whose step reads memory returns <see langword="null"/> unless it overrides this.
+    /// </remarks>
+    /// <param name="memory">The memory to read from.</param>
+    /// <returns>
+    ///     The declared container, <see langword="null"/> when the declared class isn't known or doesn't read,
+    ///     or the failure of <see cref="Step"/> when the kind doesn't have members.
+    /// </returns>
+    public virtual Result<DeclaredContainer?> StepDeclared(IMemoryReader memory)
+    {
+        if (StepReadsMemory)
+        {
+            return Result.Ok<DeclaredContainer?>(null);
+        }
+
+        return Step(memory, Address.Zero).TryUnwrap(out var container, out var error)
+            ? Result.Ok<DeclaredContainer?>(new DeclaredContainer(container.StructType, IsObject: false, container.Collection))
+            : error;
+    }
 }

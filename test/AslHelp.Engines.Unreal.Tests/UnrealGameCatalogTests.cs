@@ -42,7 +42,7 @@ public sealed class UnrealGameCatalogTests(
             Assert.That(game.Profile, Is.SameAs(catalog.Entries[0].Profile));
             Assert.That(game.Selection, Is.SameAs(selection));
             Assert.That(selection.Match, Is.EqualTo(ProfileMatch.Listed));
-            Assert.That(game.GWorld.Path.Read().Unwrap(), Is.EqualTo(_fakeGame.World));
+            Assert.That(game.GWorld.Path.Read<Address>().Unwrap(), Is.EqualTo(_fakeGame.World));
         }
     }
 

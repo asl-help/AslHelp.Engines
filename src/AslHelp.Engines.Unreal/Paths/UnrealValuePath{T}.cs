@@ -61,17 +61,6 @@ internal sealed class UnrealValuePath<T> : IWatcherSource<T>
     {
         return _memberPath.ToString();
     }
-
-    /// <summary>
-    ///     Reads the value at the end of the path.
-    /// </summary>
-    /// <returns>
-    ///     The value or a failure.
-    /// </returns>
-    public Result<T> Read()
-    {
-        return _memberPath.ReadValue<T>(null, default);
-    }
 }
 
 file sealed class ValuePathWatcher<T> : Watcher<T>

@@ -50,6 +50,38 @@ public sealed class UnrealGameLookupTests(
         Assert.That(_game.FindPackage("/script/fixture").Unwrap().Name, Is.EqualTo("/Script/Fixture"));
     }
 
+    // The engine ignores case in class names, so fixturedata finds FixtureData under its real name.
+    [Test]
+    public void FindClass_NameInOtherCase_ReturnsTheClassWithItsRealName()
+    {
+        var klass = _game.FindClass("fixturedata").Unwrap();
+
+        Assert.That((klass.Address, klass.Name), Is.EqualTo((_fakeGame.FixtureDataClass, "FixtureData")));
+    }
+
+    // FIXTUREDATA loads after FixtureData, so each exact name gets its own class and a 3rd spelling gets the one in the lower slot.
+    [Test]
+    public void FindClass_TwoClassesThatDifferByCase_ReturnsTheExactOne()
+    {
+        var upper = _fakeGame.CreateClass("FIXTUREDATA", Address.Zero);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_game.FindClass("FIXTUREDATA").Unwrap().Address, Is.EqualTo(upper));
+            Assert.That(_game.FindClass("FixtureData").Unwrap().Address, Is.EqualTo(_fakeGame.FixtureDataClass));
+            Assert.That(_game.FindClass("fixturedata").Unwrap().Address, Is.EqualTo(_fakeGame.FixtureDataClass));
+        }
+    }
+
+    // A class lookup in a package ignores case like a lookup in the game.
+    [Test]
+    public void FindClassOfPackage_NameInOtherCase_ReturnsTheClass()
+    {
+        var package = _game.FindPackage("/Script/Fixture").Unwrap();
+
+        Assert.That(package.FindClass("fixturedata").Unwrap().Name, Is.EqualTo("FixtureData"));
+    }
+
     // /Script/CoreUObject is in front of the class Package in the array, so the search reads it again once it found the class.
     [Test]
     public void FindPackage_PackageBeforeThePackageClassInTheArray_FindsIt()
@@ -196,6 +228,22 @@ public sealed class UnrealGameLookupTests(
         }
     }
 
+    // A derived class declares HP next to Hp of FixtureData, so an exact name wins and another case gets the most derived property.
+    [Test]
+    public void FindProperty_NameInOtherCase_ReturnsTheProperty()
+    {
+        _fakeGame.CreateClass("FIXTUREDATA", _fakeGame.FixtureDataClass, "HP");
+        var klass = _game.FindClass("FIXTUREDATA").Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(klass.FindProperty("Hp").Unwrap().Offset, Is.EqualTo(FakeGame.HpOffset));
+            Assert.That(klass.FindProperty("HP").Unwrap().Offset, Is.EqualTo(0x80));
+            Assert.That(klass.FindProperty("hp").Unwrap().Name, Is.EqualTo("HP"));
+            Assert.That(_game.FindClass("FixtureData").Unwrap().FindProperty("hp").Unwrap().Name, Is.EqualTo("Hp"));
+        }
+    }
+
     // FixtureData has 2 live objects and a default object, so the list has the 2 objects in array order.
     [Test]
     public void GetInstances_ClassWithTwoObjects_ReturnsBothInArrayOrder()
@@ -315,11 +363,11 @@ public sealed class UnrealGameLookupTests(
     [Test]
     public void Path_Instance_ReadsAMemberOfTheObject()
     {
-        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp").Value<int>();
+        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp");
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(hp.Read().Unwrap(), Is.EqualTo(FakeGame.Hp));
+            Assert.That(hp.Read<int>().Unwrap(), Is.EqualTo(FakeGame.Hp));
             Assert.That(hp.Unwrap().ToString(), Is.EqualTo("FixtureData.Hp"));
         }
     }
@@ -339,11 +387,11 @@ public sealed class UnrealGameLookupTests(
     [Test]
     public void Path_InstanceWhoseAddressGotAnotherClass_FailsAsFreed()
     {
-        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp").Value<int>();
+        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp");
         _fakeGame.WriteClass(_fakeGame.Data, _fakeGame.FixtureGameModeClass);
 
         Assert.That(
-            hp.Read().UnwrapErr().Message,
+            hp.Read<int>().UnwrapErr().Message,
             Is.EqualTo($"Can't read FixtureData.Hp at FixtureData. The FixtureData object at {_fakeGame.Data} was freed."));
     }
 
@@ -352,11 +400,11 @@ public sealed class UnrealGameLookupTests(
     [Test]
     public void Path_InstanceWhoseSlotGotCleared_FailsAsFreed()
     {
-        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp").Value<int>();
+        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp");
         _fakeGame.FreeObject(_fakeGame.Data);
 
         Assert.That(
-            hp.Read().UnwrapErr().Message,
+            hp.Read<int>().UnwrapErr().Message,
             Is.EqualTo($"Can't read FixtureData.Hp at FixtureData. The FixtureData object at {_fakeGame.Data} was freed."));
     }
 
@@ -366,6 +414,6 @@ public sealed class UnrealGameLookupTests(
     {
         var world = _game.FindClass("World").Unwrap().GetInstances().Unwrap().Single();
 
-        Assert.That(world.Path.Member("GameMode").Member("Data").Member("Hp").Value<int>().Read().Unwrap(), Is.EqualTo(FakeGame.Hp));
+        Assert.That(world.Path.Member("GameMode").Member("Data").Member("Hp").Read<int>().Unwrap(), Is.EqualTo(FakeGame.Hp));
     }
 }

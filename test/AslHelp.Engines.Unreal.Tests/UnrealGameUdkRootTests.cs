@@ -19,7 +19,7 @@ public sealed class UnrealGameUdkRootTests
     [Test]
     public void Path_GWorldAndGEngine_StartsAtTheGlobal()
     {
-        var world = _game.GWorld.Path.Value<Address>().Read();
+        var world = _game.GWorld.Path.Read<Address>();
         var engine = _game.GEngine.Path.CreateWatcher(new ManualTicks()).Current;
 
         using (Assert.EnterMultipleScope())
@@ -41,11 +41,11 @@ public sealed class UnrealGameUdkRootTests
     [Test]
     public void GEngine_Path_ReadsAMemberThroughTheEngineObject()
     {
-        var intValue = _game.GEngine.Path.Member("Game").Member("FixtureData").Member("IntValue").Value<int>();
+        var intValue = _game.GEngine.Path.Member("Game").Member("FixtureData").Member("IntValue");
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(intValue.Read().Unwrap(), Is.EqualTo(FakeUdkGame.IntValue));
+            Assert.That(intValue.Read<int>().Unwrap(), Is.EqualTo(FakeUdkGame.IntValue));
             Assert.That(intValue.Unwrap().ToString(), Is.EqualTo("GEngine.Game.FixtureData.IntValue"));
         }
     }
@@ -57,13 +57,13 @@ public sealed class UnrealGameUdkRootTests
         var game = _game.GEngine.Path.Member("Game");
         _fakeGame.Memory.WritePointer(_fakeGame.GEngineSlot, Address.Zero);
 
-        var failure = game.Member("GoalScore").Value<int>().Read();
+        var failure = game.Member("GoalScore").Read<int>();
         _fakeGame.Memory.WritePointer(_fakeGame.GEngineSlot, _fakeGame.Engine);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(failure.UnwrapErr().Message, Is.EqualTo("Can't read GEngine.Game.GoalScore: GEngine is null."));
-            Assert.That(game.Member("GoalScore").Value<int>().Read().Unwrap(), Is.EqualTo(FakeUdkGame.GoalScore));
+            Assert.That(game.Member("GoalScore").Read<int>().Unwrap(), Is.EqualTo(FakeUdkGame.GoalScore));
         }
     }
 
@@ -71,6 +71,8 @@ public sealed class UnrealGameUdkRootTests
     [Test]
     public void FindSubsystem_Unreal3Profile_FailsWithTheVersion()
     {
-        Assert.That(_game.FindSubsystem("FixtureSubsystem").UnwrapErr().Message, Is.EqualTo("Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile."));
+        Assert.That(
+            _game.FindSubsystem("FixtureSubsystem").UnwrapErr().Message,
+            Is.EqualTo("Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile."));
     }
 }

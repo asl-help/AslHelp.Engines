@@ -34,6 +34,15 @@ internal abstract class CollectionAccess(
     public UnrealProperty Property { get; } = property;
 
     /// <summary>
+    ///     Checks whether <paramref name="key"/> converts to the key type of this collection, without reading memory.
+    /// </summary>
+    /// <param name="key">The index of an array element or the key of a set or map element.</param>
+    /// <returns>
+    ///     A success or the failure that <see cref="FindElement"/> returns for a key of another type or an integer that doesn't fit.
+    /// </returns>
+    public abstract Result CheckKey(ElementKey key);
+
+    /// <summary>
     ///     Finds the element of <paramref name="key"/> in the collection in <paramref name="container"/>.
     /// </summary>
     /// <param name="memory">The memory to read from.</param>

@@ -44,10 +44,20 @@ internal sealed class MemberPath
     private readonly TickMemo<SegmentRead> _read = new();
     private readonly PathRoot _root;
 
+    // Keep that the hop of this segment resolved on a class, a struct type or a collection, because a resolved hop doesn't change.
+    private bool _checked;
+
     // Keep the error of the segment when it doesn't fit the collection before it, because the hop of a node doesn't change.
     private CollectionError? _collectionError;
 
     private MemberPath? _count;
+
+    // Keep the error of a member that neither the declared class nor a loaded class derived from it has.
+    private ClassError? _declaredError;
+
+    // Keep that a loaded derived class has the member, so a later check doesn't list the derived classes again.
+    private bool _derivedHasMember;
+
     private Dictionary<PathKey, MemberPath>? _items;
     private Dictionary<string, MemberPath>? _members;
 
@@ -90,6 +100,15 @@ internal sealed class MemberPath
     public IMemoryReader Memory => _classReader.Memory;
 
     /// <summary>
+    ///     Gets a value indicating whether a step or a read checked the hop of the last segment against the classes of the game.
+    /// </summary>
+    /// <remarks>
+    ///     The root is always checked. A step on a path that doesn't read checks the classes that the properties declare
+    ///     and stays unchecked when only a derived class can have the member.
+    /// </remarks>
+    public bool IsChecked => _parent is null || _checked;
+
+    /// <summary>
     ///     Gets the number of segments, the root and 1 per member, index or count hop.
     /// </summary>
     public int SegmentCount => _nodes.Length;
@@ -98,10 +117,13 @@ internal sealed class MemberPath
     ///     Returns the path with the member <paramref name="name"/> after the last segment of this path once it fits the game.
     /// </summary>
     /// <remarks>
-    ///     Reads the new path up to its last segment once. A failure that comes from memory, like a null object, the root or a failed read,
-    ///     doesn't fail the step, because the path can read later. Keeps the child after the check passed, so the root doesn't keep a failed step.
+    ///     Reads the new path up to its last segment once. When a failure comes from memory, like a null object, the root or a failed read,
+    ///     checks the segments after the last one that reads against the classes their properties declare.
+    ///     The step fails when neither the declared class nor a loaded class derived from it has the member.
+    ///     The same step can pass once the game loads a derived class with the member.
+    ///     Keeps the child after the check passed, so the root doesn't keep a failed step.
     /// </remarks>
-    /// <param name="name">The name of the member, compared ordinally.</param>
+    /// <param name="name">The name of the member. A name that only matches in another case finds the member too.</param>
     /// <returns>
     ///     The child or a failure when the class or struct doesn't have the member or the end of this path doesn't have members.
     ///     Each call with an equal name returns the same child.
@@ -171,7 +193,7 @@ internal sealed class MemberPath
     ///     Checks whether the value at the end of the path reads as <typeparamref name="T"/> with the classes of the path as the game has them now.
     /// </summary>
     /// <remarks>
-    ///     Reads the path once. A failure that comes from memory doesn't fail the check, like in <see cref="Check"/>.
+    ///     Reads the path once. When the path doesn't read, checks the kind that the declared classes give, like <see cref="Append"/>.
     /// </remarks>
     /// <typeparam name="T">The type of the value.</typeparam>
     /// <returns>
@@ -184,17 +206,12 @@ internal sealed class MemberPath
             return typeof(T) == typeof(Address) ? Result.Ok() : RootTypeError(typeof(T));
         }
 
-        if (!TryReachEnd(null, out var target, out var error))
+        if (!CheckEnd().TryUnwrap(out var access, out var error))
         {
-            return CheckFailure(error);
+            return error;
         }
 
-        if (target.Access is ValueAccess<T> || (typeof(T) == typeof(StructValue) && target.Access.IsStruct))
-        {
-            return Result.Ok();
-        }
-
-        return SegmentFailed(SegmentCount - 1, target.Access.NotValueOf(typeof(T)), isMismatch: true);
+        return access is null || Fits<T>(access) ? Result.Ok() : SegmentFailed(SegmentCount - 1, access.NotValueOf(typeof(T)), isShapeMismatch: true);
     }
 
     /// <summary>
@@ -234,23 +251,6 @@ internal sealed class MemberPath
     }
 
     /// <summary>
-    ///     Reads the object or struct at the end of the path.
-    /// </summary>
-    /// <remarks>
-    ///     Reads every segment, so a write in the current tick shows up.
-    /// </remarks>
-    /// <returns>
-    ///     The address of the object or struct or a failure. An object pointer of 0 at the end returns <see cref="Address.Zero"/>.
-    ///     A collection at the end returns the address of the object or struct with the collection.
-    /// </returns>
-    public Result<Address> ReadContainer()
-    {
-        var read = Follow(null);
-
-        return read.Failure is { } failure ? ToError(failure) : read.Container.Address;
-    }
-
-    /// <summary>
     ///     Reads the value of type <typeparamref name="T"/> at the end of the path.
     /// </summary>
     /// <remarks>
@@ -281,12 +281,14 @@ internal sealed class MemberPath
             return error;
         }
 
-        var value = target.Access switch
+        if (!Fits<T>(target.Access))
         {
-            ValueAccess<T> valueAccess => valueAccess.Read(Memory, target.Address, last),
-            var access when typeof(T) == typeof(StructValue) => ReadStruct(access, target.Address, last),
-            var access => access.NotValueOf(typeof(T)),
-        };
+            return SegmentFailed(SegmentCount - 1, target.Access.NotValueOf(typeof(T)), isShapeMismatch: true);
+        }
+
+        var value = target.Access is ValueAccess<T> valueAccess
+            ? valueAccess.Read(Memory, target.Address, last)
+            : ReadStruct(target.Access, target.Address, last);
 
         return value.TryUnwrapErr(out var readError) ? SegmentFailed(SegmentCount - 1, readError, target.Access.AlwaysFails) : value;
     }
@@ -356,7 +358,7 @@ internal sealed class MemberPath
         for (segment++; segment < _nodes.Length; segment++)
         {
             var node = _nodes[segment];
-            read = node.ReadSegment(ticks, read);
+            read = node.ReadSegment(ticks, read, out _);
 
             if (ticks is not null)
             {
@@ -368,13 +370,16 @@ internal sealed class MemberPath
     }
 
     // Read the root or step through the hop of this segment from the read of the parent.
-    private SegmentRead ReadSegment(ITickCounter? ticks, SegmentRead start)
+    // Return the access of the hop too, null for the root or when the hop doesn't resolve.
+    private SegmentRead ReadSegment(ITickCounter? ticks, SegmentRead start, out PropertyAccess? access)
     {
+        access = null;
+
         if (_parent is null)
         {
             return _root.Read().TryUnwrap(out var obj, out var rootError)
                 ? new SegmentRead(new Container(obj, null), null)
-                : new SegmentRead(default, new Failure(0, rootError, IsMismatch: false));
+                : new SegmentRead(default, new Failure(0, rootError, IsShapeMismatch: false));
         }
 
         if (start.Failure is not null)
@@ -387,9 +392,11 @@ internal sealed class MemberPath
             return new SegmentRead(default, failure);
         }
 
+        access = target.Access;
+
         return target.Access.Step(Memory, target.Address).TryUnwrap(out var container, out var stepError)
             ? new SegmentRead(container, null)
-            : new SegmentRead(default, new Failure(SegmentCount - 1, stepError, IsMismatch: !target.Access.StepReadsMemory));
+            : new SegmentRead(default, new Failure(SegmentCount - 1, stepError, IsShapeMismatch: !target.Access.StepReadsMemory));
     }
 
     // Return the access of this segment and the address it reads at. After a collection that's an element or the count,
@@ -399,65 +406,51 @@ internal sealed class MemberPath
         int segment = SegmentCount - 1;
         target = default;
 
+        if (HopMismatch(container.Collection) is { } mismatch)
+        {
+            failure = new Failure(segment, mismatch, IsShapeMismatch: true);
+
+            return false;
+        }
+
         if (container.Collection is { } collection)
         {
             if (_hop.Key is { } key)
             {
                 if (!collection.FindElement(Memory, container.Address, key).TryUnwrap(out var element, out var findError))
                 {
-                    failure = new Failure(segment, findError, findError is CollectionError { IsKeyTypeMismatch: true });
+                    bool keyTypeMismatch = findError is CollectionError { IsKeyTypeMismatch: true };
+                    _checked |= !keyTypeMismatch;
+                    failure = new Failure(segment, findError, keyTypeMismatch);
 
                     return false;
                 }
 
                 target = new Target(collection.Element, element);
-                failure = default;
-
-                return true;
             }
-
-            if (_hop.IsCount)
+            else
             {
                 target = new Target(collection.Count, container.Address);
-                failure = default;
-
-                return true;
             }
 
-            _collectionError ??= CollectionError.MemberAfterCollection(collection.Property.Name, _hop.Name);
-            failure = new Failure(segment, _collectionError, IsMismatch: true);
+            _checked = true;
+            failure = default;
 
-            return false;
-        }
-
-        if (_hop.IsCount)
-        {
-            _collectionError ??= CollectionError.CountNotCollection(_parent!._hop.Name);
-            failure = new Failure(segment, _collectionError, IsMismatch: true);
-
-            return false;
-        }
-
-        if (_hop.Key is { } index)
-        {
-            _collectionError ??= CollectionError.NotCollection(_parent!._hop.Name, index.Text);
-            failure = new Failure(segment, _collectionError, IsMismatch: true);
-
-            return false;
+            return true;
         }
 
         if (container.StructType is not { } type)
         {
             if (container.Address == Address.Zero)
             {
-                failure = new Failure(segment, null, IsMismatch: false);
+                failure = new Failure(segment, null, IsShapeMismatch: false);
 
                 return false;
             }
 
             if (!_parent!.ClassOfContainer(ticks, container.Address).TryUnwrap(out type, out var classError))
             {
-                failure = new Failure(segment, classError, IsMismatch: false);
+                failure = new Failure(segment, classError, IsShapeMismatch: false);
 
                 return false;
             }
@@ -472,15 +465,51 @@ internal sealed class MemberPath
 
         if (!property.Bind().TryUnwrap(out var access, out var bindError))
         {
-            failure = new Failure(segment, bindError, IsMismatch: false);
+            failure = new Failure(segment, bindError, IsShapeMismatch: false);
 
             return false;
         }
 
         target = new Target(access, container.Address);
         failure = default;
+        _checked = true;
 
         return true;
+    }
+
+    // Return the failure of a hop that doesn't fit the kind of container before it, like a member after a collection
+    // or an index after an object, otherwise null.
+    private CollectionError? HopMismatch(CollectionAccess? collection)
+    {
+        if (collection is not null)
+        {
+            return _hop.Key is null && !_hop.IsCount
+                ? _collectionError ??= CollectionError.MemberAfterCollection(collection.Property.Name, _hop.Name)
+                : null;
+        }
+
+        if (_hop.IsCount)
+        {
+            return _collectionError ??= CollectionError.CountNotCollection(ParentText());
+        }
+
+        return _hop.Key is { } index ? _collectionError ??= CollectionError.NotCollection(ParentText(), index.Text) : null;
+    }
+
+    // Return the member before this segment with the indexes after it, like Items[1], because the name of an index hop is only its key.
+    private string ParentText()
+    {
+        string indexes = "";
+
+        for (var node = _parent!; ; node = node._parent!)
+        {
+            if (node._hop.Key is null)
+            {
+                return node._hop.Name + indexes;
+            }
+
+            indexes = node._hop + indexes;
+        }
     }
 
     // Read the class of the object this segment reaches once per tick of a counter for every member after it,
@@ -506,7 +535,181 @@ internal sealed class MemberPath
     // Check whether the last segment fits the classes and kinds the game has now, like a member that the class has.
     private Result Check()
     {
-        return TryReachEnd(null, out _, out var error) ? Result.Ok() : CheckFailure(error);
+        return CheckEnd().TryUnwrapErr(out var error) ? error : Result.Ok();
+    }
+
+    // Read the segments once up to the 1st one that fails, then check the hops from there on against the classes their properties declare.
+    // Return the access of the last segment, a shape mismatch or null when the path doesn't read and the declared classes can't confirm the hop.
+    private Result<PropertyAccess?> CheckEnd()
+    {
+        SegmentRead read = default;
+        PropertyAccess? access = null;
+        Failure? failure = null;
+        int segment = 0;
+
+        for (; segment < _nodes.Length - 1; segment++)
+        {
+            var next = _nodes[segment].ReadSegment(null, read, out var nextAccess);
+
+            if (next.Failure is { } nextFailure)
+            {
+                failure = nextFailure;
+                break;
+            }
+
+            (read, access) = (next, nextAccess);
+        }
+
+        if (failure is null)
+        {
+            if (TryAccess(null, read.Container, out var target, out var endFailure))
+            {
+                return target.Access;
+            }
+
+            failure = endFailure;
+        }
+
+        return failure.Value.IsShapeMismatch ? ToError(failure.Value) : CheckDeclared(segment, read, access);
+    }
+
+    // Check the hops from the segment that failed on against the classes their properties declare.
+    // Return null as soon as a declared class doesn't read or can't confirm the hop, because the read on a live object checks it later.
+    private Result<PropertyAccess?> CheckDeclared(int segment, SegmentRead before, PropertyAccess? beforeAccess)
+    {
+        if (DeclaredStart(segment, before, beforeAccess) is not { } container)
+        {
+            return Result.Ok<PropertyAccess?>(null);
+        }
+
+        PropertyAccess? access = null;
+
+        // Start at the 1st hop when the root itself doesn't read, because the root doesn't have a hop to check.
+        for (segment = Math.Max(segment, 1); segment < _nodes.Length; segment++)
+        {
+            if (access is not null)
+            {
+                if (!access.StepDeclared(Memory).TryUnwrap(out var stepped, out var stepError))
+                {
+                    return ToError(new Failure(segment - 1, stepError, IsShapeMismatch: true));
+                }
+
+                if (stepped is not { } next)
+                {
+                    return Result.Ok<PropertyAccess?>(null);
+                }
+
+                container = next;
+            }
+
+            if (!_nodes[segment].AccessDeclared(container).TryUnwrap(out access, out var error))
+            {
+                return ToError(new Failure(segment, error, IsShapeMismatch: true));
+            }
+
+            if (access is null)
+            {
+                return Result.Ok<PropertyAccess?>(null);
+            }
+        }
+
+        return access;
+    }
+
+    // Return the container that the 1st failing segment reads from, which is the live container before it, the declared class of the root
+    // or the class that the property of a null object pointer declares. Return null when that doesn't read.
+    private DeclaredContainer? DeclaredStart(int segment, SegmentRead before, PropertyAccess? beforeAccess)
+    {
+        var container = before.Container;
+
+        if (segment > 0 && container.Collection is { } collection)
+        {
+            return new DeclaredContainer(null, IsObject: false, collection);
+        }
+
+        if (segment > 0 && container.StructType is { } structType)
+        {
+            return new DeclaredContainer(structType, IsObject: false);
+        }
+
+        if (segment > 0 && container.Address != Address.Zero)
+        {
+            return _classReader.ClassOf(container.Address).TryUnwrap(out var real, out _) ? new DeclaredContainer(real, IsObject: true) : null;
+        }
+
+        if (segment <= 1)
+        {
+            return _root.ReadDeclaredClass().TryUnwrap(out var rootClass, out _) ? new DeclaredContainer(rootClass, IsObject: true) : null;
+        }
+
+        return beforeAccess is not null && beforeAccess.StepDeclared(Memory).TryUnwrap(out var declared, out _) ? declared : null;
+    }
+
+    // Return the access of this segment on a declared container, null when the declared classes can't confirm the hop or a read fails,
+    // or the error of a hop that doesn't fit.
+    private Result<PropertyAccess?> AccessDeclared(DeclaredContainer container)
+    {
+        if (HopMismatch(container.Collection) is { } mismatch)
+        {
+            return mismatch;
+        }
+
+        if (container.Collection is { } collection)
+        {
+            if (_hop.Key is not { } key)
+            {
+                _checked = true;
+
+                return collection.Count;
+            }
+
+            // Fail a key of another type, because the key type doesn't depend on memory.
+            // Leave the step unchecked otherwise, because only a read finds the key.
+            return collection.CheckKey(key).TryUnwrapErr(out var keyError) && keyError is CollectionError { IsKeyTypeMismatch: true }
+                ? keyError
+                : collection.Element;
+        }
+
+        if (!_hop.Resolve(container.Type!, out bool missing).TryUnwrap(out var property, out var error))
+        {
+            if (!missing)
+            {
+                return Result.Ok<PropertyAccess?>(null);
+            }
+
+            // Fail a member that a struct type doesn't have, because a struct type doesn't have derived types.
+            if (!container.IsObject)
+            {
+                return error;
+            }
+
+            return DerivedHasMember(container.Type!) is false
+                ? _declaredError ??= ClassError.PropertyNotDeclared(container.Type!.Name, _hop.Name)
+                : Result.Ok<PropertyAccess?>(null);
+        }
+
+        if (!property.Bind().TryUnwrap(out var access, out _))
+        {
+            return Result.Ok<PropertyAccess?>(null);
+        }
+
+        _checked = true;
+
+        return access;
+    }
+
+    // Check whether a loaded class that derives from klass declares the member itself. Return null when a read fails.
+    private bool? DerivedHasMember(UnrealClass klass)
+    {
+        if (_derivedHasMember)
+        {
+            return true;
+        }
+
+        bool? declares = _classReader.DerivedDeclares(klass, _hop.Name);
+        _derivedHasMember = declares is true;
+
+        return declares;
     }
 
     private MemberPath Child(MemberHop hop)
@@ -514,9 +717,9 @@ internal sealed class MemberPath
         return new MemberPath(_classReader, _root, this, hop);
     }
 
-    private static Result CheckFailure(PathError error)
+    private static bool Fits<T>(PropertyAccess access)
     {
-        return error.IsMismatch ? error : Result.Ok();
+        return access is ValueAccess<T> || (typeof(T) == typeof(StructValue) && access.IsStruct);
     }
 
     private Result<T> ReadStruct<T>(PropertyAccess access, Address container, T? last)
@@ -538,7 +741,7 @@ internal sealed class MemberPath
     }
 
     // Return the kept failure of a segment when the cause is the same instance, otherwise keep a new one.
-    private PathError SegmentFailed(int segment, ResultError cause, bool isMismatch = false)
+    private PathError SegmentFailed(int segment, ResultError cause, bool isShapeMismatch = false)
     {
         _segmentErrors ??= new (ResultError, PathError)?[SegmentCount];
 
@@ -547,7 +750,7 @@ internal sealed class MemberPath
             return kept.Error;
         }
 
-        var error = PathError.SegmentFailed(this, segment, cause, isMismatch);
+        var error = PathError.SegmentFailed(this, segment, cause, isShapeMismatch);
         _segmentErrors[segment] = (cause, error);
 
         return error;
@@ -557,7 +760,7 @@ internal sealed class MemberPath
     private PathError ToError(Failure failure)
     {
         return failure.Cause is { } cause
-            ? SegmentFailed(failure.Segment, cause, failure.IsMismatch)
+            ? SegmentFailed(failure.Segment, cause, failure.IsShapeMismatch)
             : (_nullErrors ??= new PathError?[SegmentCount])[failure.Segment] ??= PathError.NullObject(this, failure.Segment);
     }
 
@@ -565,7 +768,7 @@ internal sealed class MemberPath
     private readonly record struct Failure(
         int Segment,
         ResultError? Cause,
-        bool IsMismatch);
+        bool IsShapeMismatch);
 
     // Keep the container after a segment or its failure. Class is set when the 1st member after the segment reads the class of the object.
     private readonly record struct SegmentRead(

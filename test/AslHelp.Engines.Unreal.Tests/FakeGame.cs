@@ -143,6 +143,12 @@ internal sealed class FakeGame
     public const int PositionOffset = 0x290;
 
     /// <summary>
+    ///     The offset of <c>ObjectSet</c> in the data object, a set of objects with the slots of the data object,
+    ///     a free slot that still points at the float data object and the other data object.
+    /// </summary>
+    public const int ObjectSetOffset = 0x2C0;
+
+    /// <summary>
     ///     The offset of the number of elements in a property, <c>ArrayDim</c> in the documents of <see cref="Document"/>.
     /// </summary>
     public const int PropertyArrayDimOffset = 0x30;
@@ -151,6 +157,11 @@ internal sealed class FakeGame
     ///     The offset of the size of 1 element in a property, <c>ElementSize</c> in the documents of <see cref="Document"/>.
     /// </summary>
     public const int PropertyElementSizeOffset = 0x34;
+
+    /// <summary>
+    ///     The offset of the declared class in an object property, <c>PropertyClass</c> in the documents of <see cref="Document"/>.
+    /// </summary>
+    public const int PropertyClassOffset = 0x70;
 
     /// <summary>
     ///     The offset of the value offset in a property, <c>Offset_Internal</c> in the documents of <see cref="Document"/>.
@@ -357,6 +368,11 @@ internal sealed class FakeGame
         "Default__FixtureData",
         "Default__FixtureSubsystem",
         "/Script/Late",
+        "ObjectSet",
+        "ObjectDict",
+        "ObjectKeyDict",
+        "FIXTUREDATA",
+        "HP",
     ];
 
     private readonly Address _coordType;
@@ -611,6 +627,7 @@ internal sealed class FakeGame
                 "FMapProperty": { "KeyProp": "0x70", "ValueProp": "0x78", "MapLayout": "0x80" },
                 "FName": { "ComparisonIndex": "0x0", "Number": "0x4" },
                 "FNameEntry": { "Index": "0x0", "AnsiName": "0x10" },
+                "FObjectProperty": { "PropertyClass": "0x70" },
                 "FProperty": { "ArrayDim": "0x30", "ElementSize": "0x34", "Offset_Internal": "0x44" },
                 "FScriptArray": { "Data": "0x0", "ArrayNum": "0x8" },
                 "FScriptBitArray": { "AllocatorInstance": "0x0", "NumBits": "0x18" },
@@ -632,6 +649,7 @@ internal sealed class FakeGame
                 "UField": { "Next": "0x28" },
                 "UMapProperty": { "KeyProp": "0x70", "ValueProp": "0x78", "MapLayout": "0x80" },
                 "UObjectBase": { "ClassPrivate": "0x10", "NamePrivate": "0x18", "OuterPrivate": "0x20" },
+                "UObjectProperty": { "PropertyClass": "0x70" },
                 "UProperty": { "ArrayDim": "0x30", "ElementSize": "0x34", "Offset_Internal": "0x44" },
                 "USetProperty": { "ElementProp": "0x70", "SetLayout": "0x78" },
                 "UStruct": { "SuperStruct": "0x30", "Children": "0x38", "ChildProperties": "0x50" },
@@ -725,6 +743,34 @@ internal sealed class FakeGame
     }
 
     /// <summary>
+    ///     Creates a class of the package <c>/Script/Fixture</c> with 4-byte int properties at 0x80, 0x84 and so on
+    ///     and adds it to the object array, like when the game loads a class.
+    /// </summary>
+    /// <param name="name">The name of the class, 1 of the names of the game.</param>
+    /// <param name="super">The super class or <see cref="Address.Zero"/>.</param>
+    /// <param name="properties">The names of the properties, each 1 of the names of the game.</param>
+    /// <returns>
+    ///     The address of the class.
+    /// </returns>
+    public Address CreateClass(string name, Address super, params string[] properties)
+    {
+        var klass = _nextObject;
+        _nextObject += 0x1000;
+
+        AddClass(klass, name, super, _fixturePackage);
+        AddObject(klass);
+
+        if (properties.Length > 0)
+        {
+            var addresses = properties.Select((property, i) =>
+                AddProperty(klass, name + property, property, "IntProperty", 0x80 + (i * 4), sizeof(int)));
+            LinkProperties(klass, [.. addresses]);
+        }
+
+        return klass;
+    }
+
+    /// <summary>
     ///     Writes the class pointer of <paramref name="obj"/>, like when the game frees the object and creates another one at its address.
     /// </summary>
     /// <param name="obj">The address of the object.</param>
@@ -778,9 +824,9 @@ internal sealed class FakeGame
     }
 
     /// <summary>
-    ///     Gets the address of the property <paramref name="name"/> of <c>FixtureData</c>.
+    ///     Gets the address of the property <paramref name="name"/> of <c>FixtureData</c>, of <c>FixtureGameMode</c> or of <c>World</c>.
     /// </summary>
-    /// <param name="name">The name of the property, like <c>Coord</c>.</param>
+    /// <param name="name">The name of the property, like <c>Coord</c>, <c>Data</c> or <c>GameMode</c>.</param>
     /// <returns>
     ///     The address.
     /// </returns>
@@ -920,6 +966,7 @@ internal sealed class FakeGame
         LinkProperties(_worldClass, _gameModeProperty);
         LinkProperties(_otherGameModeClass, _otherDataProperty);
         LinkProperties(FixtureGameModeClass, AddProperty(FixtureGameModeClass, "Data", "ObjectProperty", DataOffset, pointerSize));
+        _properties["GameMode"] = _gameModeProperty;
         LinkProperties(_floatDataClass, AddProperty(_floatDataClass, "FloatHp", "Hp", "FloatProperty", HpOffset, sizeof(float)));
         LinkProperties(
             _coordType,
@@ -1009,6 +1056,9 @@ internal sealed class FakeGame
             AddProperty(FixtureDataClass, "Position", "StructProperty", PositionOffset, 0xC),
             AddProperty(FixtureDataClass, "DoublePosition", "StructProperty", 0x2A0, 0x18),
             AddProperty(FixtureDataClass, "Mixed", "StructProperty", 0x2B8, 0x8),
+            AddSet("ObjectSet", ObjectSetOffset, "ObjectProperty", Memory.Layout.PointerSize, 0x10),
+            AddMap("ObjectDict", 0x300, ("StrProperty", 0x10), ("ObjectProperty", 0x10, Memory.Layout.PointerSize), 0x20),
+            AddMap("ObjectKeyDict", 0x340, ("ObjectProperty", Memory.Layout.PointerSize), ("IntProperty", 0x8, sizeof(int)), 0x10),
         ];
 
         Memory.WritePointer(_properties["Coord"] + StructTypeOffset, _coordType);
@@ -1018,6 +1068,14 @@ internal sealed class FakeGame
         Memory.WritePointer(_properties["DoublePosition"] + StructTypeOffset, _doubleVectorType);
         Memory.WritePointer(_properties["Mixed"] + StructTypeOffset, _mixedType);
         LinkProperties(FixtureDataClass, properties);
+
+        // Declare the object properties like the engine, with the base GameModeBase for GameMode, so only the derived class has Data.
+        Memory.WritePointer(_gameModeProperty + PropertyClassOffset, GameModeBaseClass);
+
+        foreach (string key in (string[])["Data", "EngineData", "ItemsInner", "ObjectSetElement", "ObjectDictValue", "ObjectKeyDictKey"])
+        {
+            Memory.WritePointer(_properties[key] + PropertyClassOffset, FixtureDataClass);
+        }
     }
 
     // Adds an array property and its inner property, which has the name of the array like in the engine.
@@ -1122,7 +1180,7 @@ internal sealed class FakeGame
     // Adds the members of the data object past its 1st 0x100 bytes and the elements of the collections behind CollectionData.
     private void AddCollections()
     {
-        Memory.Add(Data + 0x100, new byte[0x200]);
+        Memory.Add(Data + 0x100, new byte[0x300]);
         Memory.Add(CollectionData, new byte[0x8000]);
 
         WriteArray(IntArrayOffset, CollectionData, 3);
@@ -1172,6 +1230,29 @@ internal sealed class FakeGame
         WriteSparse(0x240, mixedDictPairs, 1, 0, 0b1);
         WriteInts(mixedDictPairs, 5, 5);
         Memory.Write(mixedDictPairs + 0x8, 6f);
+
+        // Leave the 2nd slot free with a pointer to the float data object, so a position has to skip it by its bit.
+        var objectSetSlots = CollectionData + 0x4A00;
+        WriteSparse(ObjectSetOffset, objectSetSlots, 3, 1, 0b101);
+        Memory.WritePointer(objectSetSlots, Data);
+        Memory.WritePointer(objectSetSlots + 0x10, FloatData);
+        Memory.WritePointer(objectSetSlots + 0x20, OtherData);
+
+        var objectDictPairs = CollectionData + 0x4B00;
+        WriteSparse(0x300, objectDictPairs, 2, 0, 0b11);
+        WriteStringKey(objectDictPairs, CollectionData + 0x4C00, "data", 0);
+        WriteStringKey(objectDictPairs + 0x20, CollectionData + 0x4C10, "other", 0);
+        Memory.WritePointer(objectDictPairs + 0x10, Data);
+        Memory.WritePointer(objectDictPairs + 0x30, OtherData);
+
+        var objectKeyDictPairs = CollectionData + 0x4D00;
+        WriteSparse(0x340, objectKeyDictPairs, 3, 1, 0b101);
+        Memory.WritePointer(objectKeyDictPairs, Data);
+        Memory.WriteInt32(objectKeyDictPairs + 0x8, 1);
+        Memory.WritePointer(objectKeyDictPairs + 0x10, FloatData);
+        Memory.WriteInt32(objectKeyDictPairs + 0x18, 9);
+        Memory.WritePointer(objectKeyDictPairs + 0x20, OtherData);
+        Memory.WriteInt32(objectKeyDictPairs + 0x28, 2);
 
         Memory.WriteInt32(Data + WeakItemOffset, 1);
         Memory.WriteInt32(Data + WeakItemOffset + 4, 77);

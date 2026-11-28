@@ -9,20 +9,58 @@ This repo contains the libraries that read game engines from memory and the tool
 
 `AslHelp.Engines.Unreal` reads names, objects, structs and properties from Unreal Engine 3, 4 and 5 games. You pick the storage shape and pass in its layouts. For properties you use `ObjectPropertyReader` up to 4.24 and `FieldPropertyReader` from 4.25 on. The readers return `Result<T>` and the name tables aren't thread-safe.
 
-`UnrealProfile.Parse` reads an `unreal3` or `unreal4` profile document from `just measure --profiles` (see [Profiles](#profiles)). `UnrealGame.Attach` finds the globals of that profile in the game and picks the readers for its shapes:
+`UnrealGame.Attach(memory, module, ProfileGuessHandling.Allow)` reads the engine version from the file version of the executable, picks the profile document for it from the documents the library ships and finds the globals of that document in the game:
 
 ```cs
-var profile = UnrealProfile.Parse(File.ReadAllText("unreal4-4.18.3-win-x64-shipping.json")).Unwrap();
-var game = UnrealGame.Attach(memory, module, profile).Unwrap();
+var game = UnrealGame.Attach(memory, module, ProfileGuessHandling.Allow).Unwrap();
 
-var data = game.GWorld.Member("AuthorityGameMode").Member("FixtureData");
-var hp = data.Member<int>("Hp").CreateWatcher(ticks);
-var x = data.Member("Coord").Member<int>("X").CreateWatcher(ticks);
+if (game.Selection!.Warning is { } warning)
+{
+    log(warning);
+}
+
+var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
+var hp = data.Member("Hp").Value<int>().Unwrap().CreateWatcher(ticks);
+var x = data.Member("Coord").Member("X").Value<int>().Unwrap().CreateWatcher(ticks);
+var anyHp = data.Member("Hp").Unwrap().CreateWatcher(ticks);
 ```
 
-`ticks` is the `ITickCounter` of your host. `GWorld` is a path that starts at the world. A path doesn't read until its watcher does. Each hop looks the member up on the real class of the object, so `FixtureData` shows up on the game mode even though `AuthorityGameMode` is declared as `AGameModeBase`. `Member(name)` goes through an object pointer or into a struct, picked by the kind of the property. `Member<T>(name)` ends the path on a value. Attach doesn't wait for a world. A null object on the way, like a world that isn't loaded yet, fails the read and the watcher follows its `FailAction`. With the default `Clear` it shows the default of `T`.
+- the library ships 1 document per group of the measured players, 4.0 to 5.8 and UDK 2010-09 (see [Profiles](#profiles))
+- the pick takes the document that lists the version. A version without a patch, like a 5.8 stamp, takes the highest listed 5.8.x (a guess when the 5.8.x sit in 2 documents) and a listed 5.8 covers every 5.8.x. If none fits, it guesses the nearest patch of the same minor or else the highest lower version of the same major, like 5.8.4 for 5.9.0. Then `Selection.Warning` has both versions
+- `ProfileGuessHandling.Disallow` doesn't guess and fails with the version a guess would take
+- the key is `win-x64` or `win-x86` from the pointer size, then `development` when the exe name ends with `-Debug` or `-DebugGame` and `shipping` for any other name. UBT leaves the configuration out of the name of a development build (`Game.exe`), so a name without it is a guess. Pass `UnrealConfiguration.Development` for a development build
+- after the pick, attach checks that name 0 of the name table reads `None`. A document that doesn't fit fails with the detected version and the picked version
+- a game that's still starting can fail because its name table doesn't read yet. Attach again a little later
+- the exes of 4.0 to 4.7 don't have a version stamp, so pass the version
 
-| Property | `T` and what a chain watcher gives |
+To pass the version or the configuration or to add your own documents:
+
+```cs
+var catalog = UnrealProfile.CreateCatalog();
+catalog.AddFile("my-game.json").Unwrap();
+
+var target = UnrealTarget.Detect(memory, module, version: "4.27.2", configuration: UnrealConfiguration.Development).Unwrap();
+var selection = catalog.Select(target, ProfileGuessHandling.Disallow).Unwrap();
+var game = UnrealGame.Attach(memory, module, selection).Unwrap();
+```
+
+A document you add wins over a shipped document for the versions it lists. A key at the root that the engine doesn't read fails the document. So does an offset the engine doesn't read in a type where an optional offset is missing. `UnrealGame.Attach(memory, module, catalog, guessHandling)` detects the target itself. `UnrealProfile.Parse` reads 1 `unreal3` or `unreal4` document and `UnrealGame.Attach(memory, module, profile)` attaches with it as is, without the pick and the name check. `game.Profile` is the profile attach used.
+
+In the 1st example:
+
+- `ticks` is the `ITickCounter` of your host
+- `GWorld` is a root and its `.Path` starts at the world
+- each step returns a `Result`. A typo or a wrong `T` fails the step when the object is there
+- when the object isn't there, like a world that's still loading, the step checks the class the property declares, like `GameModeBase` for `AuthorityGameMode`. The step fails on a key of the wrong type and when neither that class nor a loaded class derived from it has the member. It can pass once the game loads a derived class with the member, so try it again later. A member that only a derived class has works, but `IsChecked` stays false until a read gets there
+- a failed step or read is a `MemberPathError`. `IsShapeMismatch` is true when the path doesn't fit the classes, like the typo the 1st read finds after an unchecked step. It's false for a read that can work later, like on a null object
+- class and property names ignore case like the engine, but the exact name wins
+- each read looks the member up on the real class of the object, so `FixtureData` shows up on the game mode even though `AuthorityGameMode` is declared as `AGameModeBase`
+- `Member(name)` goes through an object pointer or into a struct, picked by the kind of the property
+- `Value<T>()` gives a watcher of `T`. The path itself gives a `Watcher<object?>` with the value in the type from the table
+- a failed read makes the watcher follow its `FailAction`. With the default `Clear` it shows the default of `T`
+- `Read()` and `Read<T>()` read the value once without a watcher, like `data.Member("Hp").Read<int>()`. They read the whole path and don't touch the reads the watchers of a tick share
+
+| Property | `T` and what a boxed watcher gives |
 |---|---|
 | `Int8Property`, `Int16Property`, `IntProperty`, `Int64Property` | `sbyte`, `short`, `int`, `long` |
 | `ByteProperty` (also `TEnumAsByte`), `UInt16Property`, `UInt32Property`, `UInt64Property` | `byte`, `ushort`, `uint`, `ulong` |
@@ -32,53 +70,50 @@ var x = data.Member("Coord").Member<int>("X").CreateWatcher(ticks);
 | `NameProperty`, `StrProperty` | `string`, a name with its number like `Actor_4` |
 | `ObjectProperty`, `ClassProperty`, `ComponentProperty`, `ObjectPtrProperty`, `ClassPtrProperty` | `Address`, a path goes on through it |
 | `WeakObjectProperty` (4.11 and later) | `Address` or 0 when the object is gone. A path goes on through it |
-| `StructProperty` | no value, a path goes on into it |
-| `StructProperty` with only numbers of 1 class, like `FVector` | an array of that number, like `float[]` (`double[]` on 5.x) |
-| `ArrayProperty` | an array of the element type, like `int[]` |
+| `StructProperty` | `StructValue` with each member by name, like `pos["X"]`. A path also goes on into it, like `Member("X")` |
+| `StructProperty` with only numbers of 1 class, like `FVector` | `StructValue` too. `Value<float[]>()` reads it as an array of that number (`double[]` on 5.x) |
+| `ArrayProperty` | an array of the element type, like `int[]`. An array of number structs reads as `float[][]` or `double[][]`, but 1 item reads as a `StructValue` |
 | `SetProperty` | `HashSet<T>` of the element type |
 | `MapProperty` | `Dictionary<TKey, TValue>` |
 
 After a collection, an index or key goes into 1 element and `Count` reads the number of elements:
 
 ```cs
-var second = data.Member("IntArray").Element<int>(1).CreateWatcher(ticks);
-var two = data.Member("Dict").Element<int>("two").CreateWatcher(ticks);
-var shieldCount = data.Member("Items")[1].Member<int>("Count").CreateWatcher(ticks);
-var items = data.Member("Items").Count.CreateWatcher(ticks);
+var second = data.Member("IntArray").Item(1).Value<int>().Unwrap().CreateWatcher(ticks);
+var two = data.Member("Dict").Item("two").Value<int>().Unwrap().CreateWatcher(ticks);
+var shieldCount = data.Member("Items").Item(1).Member("Count").Value<int>().Unwrap().CreateWatcher(ticks);
+var items = data.Member("Items").Count().Value<int>().Unwrap().CreateWatcher(ticks);
 ```
 
-- an index is an `int` or `long`, a key is an `int`, `long` or `string` and `Element<T>` also takes a `bool` key
+- `Item` takes an integer, a `string` or a `bool` as a `PathKey`
 - a string key matches name and string keys, an integer matches any integer or enum key
-- `Element<bool>(key)` on a set reads whether the set has the key
+- `Item(key).Value<bool>()` on a set reads whether the set has the key
+- on a set of objects or a map keyed by objects the key is the position among the used items, like `Item(1).Member("Hp")`. It moves when the game removes an item in front of it
 - an array or map of mixed structs doesn't read as 1 value, so index it
-- a missing key or an index past the count fails the read
+- a missing key or an index past the count fails the read. A key of the wrong type, like a string on an array, fails the step
+- `Count()` only works on a collection. `Member("Count")` reads a member called `Count` and fails on a collection
 
-Any other kind fails with the property and its class, like `TextProperty` or `SoftObjectProperty`. A `T` that doesn't match the kind fails when the watcher reads. A string with more than 512 characters fails. A whole array with more than 1024 elements fails too. A whole read or a key lookup fails on a set or map with more than 1024 slots, used or free. A watcher of a collection keeps its instance while the elements don't change. A profile without the offsets of a kind still attaches and only reads of that kind fail with the missing offsets. Unreal Engine 3 documents don't have the set, map and weak pointer offsets, so those kinds fail there.
+Any other kind fails with the property and its class, like `TextProperty` or `SoftObjectProperty`. A struct with a member of such a kind fails as a `StructValue`, but its other members still read through a step. A `StructValue` that changes allocates on that tick, so `Value<float[]>()` or a step to `X` is cheaper for a vector that moves all the time. A string with more than 512 characters fails. A whole array with more than 1024 elements fails too. A whole read or a key lookup fails on a set or map with more than 1024 slots, used or free. A watcher of a collection keeps its instance while the elements don't change. A profile without the offsets of a kind still attaches and only reads of that kind fail with the missing offsets. Unreal Engine 3 documents don't have the set, map and weak pointer offsets, so those kinds fail there.
 
 The path types are in `AslHelp.Engines.Unreal.Paths`.
 
-A script writes the same path through `dynamic`. Its watcher is a `Watcher<object?>` whose value has the type from the table, picked from the property at read time. Before the 1st good read `Current` and `Old` are null. When another class has a member with that name and another kind, `Old` keeps the old type for 1 tick and `Changed` is true. A misspelled member fails when the watcher reads.
+The boxed watcher of a path picks the type from the property at read time. Before the 1st good read `Current` and `Old` are null. When another class has a member with that name and another kind, `Old` keeps the old type for 1 tick and `Changed` is true. The path of a root alone reads the `Address` of its object.
+
+Watchers with the same tick counter read the steps their paths share once per tick, also when each path is built again from the same root. 30 watchers under `GWorld.GameMode.Data` cost 39 reads per tick instead of 300, so give all watchers the same counter. `GWorld`, `GEngine` and `FindSubsystem` return 1 root each, but every object a lookup returns has its own root. When the game writes a pointer in the middle of a tick, all of them get it on the next tick. A read without a watcher, like a step check, always reads the whole path. The root keeps every path a step returned, so build paths once and not on each tick.
+
+Every root gives its path through `.Path`:
 
 ```cs
-IWatcherSource hp = game.GWorldChain.AuthorityGameMode.FixtureData.Hp;
-IWatcherSource x = game.GWorldChain.AuthorityGameMode.FixtureData.Coord.X;
-IWatcherSource shield = game.GWorldChain.AuthorityGameMode.FixtureData.Items[1].ItemName;
-```
-
-Paths and chains can start at other objects too:
-
-```cs
-var engineHp = game.GEngine.Member("GameViewport").Member("World").Member("AuthorityGameMode").Member("FixtureData").Member<int>("Hp");
+var engineHp = game.GEngine.Path.Member("GameViewport").Member("World").Member("AuthorityGameMode").Member("FixtureData").Member("Hp");
 
 var item = game.FindPackage("/Script/Fixture").Unwrap().FindClass("FixtureItem").Unwrap().GetInstances().Unwrap()[0];
-var itemName = item.Path.Member<string>("ItemName");
-IWatcherSource count = item.Chain.Count;
+var itemName = item.Path.Member("ItemName").Value<string>();
 
 var subsystem = game.FindSubsystem("MySubsystem").Unwrap();
-var score = subsystem.Path.Member<int>("Score");
+var score = subsystem.Path.Member("Score").Value<int>();
 ```
 
-- `GEngine` and `GEngineChain` start at the engine object, like `GWorld` and `GWorldChain`. A profile needs `globals.GEngine`.
+- `GEngine` starts at the engine object like `GWorld` at the world. A profile needs `globals.GEngine`.
 - `FindPackage` takes a path like `/Script/Engine` in any case. On Unreal Engine 3 it takes a bare name like `Engine`. `GetPackages` lists the packages.
 - A package has `FindClass` and `GetClasses`. A class has `FindProperty` (through its bases), `GetProperties` (its own), `GetInstances` and `GetDerivedClasses`.
 - `GetInstances` lists the live objects of exactly that class without the `Default__` object. It searches the object array like `FindClass`. An object's path fails once the game frees it.
@@ -87,13 +122,31 @@ var score = subsystem.Path.Member<int>("Score");
 
 `ClassOf` returns the real class of an object and `FindClass` finds a loaded class by name. A miss reads the object array again, but only the objects in slots that changed. `UnrealGame` keeps each class with its properties and each package after the 1st read. It isn't thread-safe. `Read<T>` reads the value of 1 property of an object with the types from the table. `UnrealProperty.Accept` calls `VisitValue<T>`, `VisitEnum`, `VisitStruct`, `VisitCollection` or `VisitUnsupported` of your `PropertyVisitor<TResult>`.
 
-`AslHelp.Engines` is what the engine libraries share. `MemberChain<THop>` lets a script write a path of members through `dynamic`, like `root.Player.Health`. Each name goes to the engine's `IMemberResolver<THop>`, which returns the hop for it or throws if the type can't have that member. An index like `root.Items[2]` goes to `ResolveIndex` the same way. The resolver also creates the watcher, so it can type the watcher after the member at the end or after the value it reads:
+`AslHelp.Engines` has the types an engine library implements. Code that only uses them doesn't depend on `AslHelp.Engines.Unreal`:
+
+- `IMemberPath`: the steps `Member(name)`, `Item(key)`, `Count()` and `Value<T>()` return a `Result`. `Read()` and `Read<T>()` read the value once and `IsChecked` is false for a step the engine couldn't check yet. The path itself is an `IWatcherSource<object?>` and `ToString` gives it as written
+- `MemberPathError`: the base of the path errors of an engine. `IsShapeMismatch` is true for a typo and false for a read that can work later
+- `PathKey`: an index or key. `PathKey.TryCreate(object)` takes any integer, a `string` or a `bool`
+- `StructValue`: a struct with its members by name, with value equality so `Changed` works
+- `IWatcherSource` and `IWatcherSource<T>`: something a host can create a watcher from
+- `TickMemo<T>`: keeps 1 value for 1 tick of 1 counter, so the watchers of a counter read the shared steps of paths once per tick
 
 ```cs
-dynamic root = new MemberChain<Hop>(resolver, rootHop);
-IWatcherSource health = root.Player.Health;
+Result<IMemberPath> health = root.Path.Member("Player").Member("Health");
+Watcher<object?> watcher = health.Unwrap().CreateWatcher(ticks);
+```
 
-var watcher = health.CreateWatcher(ticks);
+The steps after the 1st one come from extension members on `Result<IMemberPath>`, which pass the 1st failure on.
+
+`ProfileCatalog<TProfile>` picks profile documents for any engine. You pass the mapper and the version parser of your engine. The parser turns version text into the numbers of a `ProfileVersion`, so your engine decides the order, like a rank for a release letter. `ProfileReader` gives the mapper the parts every document has: `engine`, `key`, `versions`, `offsets` and `globals` as `MemoryLocator`s. Other root keys fail unless the mapper reads them with `ReadObject`. `Add`, `AddFile` and `AddEmbedded` add documents and `Select` picks 1 for a `ProfileTarget` with the rules above. The version can come from the file version of the module:
+
+```cs
+var catalog = new ProfileCatalog<MyProfile>(MyProfile.Map, MyVersion.Parse);
+catalog.AddEmbedded(typeof(MyProfile).Assembly, "Profiles/").Unwrap();
+
+var fileVersion = module.GetFileVersion().Unwrap();
+var target = new ProfileTarget("my-engine", MyVersion.Parse(fileVersion.Text!)!, "x64");
+var selection = catalog.Select(target, ProfileGuessHandling.Disallow).Unwrap();
 ```
 
 ```
@@ -308,7 +361,7 @@ Each group lists `routes` for the globals of its versions. A route finds a globa
 
 ### Profiles
 
-The run also writes 1 JSON file per group when you pass `--profiles`. Each file has what an engine library needs to attach to a game of that group. The file name is `<engine>-<1st version>-<key>.json`, like `unreal4-4.18.3-win-x64-shipping.json`. A group without a key gets `<engine>-<1st version>.json`, like `unreal3-2010-09.json`. Use an empty folder because the run doesn't delete the files of an older run. `globals` gives a locator per global in the JSON form that `MemoryLocator` in AslHelp.Memory reads. Each route of the report becomes 1 locator route, listed under the 1st version it covers.
+The run also writes 1 JSON file per group when you pass `--profiles`. Each file has what an engine library needs to attach to a game of that group. The file name is `<engine>-<1st version>-<key>.json`, like `unreal4-4.18.3-win-x64-shipping.json`. A group without a key gets `<engine>-<1st version>.json`, like `unreal3-2010-09.json`. Use an empty folder because the run doesn't delete the files of an older run. `globals` gives a locator per global in the JSON form that `MemoryLocator` in AslHelp.Memory reads. Each route of the report becomes 1 locator route, listed under the 1st version it covers. The library ships the documents of the measured players from `src/AslHelp.Engines.Unreal/Profiles`, copied there as the run wrote them.
 
 ```json
 {

@@ -44,6 +44,10 @@ internal sealed class ClassReader(
     private readonly IPropertyReader _propertyReader = propertyReader;
     private readonly StructReader _structReader = structReader;
 
+    // Keep the version of the loaded classes at which no derived class declared a member, because a failed step isn't kept
+    // and a script that tries it again would list and read every derived class again.
+    private readonly Dictionary<(Address Class, string Member), int> _undeclaredAt = [];
+
     /// <summary>
     ///     Gets the offsets that the value kinds read.
     /// </summary>
@@ -109,7 +113,7 @@ internal sealed class ClassReader(
     ///     Finds the loaded class called <paramref name="name"/>.
     /// </summary>
     /// <remarks>
-    ///     Compares ordinally. <see cref="ClassIndex.FindClass"/> lists what a search reads.
+    ///     Ignores case and lets the exact name win. <see cref="ClassIndex.FindClass"/> lists what a search reads.
     /// </remarks>
     /// <param name="name">The name of the class, like <c>Actor</c> or <c>BP_Player_C</c>.</param>
     /// <returns>
@@ -122,7 +126,7 @@ internal sealed class ClassReader(
     {
         ArgumentNullException.ThrowIfNull(name);
 
-        return _classIndex.FindClass(name).TryUnwrap(out var klass, out var error) ? Keep(klass, name) : error;
+        return _classIndex.FindClass(name).TryUnwrap(out var klass, out var error) ? Keep(klass.Address, klass.Name) : error;
     }
 
     /// <summary>
@@ -183,6 +187,57 @@ internal sealed class ClassReader(
     public Result<IReadOnlyList<UnrealClass>> DerivedFrom(Address klass)
     {
         return Classes(_classIndex.DerivedFrom(klass));
+    }
+
+    /// <summary>
+    ///     Checks whether a loaded class that derives from <paramref name="klass"/> declares <paramref name="member"/> itself.
+    /// </summary>
+    /// <remarks>
+    ///     Keeps a <see langword="false"/> until the loaded classes change.
+    /// </remarks>
+    /// <param name="klass">The class.</param>
+    /// <param name="member">The name of the property, compared without case.</param>
+    /// <returns>
+    ///     Whether a derived class declares the member or <see langword="null"/> when a read fails.
+    /// </returns>
+    public bool? DerivedDeclares(UnrealClass klass, string member)
+    {
+        if (!_classIndex.ReadVersion().TryUnwrap(out int version, out _))
+        {
+            return null;
+        }
+
+        var key = (klass.Address, member);
+
+        if (_undeclaredAt.TryGetValue(key, out int undeclaredAt) && undeclaredAt == version)
+        {
+            return false;
+        }
+
+        if (!DerivedFrom(klass.Address).TryUnwrap(out var derived, out _))
+        {
+            return null;
+        }
+
+        foreach (var derivedClass in derived)
+        {
+            if (!derivedClass.GetProperties().TryUnwrap(out var properties, out _))
+            {
+                return null;
+            }
+
+            foreach (var property in properties)
+            {
+                if (string.Equals(property.Name, member, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        _undeclaredAt[key] = version;
+
+        return false;
     }
 
     /// <summary>
@@ -298,6 +353,23 @@ internal sealed class ClassReader(
         {
             yield return StructError.ChainPastLimit(type, MaxSuperDepth, _structReader.SuperOffset);
         }
+    }
+
+    /// <summary>
+    ///     Reads the class that the object property <paramref name="property"/> declares, like <c>GameModeBase</c> for <c>AuthorityGameMode</c>.
+    /// </summary>
+    /// <param name="property">The object or weak object property.</param>
+    /// <param name="offset">The offset of the pointer to the declared class in the property.</param>
+    /// <returns>
+    ///     The class or <see langword="null"/> when the pointer is 0 or a read fails.
+    /// </returns>
+    public UnrealClass? PropertyClassOf(UnrealProperty property, int offset)
+    {
+        return Memory.ReadPointer(property.Address + offset).TryUnwrap(out var klass, out _)
+            && klass != Address.Zero
+            && StructAt(klass).TryUnwrap(out var declared, out _)
+                ? declared
+                : null;
     }
 
     /// <summary>

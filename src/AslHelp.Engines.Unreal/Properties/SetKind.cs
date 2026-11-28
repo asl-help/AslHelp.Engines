@@ -9,7 +9,8 @@ namespace AslHelp.Engines.Unreal.Properties;
 ///     Represents the kind of a <c>TSet</c>, which reads as a <see cref="HashSet{T}"/> of the type of its element property.
 /// </summary>
 /// <remarks>
-///     A key after the set reads whether the set has it, like <c>IntSet[22]</c>. Only the used slots of the sparse array count.
+///     A key after the set reads whether the set has it, like <c>IntSet[22]</c>.
+///     A set of objects takes the position among the used slots instead and steps into the object, like <c>ObjectSet[1].Hp</c>.
 /// </remarks>
 internal sealed class SetKind : LayoutKind<SetPropertyLayout>
 {
@@ -84,20 +85,36 @@ file sealed class SetAccessFactory(
     }
 }
 
+// Find an object of a set of objects by its position, because a path key can't be an address.
 file sealed class SetElements<T>(
     UnrealProperty property,
     SparseArray sparseArray,
-    SparseLookup<T> lookup) : CollectionAccess(property)
+    SparseLookup<T> lookup,
+    ValueAccess<T> element) : CollectionAccess(property)
 {
     public override ValueAccess<int> Count { get; } = sparseArray.Count;
 
-    public override PropertyAccess Element { get; } = new ContainsAccess(property);
+    public override PropertyAccess Element { get; } = typeof(T) == typeof(Address) ? element : new ContainsAccess(property);
+
+    public override Result CheckKey(ElementKey key)
+    {
+        return typeof(T) == typeof(Address) ? key.Check<int>(sparseArray, Property.Name) : key.Check<T>(this, Property.Name);
+    }
 
     public override Result<Address> FindElement(IMemoryReader memory, Address container, ElementKey key)
     {
-        return key.As<T>(this, Property.Name).TryUnwrap(out var value, out var error)
-            ? lookup.Find(memory, container, value, key)
-            : error;
+        if (typeof(T) == typeof(Address))
+        {
+            return sparseArray.FindUsed(memory, container, lookup.SlotSize, key);
+        }
+
+        if (key.As<T>(this, Property.Name).TryUnwrap(out var value, out var error))
+        {
+            return lookup.Find(memory, container, value, key);
+        }
+
+        // Return 0 for a number that doesn't fit the element type, because the set can't have it.
+        return error is CollectionError { IsKeyTypeMismatch: true } ? error : Address.Zero;
     }
 }
 
@@ -117,7 +134,7 @@ file sealed class SetValueAccess<T>(
     SparseLookup<T> lookup,
     ValueAccess<T> element) : ValueAccess<HashSet<T>>(property)
 {
-    private readonly SetElements<T> _elements = new(property, sparseArray, lookup);
+    private readonly SetElements<T> _elements = new(property, sparseArray, lookup, element);
 
     // Keep the elements of this read in a set, because a torn read can show 1 element in 2 slots.
     // Keep the value of each slot, so a string element keeps its text while it doesn't change.

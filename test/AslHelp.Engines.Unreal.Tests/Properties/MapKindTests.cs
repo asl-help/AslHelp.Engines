@@ -23,7 +23,7 @@ public sealed class MapKindTests(
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;
 
-    private UnrealPath Data => _game.GWorld.Member("GameMode").Member("Data");
+    private Result<IMemberPath> Data => _game.GWorld.Path.Member("GameMode").Member("Data");
 
     [SetUp]
     public void SetUp()
@@ -36,7 +36,7 @@ public sealed class MapKindTests(
     [Test]
     public void Element_StringKey_ReadsTheValueAtTheValueOffset()
     {
-        Assert.That(Data.Member("Dict").Element<int>("two").Read().Unwrap(), Is.EqualTo(2));
+        Assert.That(Data.Member("Dict").Item("two").Read<int>().Unwrap(), Is.EqualTo(2));
     }
 
     // NameDict has name keys, so a text matches a name and a name with a number matches its text with the number.
@@ -44,7 +44,7 @@ public sealed class MapKindTests(
     [TestCase("Hp_4", 8)]
     public void Element_NameKey_MatchesByTheNameText(string key, int expected)
     {
-        Assert.That(Data.Member("NameDict").Element<int>(key).Read().Unwrap(), Is.EqualTo(expected));
+        Assert.That(Data.Member("NameDict").Item(key).Read<int>().Unwrap(), Is.EqualTo(expected));
     }
 
     // A long key converts to the int key type, so 5L finds the value 50 like an int key finds 60.
@@ -55,8 +55,8 @@ public sealed class MapKindTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(intDict.Element<int>(5L).Read().Unwrap(), Is.EqualTo(50));
-            Assert.That(intDict.Element<int>(6).Read().Unwrap(), Is.EqualTo(60));
+            Assert.That(intDict.Item(5L).Read<int>().Unwrap(), Is.EqualTo(50));
+            Assert.That(intDict.Item(6).Read<int>().Unwrap(), Is.EqualTo(60));
         }
     }
 
@@ -66,7 +66,7 @@ public sealed class MapKindTests(
     public void Element_MissingKey_FailsWithTheKey(long key, string text)
     {
         Assert.That(
-            Data.Member("IntDict").Element<int>(key).Read().UnwrapErr().Message,
+            Data.Member("IntDict").Item(key).Read<int>().UnwrapErr().Message,
             Is.EqualTo($"Can't read GWorld.GameMode.Data.IntDict[{text}]. IntDict doesn't have the key {text}."));
     }
 
@@ -74,14 +74,14 @@ public sealed class MapKindTests(
     [Test]
     public void Element_SteadyKey_ChecksTheLastSlotFirst()
     {
-        var value = Data.Member("IntDict").Element<int>(6);
-        _ = value.Read().Unwrap();
+        var value = Data.Member("IntDict").Item(6);
+        _ = value.Read<int>().Unwrap();
 
         int reads = _fakeGame.Memory.ReadsAt(_fakeGame.CollectionData + 0x4700);
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(value.Read().Unwrap(), Is.EqualTo(60));
+            Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(60));
             Assert.That(_fakeGame.Memory.ReadsAt(_fakeGame.CollectionData + 0x4700) - reads, Is.Zero);
         }
     }
@@ -90,7 +90,7 @@ public sealed class MapKindTests(
     [Test]
     public void Indexer_StructValue_StepsIntoTheValue()
     {
-        Assert.That(Data.Member("MixedDict")[5].Member<float>("B").Read().Unwrap(), Is.EqualTo(6f));
+        Assert.That(Data.Member("MixedDict").Item(5).Member("B").Read<float>().Unwrap(), Is.EqualTo(6f));
     }
 
     // IntDict has int keys and int values, so it reads as a dictionary and a watcher keeps it while it doesn't change.
@@ -99,7 +99,7 @@ public sealed class MapKindTests(
     {
         Dictionary<int, int> expected = new() { [4] = 40, [5] = 50, [6] = 60 };
         ManualTicks ticks = new();
-        var watcher = Data.Member<Dictionary<int, int>>("IntDict").CreateWatcher(ticks);
+        var watcher = Data.Member("IntDict").Value<Dictionary<int, int>>().Unwrap().CreateWatcher(ticks);
         var first = watcher.Current;
         ticks.Value++;
 
@@ -115,7 +115,7 @@ public sealed class MapKindTests(
     public void CreateWatcher_ChangedValue_GivesANewDictionary()
     {
         ManualTicks ticks = new();
-        var watcher = Data.Member<Dictionary<int, int>>("IntDict").CreateWatcher(ticks);
+        var watcher = Data.Member("IntDict").Value<Dictionary<int, int>>().Unwrap().CreateWatcher(ticks);
         _ = watcher.Current;
 
         _fakeGame.Memory.WriteInt32(_fakeGame.CollectionData + 0x4700 + 0x14, 55);
@@ -133,17 +133,46 @@ public sealed class MapKindTests(
     public void Read_StructValues_FailsWithElementsNotValue()
     {
         Assert.That(
-            Data.Member<Dictionary<int, int>>("MixedDict").Read().UnwrapErr().Message,
+            Data.Member("MixedDict").Read<Dictionary<int, int>>().UnwrapErr().Message,
             Is.EqualTo(
                 "Can't read GWorld.GameMode.Data.MixedDict. MixedDict is MapProperty of StructProperty, which doesn't read as 1 value. "
                 + "Index it or read Count."));
+    }
+
+    // ObjectDict has object values, so a key steps into the object and the whole map boxes its values as addresses.
+    [Test]
+    public void Item_MapWithObjectValues_StepsIntoTheObject()
+    {
+        var objectDict = Data.Member("ObjectDict");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(objectDict.Item("other").Member("Hp").Read<int>().Unwrap(), Is.EqualTo(500));
+            Assert.That(
+                objectDict.Read().Unwrap(),
+                Is.EqualTo(new Dictionary<string, Address> { ["data"] = _fakeGame.Data, ["other"] = _fakeGame.OtherData }));
+        }
+    }
+
+    // A path key can't be an address, so an index on a map keyed by objects is the position among the used pairs and skips the free slot.
+    [Test]
+    public void Item_MapKeyedByObjects_TakesAPosition()
+    {
+        var objectKeyDict = Data.Member("ObjectKeyDict");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(objectKeyDict.Item(0).Read<int>().Unwrap(), Is.EqualTo(1));
+            Assert.That(objectKeyDict.Item(1).Read<int>().Unwrap(), Is.EqualTo(2));
+            Assert.That(objectKeyDict.Read().Unwrap(), Is.EqualTo(new Dictionary<Address, int> { [_fakeGame.Data] = 1, [_fakeGame.OtherData] = 2 }));
+        }
     }
 
     // Count after the map reads its number of pairs.
     [Test]
     public void Count_Map_ReadsTheNumberOfPairs()
     {
-        Assert.That(Data.Member("IntDict").Count.Read().Unwrap(), Is.EqualTo(3));
+        Assert.That(Data.Member("IntDict").Count().Read<int>().Unwrap(), Is.EqualTo(3));
     }
 
     // 2 paths to MixedDict with FixtureCoord values share 1 read, so another value read between 2 ticks still gives the watcher its dictionary.
@@ -154,11 +183,11 @@ public sealed class MapKindTests(
         _fakeGame.Memory.WritePointer(_fakeGame.PropertyAddress("MixedDictValue") + FakeGame.StructTypeOffset, coordType);
         var y = _fakeGame.CollectionData + 0x4900 + 0x8;
         ManualTicks ticks = new();
-        var watcher = Data.Member<Dictionary<int, int[]>>("MixedDict").CreateWatcher(ticks);
+        var watcher = Data.Member("MixedDict").Value<Dictionary<int, int[]>>().Unwrap().CreateWatcher(ticks);
         var first = watcher.Current;
 
         _fakeGame.Memory.WriteInt32(y, 1);
-        _ = Data.Member<Dictionary<int, int[]>>("MixedDict").Read().Unwrap();
+        _ = Data.Member("MixedDict").Read<Dictionary<int, int[]>>().Unwrap();
         _fakeGame.Memory.Write(y, 6f);
         ticks.Value++;
 

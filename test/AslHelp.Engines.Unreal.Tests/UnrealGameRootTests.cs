@@ -30,26 +30,46 @@ public sealed class UnrealGameRootTests(
         _game = _fakeGame.Attach();
     }
 
+    // GWorld and GEngine are roots, whose paths start with the name of the global and read the address of its object.
+    [Test]
+    public void Path_GWorldAndGEngine_StartsAtTheGlobal()
+    {
+        var world = _game.GWorld.Path.Read<Address>();
+        var engine = _game.GEngine.Path.CreateWatcher(new ManualTicks()).Current;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_game.GWorld.Path.ToString(), Is.EqualTo("GWorld"));
+            Assert.That(_game.GEngine.ToString(), Is.EqualTo("GEngine"));
+            Assert.That(world.Unwrap(), Is.EqualTo(_fakeGame.World));
+            Assert.That(engine, Is.EqualTo(_fakeGame.Engine));
+        }
+    }
+
+    // A root reads as the address of its object, so a typed int read fails on the step.
+    [Test]
+    public void Value_PathOfARootAsInt_FailsOnTheStep()
+    {
+        Assert.That(_game.GEngine.Path.Value<int>().UnwrapErr().Message, Is.EqualTo("Can't read GEngine as Int32. An object reads as Address."));
+    }
     // GEngine points at an object of GameEngine and its base Engine declares Data.
     [Test]
     public void GEngine_Path_ReadsAMemberThroughTheEngineObject()
     {
-        var hp = _game.GEngine.Member("Data").Member<int>("Hp");
+        var hp = _game.GEngine.Path.Member("Data").Member("Hp");
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(hp.Read().Unwrap(), Is.EqualTo(FakeGame.Hp));
-            Assert.That(hp.ToString(), Is.EqualTo("GEngine.Data.Hp"));
+            Assert.That(hp.Read<int>().Unwrap(), Is.EqualTo(FakeGame.Hp));
+            Assert.That(hp.Unwrap().ToString(), Is.EqualTo("GEngine.Data.Hp"));
         }
     }
 
-    // A chain from GEngine is a watcher source like a chain from GWorld.
+    // A boxed watcher of a path from GEngine reads like one from GWorld.
     [Test]
-    public void GEngineChain_Member_WatchesTheValue()
+    public void CreateWatcher_GEngineMember_WatchesTheValue()
     {
-        IWatcherSource hp = _game.GEngineChain.Data.Hp;
-
-        var watcher = (Watcher<object?>)hp.CreateWatcher(new ManualTicks());
+        var watcher = _game.GEngine.Path.Member("Data").Member("Hp").Unwrap().CreateWatcher(new ManualTicks());
 
         Assert.That(watcher.Current, Is.EqualTo(FakeGame.Hp));
     }
@@ -58,16 +78,16 @@ public sealed class UnrealGameRootTests(
     [Test]
     public void GEngine_NullSlot_FailsThenReadsOnceTheSlotIsSet()
     {
-        var hp = _game.GEngine.Member("Data").Member<int>("Hp");
+        var hp = _game.GEngine.Path.Member("Data").Member("Hp");
         _fakeGame.Memory.WritePointer(_fakeGame.GEngineSlot, Address.Zero);
 
-        var failure = hp.Read();
+        var failure = hp.Read<int>();
         _fakeGame.Memory.WritePointer(_fakeGame.GEngineSlot, _fakeGame.Engine);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(failure.UnwrapErr().Message, Is.EqualTo("Can't read GEngine.Data.Hp: GEngine is null."));
-            Assert.That(hp.Read().Unwrap(), Is.EqualTo(FakeGame.Hp));
+            Assert.That(hp.Read<int>().Unwrap(), Is.EqualTo(FakeGame.Hp));
         }
     }
 
@@ -81,7 +101,9 @@ public sealed class UnrealGameRootTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(result.UnwrapErr().Message, Is.EqualTo("Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile."));
+            Assert.That(
+                result.UnwrapErr().Message,
+                Is.EqualTo("Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile."));
             Assert.That(_fakeGame.Memory.Reads, Is.EqualTo(reads));
         }
     }
@@ -92,12 +114,12 @@ public sealed class UnrealGameRootTests(
     {
         _fakeGame.AddObject(_fakeGame.Subsystem);
 
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(value.Read().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
-            Assert.That(value.ToString(), Is.EqualTo("FixtureSubsystem.SubsystemValue"));
+            Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
+            Assert.That(value.Unwrap().ToString(), Is.EqualTo("FixtureSubsystem.SubsystemValue"));
         }
     }
 
@@ -105,11 +127,11 @@ public sealed class UnrealGameRootTests(
     [Test]
     public void FindSubsystem_SubsystemThatAppearsLater_FailsThenReads()
     {
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
 
-        var failure = value.Read();
+        var failure = value.Read<int>();
         int classReads = _fakeGame.Memory.ReadsAt(_fakeGame.World + FakeGame.ObjectLayout.Class);
-        _ = value.Read();
+        _ = value.Read<int>();
         int secondReads = _fakeGame.Memory.ReadsAt(_fakeGame.World + FakeGame.ObjectLayout.Class) - classReads;
         _fakeGame.AddObject(_fakeGame.Subsystem);
 
@@ -121,7 +143,7 @@ public sealed class UnrealGameRootTests(
                     "Can't read FixtureSubsystem.SubsystemValue at FixtureSubsystem. "
                     + "Can't find a live object of the class FixtureSubsystem."));
             Assert.That(secondReads, Is.Zero);
-            Assert.That(value.Read().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
+            Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
         }
     }
 
@@ -130,15 +152,15 @@ public sealed class UnrealGameRootTests(
     public void FindSubsystem_SubsystemInTheSlotOfAFreedObject_FailsThenReads()
     {
         _ = _fakeGame.CreateObject("Default__FixtureSubsystem", _fakeGame.SubsystemClass);
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
 
-        var failure = value.Read();
+        var failure = value.Read<int>();
         _fakeGame.ReplaceLastObject(_fakeGame.Subsystem);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(failure.UnwrapErr().Message, Does.EndWith("Can't find a live object of the class FixtureSubsystem."));
-            Assert.That(value.Read().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
+            Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
         }
     }
 
@@ -147,14 +169,14 @@ public sealed class UnrealGameRootTests(
     public void FindSubsystem_SubsystemReplaced_FollowsTheNewObject()
     {
         _fakeGame.AddObject(_fakeGame.Subsystem);
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
-        _ = value.Read().Unwrap();
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
+        _ = value.Read<int>().Unwrap();
 
         _fakeGame.WriteClass(_fakeGame.Subsystem, _fakeGame.FixtureGameModeClass);
         var replacement = _fakeGame.CreateObject("FixtureSubsystem", _fakeGame.SubsystemClass);
         _fakeGame.Memory.WriteInt32(replacement + FakeGame.SubsystemValueOffset, 17);
 
-        Assert.That(value.Read().Unwrap(), Is.EqualTo(17));
+        Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(17));
     }
 
     // Once found, a read costs the class pointer of the subsystem, its class with the name and the value, without a pass over the array.
@@ -162,13 +184,35 @@ public sealed class UnrealGameRootTests(
     public void FindSubsystem_SteadyRead_ReadsOnlyTheClassPointerAndTheValue()
     {
         _fakeGame.AddObject(_fakeGame.Subsystem);
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
-        _ = value.Read().Unwrap();
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
+        _ = value.Read<int>().Unwrap();
         int reads = _fakeGame.Memory.Reads;
 
-        _ = value.Read().Unwrap();
+        _ = value.Read<int>().Unwrap();
 
         Assert.That(_fakeGame.Memory.Reads - reads, Is.EqualTo(4));
+    }
+
+    // 2 lookups of 1 class give 1 root, so watchers of both read the root and the class of the subsystem once per tick.
+    [Test]
+    public void FindSubsystem_SameClassTwice_SharesTheSteps()
+    {
+        _fakeGame.AddObject(_fakeGame.Subsystem);
+        var game = SubsystemGame();
+        ManualTicks ticks = new();
+        var first = game.FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Unwrap().CreateWatcher(ticks);
+        var second = game.FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Unwrap().CreateWatcher(ticks);
+        (_, _) = (first.Current, second.Current);
+        ticks.Value++;
+
+        int reads = _fakeGame.Memory.Reads;
+        (_, _) = (first.Current, second.Current);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(second.Current, Is.EqualTo(FakeGame.SubsystemValue));
+            Assert.That(_fakeGame.Memory.Reads - reads, Is.EqualTo(4 + 1));
+        }
     }
 
     // The default object of the subsystem class isn't the subsystem.
@@ -177,9 +221,9 @@ public sealed class UnrealGameRootTests(
     {
         _ = _fakeGame.CreateObject("Default__FixtureSubsystem", _fakeGame.SubsystemClass);
 
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
 
-        Assert.That(value.Read().UnwrapErr().Message, Does.EndWith("Can't find a live object of the class FixtureSubsystem."));
+        Assert.That(value.Read<int>().UnwrapErr().Message, Does.EndWith("Can't find a live object of the class FixtureSubsystem."));
     }
 
     // Attaches with a document of 4.22 or later, which has the subsystem collection.

@@ -1,5 +1,7 @@
 using AslHelp.Engines.Measuring.Cli.Profiles;
 using AslHelp.Engines.Measuring.Cli.Routes;
+using AslHelp.Engines.Profiles;
+using AslHelp.Engines.Unreal;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
@@ -136,6 +138,28 @@ public sealed class ProfileDocumentTests
         var document = ProfileDocument.Create("engine", Group(null, [.. _unkeyedVersions])).Unwrap();
 
         Assert.That(document.FileName, Is.EqualTo("engine-2010-09.json"));
+    }
+
+    // The library reader fails a document with a key it doesn't read, so every part the writer writes must be a key the reader or a mapper reads.
+    [Test]
+    public void Create_WrittenDocument_ReadsWithoutUnknownKeys()
+    {
+        var group = Group("win-x64", ["1.0-win-x64"], ("Global", RoutesOf(Route("1.0-win-x64")))) with
+        {
+            Shapes = new Dictionary<string, string>(StringComparer.Ordinal) { ["Type"] = "flat" },
+        };
+        string json = JsonSerializer.Serialize(ProfileDocument.Create("engine", group).Unwrap(), ProfileDocumentContext.Default.ProfileDocument);
+
+        var read = ProfileReader.Read(
+            json,
+            static reader =>
+            {
+                _ = reader.ReadObject("shapes");
+                return Result.Ok(reader.Engine);
+            },
+            UnrealTarget.ParseVersion);
+
+        Assert.That(read.Unwrap(), Is.EqualTo("engine"));
     }
 
     private static JsonElement Serialize(ProfileDocument document)

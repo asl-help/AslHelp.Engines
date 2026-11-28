@@ -39,7 +39,7 @@ internal static class ProfileDocuments
 
             if (!documents.TryAdd(document.FileName, document))
             {
-                return ProfileError.SameFileName(document.FileName, documents[document.FileName].Versions, document.Versions);
+                return ProfileWriteError.SameFileName(document.FileName, documents[document.FileName].Versions, document.Versions);
             }
         }
 

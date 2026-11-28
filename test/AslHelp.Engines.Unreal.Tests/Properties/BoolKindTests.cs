@@ -36,12 +36,12 @@ public sealed class BoolKindTests(
     [Test]
     public void Read_NativeBool_ReadsTrueAndFalse()
     {
-        var boolValue = Data(_game).Member<bool>("BoolValue");
+        var boolValue = Data(_game).Member("BoolValue");
 
-        bool before = boolValue.Read().Unwrap();
+        bool before = boolValue.Read<bool>().Unwrap();
         _fakeGame.Memory.Write<byte>(_fakeGame.Data + 0x69, 0);
 
-        Assert.That((before, boolValue.Read().Unwrap()), Is.EqualTo((true, false)));
+        Assert.That((before, boolValue.Read<bool>().Unwrap()), Is.EqualTo((true, false)));
     }
 
     // bFirst, bSecond and bThird share 1 byte with 1 and 4 set, so each reads its own bit through its field mask.
@@ -51,7 +51,10 @@ public sealed class BoolKindTests(
         var data = Data(_game);
 
         Assert.That(
-            (data.Member<bool>("bFirst").Read().Unwrap(), data.Member<bool>("bSecond").Read().Unwrap(), data.Member<bool>("bThird").Read().Unwrap()),
+            (
+                data.Member("bFirst").Read<bool>().Unwrap(),
+                data.Member("bSecond").Read<bool>().Unwrap(),
+                data.Member("bThird").Read<bool>().Unwrap()),
             Is.EqualTo((true, false, true)));
     }
 
@@ -59,7 +62,7 @@ public sealed class BoolKindTests(
     [Test]
     public void Read_BitfieldInSecondByte_UsesByteOffset()
     {
-        Assert.That(Data(_game).Member<bool>("bFourth").Read().Unwrap(), Is.True);
+        Assert.That(Data(_game).Member("bFourth").Read<bool>().Unwrap(), Is.True);
     }
 
     // A document without the bool offsets still attaches and only the bool read fails, with every missing path.
@@ -71,11 +74,11 @@ public sealed class BoolKindTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                Data(game).Member<bool>("BoolValue").Read().UnwrapErr().Message,
+                Data(game).Member("BoolValue").Read<bool>().UnwrapErr().Message,
                 Is.EqualTo(
                     "Can't read GWorld.GameMode.Data.BoolValue. Can't read BoolProperty: the profile doesn't have "
                     + $"offsets.{BoolType}.ByteOffset, offsets.{BoolType}.FieldMask."));
-            Assert.That(Data(game).Member<int>("Hp").Read().Unwrap(), Is.EqualTo(FakeGame.Hp));
+            Assert.That(Data(game).Member("Hp").Read<int>().Unwrap(), Is.EqualTo(FakeGame.Hp));
         }
     }
 
@@ -84,10 +87,10 @@ public sealed class BoolKindTests(
     public void Read_BoolMaskUnreadable_FailsAndReadsAgainNextTime()
     {
         var game = _fakeGame.Attach(Set(FakeGame.Document(shape, "indirect", "flat"), "\"0x800\"", "offsets", BoolType, "FieldMask"));
-        var boolValue = Data(game).Member<bool>("BoolValue");
+        var boolValue = Data(game).Member("BoolValue");
         var mask = _fakeGame.PropertyAddress("BoolValue") + 0x800;
 
-        string failure = boolValue.Read().UnwrapErr().Message;
+        string failure = boolValue.Read<bool>().UnwrapErr().Message;
         _fakeGame.Memory.Add(mask, [0xFF]);
 
         using (Assert.EnterMultipleScope())
@@ -95,12 +98,12 @@ public sealed class BoolKindTests(
             Assert.That(
                 failure,
                 Does.StartWith($"Can't read GWorld.GameMode.Data.BoolValue. Can't read the bool mask of BoolValue: reading {mask} failed. "));
-            Assert.That(boolValue.Read().Unwrap(), Is.True);
+            Assert.That(boolValue.Read<bool>().Unwrap(), Is.True);
         }
     }
 
-    private static UnrealPath Data(UnrealGame game)
+    private static Result<IMemberPath> Data(UnrealGame game)
     {
-        return game.GWorld.Member("GameMode").Member("Data");
+        return game.GWorld.Path.Member("GameMode").Member("Data");
     }
 }

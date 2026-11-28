@@ -15,6 +15,15 @@
   <data name="AttachGlobalNotLocated" xml:space="preserve">
     <value>Can't find {0} in {1}. {2}</value>
   </data>
+  <data name="AttachNameTableNotReady" xml:space="preserve">
+    <value>Name 0 of {0} doesn't read yet. {1} Attach again a little later. Check the version and the configuration if it keeps failing.</value>
+  </data>
+  <data name="AttachNameZeroMismatch" xml:space="preserve">
+    <value>Name 0 reads '{0}' and not None.</value>
+  </data>
+  <data name="AttachProfileMisfit" xml:space="preserve">
+    <value>The {0} profile doesn't fit the game ({1}). {2} Check the version and the configuration.</value>
+  </data>
   <data name="ClassMetaclassNotFound" xml:space="preserve">
     <value>The class chain of the object at {0} doesn't end at Class. Check ObjectLayout.Class (0x{1}).</value>
   </data>
@@ -24,6 +33,9 @@
   <data name="ClassNull" xml:space="preserve">
     <value>The class pointer of the object at {0} is 0. Check ObjectLayout.Class (0x{1}).</value>
   </data>
+  <data name="ClassPropertyNotDeclared" xml:space="preserve">
+    <value>Class {0} and its loaded derived classes don't have a property {1}.</value>
+  </data>
   <data name="ClassPropertyNotFound" xml:space="preserve">
     <value>Class {0} doesn't have a property {1}.</value>
   </data>
@@ -32,6 +44,9 @@
   </data>
   <data name="CollectionCountNegative" xml:space="preserve">
     <value>{0} has the count {1}, which is below 0.</value>
+  </data>
+  <data name="CollectionCountNotCollection" xml:space="preserve">
+    <value>{0} isn't a collection, so it doesn't have a Count.</value>
   </data>
   <data name="CollectionDataNull" xml:space="preserve">
     <value>{0} has {1} elements, but its data pointer is 0.</value>
@@ -58,7 +73,7 @@
     <value>The keys of {0} are {1}, which the key {2} can't match.</value>
   </data>
   <data name="CollectionMemberAfterCollection" xml:space="preserve">
-    <value>{0} is a collection, so it takes an index or Count, not {1}.</value>
+    <value>{0} is a collection, so it takes an index or Count, not the member {1}.</value>
   </data>
   <data name="CollectionMemberNull" xml:space="preserve">
     <value>The {1} pointer of {0} at {2} is 0. Check {1} in the profile (0x{3}).</value>
@@ -216,14 +231,11 @@
   <data name="PathFailed" xml:space="preserve">
     <value>Can't read {0}. {1}</value>
   </data>
-  <data name="PathIndexTypeUnsupported" xml:space="preserve">
-    <value>Can't index {0} with a {1}. Use an integer, a bool or a string.</value>
-  </data>
   <data name="PathNullObject" xml:space="preserve">
     <value>Can't read {0}: {1} is null.</value>
   </data>
-  <data name="PathRootUnwatchable" xml:space="preserve">
-    <value>Can't watch {0}: it isn't a property.</value>
+  <data name="PathRootWrongType" xml:space="preserve">
+    <value>Can't read {0} as {1}. An object reads as Address.</value>
   </data>
   <data name="PathSegmentFailed" xml:space="preserve">
     <value>Can't read {0} at {1}. {2}</value>
@@ -234,20 +246,8 @@
   <data name="ProfileEngineUnknown" xml:space="preserve">
     <value>The profile's engine '{0}' isn't 1 of {1}.</value>
   </data>
-  <data name="ProfileGlobalUnreadable" xml:space="preserve">
-    <value>The profile's globals.{0} isn't a locator. {1}</value>
-  </data>
-  <data name="ProfileInvalid" xml:space="preserve">
-    <value>The profile isn't valid. {0}</value>
-  </data>
   <data name="ProfileKindOffsetsMissing" xml:space="preserve">
     <value>Can't read {0}: the profile doesn't have {1}.</value>
-  </data>
-  <data name="ProfileMissing" xml:space="preserve">
-    <value>The profile doesn't have {0}.</value>
-  </data>
-  <data name="ProfileOffsetNegative" xml:space="preserve">
-    <value>The profile's {0} is {1}, which is below 0.</value>
   </data>
   <data name="ProfileShapeUnknown" xml:space="preserve">
     <value>The profile's {0} shape '{1}' isn't 1 of {2}.</value>
@@ -327,6 +327,18 @@
   <data name="StructSuperUnreadable" xml:space="preserve">
     <value>Can't read the super struct of the struct at {0}: reading {1} failed. {2} Check StructLayout.SuperStruct (0x{3}).</value>
   </data>
+  <data name="TargetBuildUnknown" xml:space="preserve">
+    <value>The stamp 1.0.{0}.0 isn't a known UDK build. Pass the version, like 2010-09 or 4.27.2.</value>
+  </data>
+  <data name="TargetPointerSizeUnsupported" xml:space="preserve">
+    <value>A pointer size of {0} bytes isn't x86 or x64.</value>
+  </data>
+  <data name="TargetStampMissing" xml:space="preserve">
+    <value>{0} doesn't have an engine version stamp. Pass the version, like 4.27.2.</value>
+  </data>
+  <data name="TargetVersionInvalid" xml:space="preserve">
+    <value>'{0}' isn't an Unreal Engine version, like 4.27.2 or 2010-09.</value>
+  </data>
   <data name="ValueBoolMaskUnreadable" xml:space="preserve">
     <value>Can't read the bool mask of {0}: reading {1} failed. {2}</value>
   </data>
@@ -350,9 +362,6 @@
   </data>
   <data name="ValueStringTooLong" xml:space="preserve">
     <value>{0} has {1} characters, past the limit of {2}.</value>
-  </data>
-  <data name="ValueStructEnd" xml:space="preserve">
-    <value>{0} is the struct {1}. Continue the path into 1 of its fields.</value>
   </data>
   <data name="ValueStructTypeNull" xml:space="preserve">
     <value>The struct pointer of {0} at {1} is 0. Check Struct of StructProperty in the profile (0x{2}).</value>

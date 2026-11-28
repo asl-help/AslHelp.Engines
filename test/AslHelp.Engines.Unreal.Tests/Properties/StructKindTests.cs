@@ -1,6 +1,8 @@
+using AslHelp.Engines.Errors;
 using AslHelp.Engines.Unreal.Paths;
 using AslHelp.Memory;
 using NUnit.Framework;
+using System;
 using static AslHelp.Engines.Unreal.Tests.JsonEdits;
 
 namespace AslHelp.Engines.Unreal.Tests.Properties;
@@ -20,10 +22,13 @@ public sealed class StructKindTests(
         new(MemoryLayout.X64, new Address(0x7FF6_0000_0000), "ffield"),
     ];
 
+    // Read the class of a property in the ffield shape at this offset, because FField keeps it in front of its name.
+    private const int FieldClassOffset = 0x8;
+
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;
 
-    private UnrealPath Data => _game.GWorld.Member("GameMode").Member("Data");
+    private Result<IMemberPath> Data => _game.GWorld.Path.Member("GameMode").Member("Data");
 
     [SetUp]
     public void SetUp()
@@ -36,11 +41,11 @@ public sealed class StructKindTests(
     [Test]
     public void Read_StructMember_StepsByOffsetWithoutPointerRead()
     {
-        var x = Data.Member("Coord").Member<int>("X");
-        _ = x.Read().Unwrap();
+        var x = Data.Member("Coord").Member("X");
+        _ = x.Read<int>().Unwrap();
 
         int reads = _fakeGame.Memory.Reads;
-        int value = x.Read().Unwrap();
+        int value = x.Read<int>().Unwrap();
 
         using (Assert.EnterMultipleScope())
         {
@@ -53,16 +58,16 @@ public sealed class StructKindTests(
     [Test]
     public void Read_SecondStructMember_AddsBothOffsets()
     {
-        Assert.That(Data.Member("Coord").Member<int>("Y").Read().Unwrap(), Is.EqualTo(FakeGame.CoordY));
+        Assert.That(Data.Member("Coord").Member("Y").Read<int>().Unwrap(), Is.EqualTo(FakeGame.CoordY));
     }
 
-    // Mixed has an int and a float, so a path that ends on it fails with its type and a hint to go on into a field.
+    // Mixed has an int and a float, so it reads as a StructValue and a typed int fails on the step with both types.
     [Test]
-    public void Read_PathEndsOnMixedStruct_FailsWithContinueMessage()
+    public void Value_MixedStructAsInt_FailsWithBothTypes()
     {
         Assert.That(
-            Data.Member<int>("Mixed").Read().UnwrapErr().Message,
-            Is.EqualTo("Can't read GWorld.GameMode.Data.Mixed. Mixed is the struct FixtureMixed. Continue the path into 1 of its fields."));
+            Data.Member("Mixed").Value<int>().UnwrapErr().Message,
+            Is.EqualTo("Can't read GWorld.GameMode.Data.Mixed. Mixed is StructProperty, which reads as StructValue, not Int32."));
     }
 
     // Position has 3 FloatProperty members right after each other, so it reads as 1 float array and still steps into Y.
@@ -73,8 +78,8 @@ public sealed class StructKindTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(Data.Member<float[]>("Position").Read().Unwrap(), Is.EqualTo(expected));
-            Assert.That(Data.Member("Position").Member<float>("Y").Read().Unwrap(), Is.EqualTo(2f));
+            Assert.That(Data.Member("Position").Read<float[]>().Unwrap(), Is.EqualTo(expected));
+            Assert.That(Data.Member("Position").Member("Y").Read<float>().Unwrap(), Is.EqualTo(2f));
         }
     }
 
@@ -84,7 +89,7 @@ public sealed class StructKindTests(
     {
         double[] expected = [1.5, 2.5, 3.5];
 
-        Assert.That(Data.Member<double[]>("DoublePosition").Read().Unwrap(), Is.EqualTo(expected));
+        Assert.That(Data.Member("DoublePosition").Read<double[]>().Unwrap(), Is.EqualTo(expected));
     }
 
     // Coord has 2 IntProperty members, so it reads as an int array and a float array read fails with both types.
@@ -95,9 +100,9 @@ public sealed class StructKindTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(Data.Member<int[]>("Coord").Read().Unwrap(), Is.EqualTo(expected));
+            Assert.That(Data.Member("Coord").Read<int[]>().Unwrap(), Is.EqualTo(expected));
             Assert.That(
-                Data.Member<float[]>("Coord").Read().UnwrapErr().Message,
+                Data.Member("Coord").Read<float[]>().UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.Coord. Coord is StructProperty, which reads as Int32[], not Single[]."));
         }
     }
@@ -107,7 +112,7 @@ public sealed class StructKindTests(
     public void CreateWatcher_SameVectorTwice_KeepsTheArray()
     {
         ManualTicks ticks = new();
-        var watcher = Data.Member<float[]>("Position").CreateWatcher(ticks);
+        var watcher = Data.Member("Position").Value<float[]>().Unwrap().CreateWatcher(ticks);
         float[]? first = watcher.Current;
         ticks.Value++;
 
@@ -118,26 +123,120 @@ public sealed class StructKindTests(
         }
     }
 
-    // Z sits 4 bytes past the end of Y, so the struct doesn't read as an array and fails with the struct end.
+    // Position is a number struct, so its boxed value is a StructValue with the member names in offset order and not a float array.
     [Test]
-    public void Read_GapBetweenMembers_FailsWithStructEnd()
+    public void ReadBoxed_NumberStruct_GivesAStructValueWithTheMemberNames()
+    {
+        var value = Data.Member("Position").Unwrap().CreateWatcher(new ManualTicks()).Current;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(value, Is.TypeOf<StructValue>());
+            Assert.That(((StructValue)value!).TypeName, Is.EqualTo("FixtureVector"));
+            Assert.That(((StructValue)value).Names, Is.EqualTo(["X", "Y", "Z"]));
+            Assert.That(((StructValue)value)["Z"], Is.EqualTo(3f));
+        }
+    }
+
+    // Mixed has an int and a float, so each member of its boxed value keeps its own type.
+    [Test]
+    public void ReadBoxed_MixedStruct_GivesEachMemberInItsOwnType()
+    {
+        var value = (StructValue)Data.Member("Mixed").Unwrap().CreateWatcher(new ManualTicks()).Current!;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(value["A"], Is.TypeOf<int>().And.EqualTo(1));
+            Assert.That(value["B"], Is.TypeOf<float>().And.EqualTo(2f));
+        }
+    }
+
+    // A struct that doesn't change returns the value of the tick before without allocating and 1 changed member gives a new value.
+    [Test]
+    public void ReadBoxed_UnchangedStruct_ReturnsTheLastValue()
+    {
+        ManualTicks ticks = new();
+        var watcher = Data.Member("Position").Unwrap().CreateWatcher(ticks);
+        object? first = watcher.Current;
+        ticks.Value++;
+        _ = watcher.Current;
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        ticks.Value++;
+        object? same = watcher.Current;
+        long bytes = GC.GetAllocatedBytesForCurrentThread() - before;
+
+        _fakeGame.Memory.Write(_fakeGame.Data + FakeGame.PositionOffset + 4, 5f);
+        ticks.Value++;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(same, Is.SameAs(first));
+            Assert.That(bytes, Is.Zero);
+            Assert.That(watcher.Changed, Is.True);
+            Assert.That(((StructValue)watcher.Current!)["Y"], Is.EqualTo(5f));
+            Assert.That(((StructValue)watcher.Old!)["Y"], Is.EqualTo(2f));
+        }
+    }
+
+    // B becomes a TextProperty, so the struct value fails with B and a step to A still reads.
+    [Test]
+    public void ReadBoxed_AMemberOfAKindTheLibraryDoesNotRead_FailsWithThatMember()
+    {
+        int classOffset = shape == "ffield" ? FieldClassOffset : FakeGame.ObjectLayout.Class;
+        var textClass = _fakeGame.Memory.ReadPointer(_fakeGame.PropertyAddress("TextValue") + classOffset).Unwrap();
+        _fakeGame.Memory.WritePointer(_fakeGame.PropertyAddress("B") + classOffset, textClass);
+        var watcher = Data.Member("Mixed").Unwrap().CreateWatcher(new ManualTicks());
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(watcher.Current, Is.Null);
+            Assert.That(
+                watcher.Error?.Message,
+                Is.EqualTo("Can't read GWorld.GameMode.Data.Mixed. B is TextProperty, which the library doesn't read."));
+            Assert.That(watcher.Error, Is.InstanceOf<MemberPathError>().With.Property(nameof(MemberPathError.IsShapeMismatch)).True);
+            Assert.That(Data.Member("Mixed").Member("A").Read<int>().Unwrap(), Is.EqualTo(1));
+        }
+    }
+
+    // A number struct reads as a StructValue and as an array. An int can't read as a StructValue.
+    [Test]
+    public void Value_StructValueAndArray_BothReadANumberStruct()
+    {
+        float[] expected = [1f, 2f, 3f];
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(
+                Data.Member("Position").Read<StructValue>().Unwrap(),
+                Is.EqualTo(new StructValue("FixtureVector", ["X", "Y", "Z"], [1f, 2f, 3f])));
+            Assert.That(Data.Member("Position").Read<float[]>().Unwrap(), Is.EqualTo(expected));
+            Assert.That(
+                Data.Member("Hp").Value<StructValue>().UnwrapErr().Message,
+                Is.EqualTo("Can't read GWorld.GameMode.Data.Hp. Hp is IntProperty, which reads as Int32, not StructValue."));
+        }
+    }
+
+    // Z sits 4 bytes past the end of Y, so the struct doesn't read as an array, only as a StructValue.
+    [Test]
+    public void Value_PaddingBetweenMembers_DoesNotReadAsArray()
     {
         _fakeGame.Memory.WriteInt32(_fakeGame.PropertyAddress("VectorZ") + FakeGame.PropertyOffsetOffset, 0xC);
 
         Assert.That(
-            _fakeGame.Attach().GWorld.Member("GameMode").Member("Data").Member<float[]>("Position").Read().UnwrapErr().Message,
-            Does.EndWith("Position is the struct FixtureVector. Continue the path into 1 of its fields."));
+            _fakeGame.Attach().GWorld.Path.Member("GameMode").Member("Data").Member("Position").Value<float[]>().UnwrapErr().Message,
+            Does.EndWith("Position is StructProperty, which reads as StructValue, not Single[]."));
     }
 
-    // Z is a static array of 2 floats, so the struct doesn't read as an array that would drop the 2nd one and fails with the struct end.
+    // Z is a static array of 2 floats, so the struct doesn't read as an array that would drop the 2nd one, only as a StructValue.
     [Test]
-    public void Read_StaticArrayMember_FailsWithStructEnd()
+    public void Value_StaticArrayMember_DoesNotReadAsArray()
     {
         _fakeGame.Memory.WriteInt32(_fakeGame.PropertyAddress("VectorZ") + FakeGame.PropertyArrayDimOffset, 2);
 
         Assert.That(
-            Data.Member<float[]>("Position").Read().UnwrapErr().Message,
-            Does.EndWith("Position is the struct FixtureVector. Continue the path into 1 of its fields."));
+            Data.Member("Position").Value<float[]>().UnwrapErr().Message,
+            Does.EndWith("Position is StructProperty, which reads as StructValue, not Single[]."));
     }
 
     // Hp is an IntProperty, so a member after it fails at Hp with its class.
@@ -145,7 +244,7 @@ public sealed class StructKindTests(
     public void Read_MemberAfterValue_FailsWithNotContainer()
     {
         Assert.That(
-            Data.Member("Hp").Member<int>("X").Read().UnwrapErr().Message,
+            Data.Member("Hp").Member("X").Read<int>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.Hp.X at GWorld.GameMode.Data.Hp. Hp is IntProperty, which doesn't have members."));
     }
 
@@ -157,7 +256,7 @@ public sealed class StructKindTests(
         _fakeGame.Memory.WritePointer(coord + FakeGame.StructTypeOffset, Address.Zero);
 
         Assert.That(
-            Data.Member("Coord").Member<int>("X").Read().UnwrapErr().Message,
+            Data.Member("Coord").Member("X").Read<int>().UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read GWorld.GameMode.Data.Coord.X at GWorld.GameMode.Data.Coord. The struct pointer of Coord at {coord} is 0. "
                 + "Check Struct of StructProperty in the profile (0x70)."));
@@ -168,15 +267,17 @@ public sealed class StructKindTests(
     public void Read_MemberNotOnStruct_FailsWithTheStructType()
     {
         Assert.That(
-            Data.Member("Coord").Member<int>("Z").Read().UnwrapErr().Message,
+            Data.Member("Coord").Member("Z").Read<int>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.Coord.Z. Class FixtureCoord doesn't have a property Z."));
     }
 
-    // The path of a struct reads the address of the struct inside the data object.
+    // A direct read of a struct path boxes the struct as a StructValue.
     [Test]
-    public void Read_PathToStruct_ReadsTheAddressOfTheStruct()
+    public void Read_PathToStruct_ReadsAStructValue()
     {
-        Assert.That(Data.Member("Coord").Read().Unwrap(), Is.EqualTo(_fakeGame.Data + 0xB0));
+        var coord = (StructValue)Data.Member("Coord").Read().Unwrap()!;
+
+        Assert.That((coord["X"], coord["Y"]), Is.EqualTo((FakeGame.CoordX, FakeGame.CoordY)));
     }
 
     // A document without the struct offset still attaches and only a step into a struct fails with the missing path.
@@ -187,7 +288,7 @@ public sealed class StructKindTests(
         var game = _fakeGame.Attach(Remove(FakeGame.Document(shape, "indirect", "flat"), "offsets", structType));
 
         Assert.That(
-            game.GWorld.Member("GameMode").Member("Data").Member("Coord").Member<int>("X").Read().UnwrapErr().Message,
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("Coord").Member("X").Read<int>().UnwrapErr().Message,
             Is.EqualTo(
                 "Can't read GWorld.GameMode.Data.Coord.X at GWorld.GameMode.Data.Coord. "
                 + $"Can't read StructProperty: the profile doesn't have offsets.{structType}.Struct."));

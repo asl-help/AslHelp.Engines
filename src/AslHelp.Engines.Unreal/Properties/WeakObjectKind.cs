@@ -1,5 +1,4 @@
 using AslHelp.Engines.Unreal.Errors;
-using AslHelp.Engines.Unreal.Objects;
 using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using System.Collections.Generic;
@@ -27,7 +26,7 @@ internal sealed class WeakObjectKind : LayoutKind<WeakObjectLayout>
     }
 
     /// <summary>
-    ///     Reads the offsets of the index and the serial number inside an <c>FWeakObjectPtr</c>.
+    ///     Reads the offsets of the index and the serial number inside an <c>FWeakObjectPtr</c> and the declared class, which is optional.
     /// </summary>
     /// <param name="profile">The offsets of the document.</param>
     /// <returns>
@@ -39,23 +38,22 @@ internal sealed class WeakObjectKind : LayoutKind<WeakObjectLayout>
         int objectIndex = offsets.Read("FWeakObjectPtr", "ObjectIndex");
         int objectSerialNumber = offsets.Read("FWeakObjectPtr", "ObjectSerialNumber");
 
-        return offsets.Finish(new WeakObjectLayout(objectIndex, objectSerialNumber));
+        return offsets.Finish(new WeakObjectLayout(objectIndex, objectSerialNumber, ObjectKind.ReadPropertyClassOffset(profile)));
     }
 
     /// <inheritdoc/>
     protected override Result<PropertyAccess> Bind(UnrealProperty property, ClassReader classReader, WeakObjectLayout layout)
     {
-        return new WeakObjectAccess(property, layout, classReader.ObjectArray);
+        return new WeakObjectAccess(property, layout, classReader);
     }
 }
 
 file sealed class WeakObjectAccess(
     UnrealProperty property,
     WeakObjectLayout layout,
-    IObjectArray objectArray) : ValueAccess<Address>(property)
+    ClassReader classReader) : PointerAccess(property, classReader, layout.PropertyClass)
 {
     private readonly WeakObjectLayout _layout = layout;
-    private readonly IObjectArray _objectArray = objectArray;
 
     private ValueError? _serialNumbersError;
 
@@ -82,7 +80,7 @@ file sealed class WeakObjectAccess(
             return Address.Zero;
         }
 
-        if (!_objectArray.ReadItem(index).TryUnwrap(out var item, out error))
+        if (!ClassReader.ObjectArray.ReadItem(index).TryUnwrap(out var item, out error))
         {
             return error;
         }
@@ -98,12 +96,5 @@ file sealed class WeakObjectAccess(
         }
 
         return itemSerial == serial ? item.Address : Address.Zero;
-    }
-
-    public override Result<Container> Step(IMemoryReader memory, Address container)
-    {
-        return Read(memory, container, Address.Zero).TryUnwrap(out var target, out var error)
-            ? new Container(target, null)
-            : error;
     }
 }

@@ -1,0 +1,141 @@
+{
+  "engine": "unreal4",
+  "key": "win-x64-development",
+  "versions": [
+    "4.0.2",
+    "4.1.2",
+    "4.2.1",
+    "4.3.1",
+    "4.4.3",
+    "4.5.1",
+    "4.6.1",
+    "4.7.6"
+  ],
+  "shapes": {
+    "FField": "uproperty",
+    "FNameEntry": "indirect",
+    "FUObjectArray": "pointers"
+  },
+  "offsets": {
+    "FName": {
+      "ComparisonIndex": "0x0",
+      "Number": "0x4"
+    },
+    "FNameEntry": {
+      "Index": "0x0",
+      "AnsiName": "0x10",
+      "WideName": "0x10"
+    },
+    "FScriptArray": {
+      "Data": "0x0",
+      "ArrayNum": "0x8",
+      "ArrayMax": "0xC"
+    },
+    "FString": {
+      "Data": "0x0"
+    },
+    "FUObjectArray": {
+      "ObjObjects": "0x10"
+    },
+    "FWeakObjectPtr": {
+      "ObjectIndex": "0x0",
+      "ObjectSerialNumber": "0x4"
+    },
+    "UArrayProperty": {
+      "Inner": "0x78"
+    },
+    "UBoolProperty": {
+      "ByteOffset": "0x79",
+      "FieldMask": "0x7B"
+    },
+    "UByteProperty": {
+      "Enum": "0x78"
+    },
+    "UEnum": {
+      "Names": "0x48"
+    },
+    "UField": {
+      "Next": "0x30"
+    },
+    "UObjectBase": {
+      "InternalIndex": "0xC",
+      "ClassPrivate": "0x10",
+      "NamePrivate": "0x18",
+      "OuterPrivate": "0x20"
+    },
+    "UObjectProperty": {
+      "PropertyClass": "0x78"
+    },
+    "UProperty": {
+      "ArrayDim": "0x38",
+      "ElementSize": "0x3C",
+      "Offset_Internal": "0x54",
+      "PropertyLinkNext": "0x58"
+    },
+    "UStruct": {
+      "SuperStruct": "0x38",
+      "Children": "0x40",
+      "PropertiesSize": "0x48"
+    },
+    "UStructProperty": {
+      "Struct": "0x78"
+    }
+  },
+  "globals": {
+    "GUObjectArray": {
+      "4.0.2": [
+        {
+          "forward": "48 8D 05 ???????? 8B 40 18",
+          "offset": 3
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GWorld": {
+      "4.0.2": [
+        {
+          "forward": "48 8B 05 ???????? 48 0F 45 C1",
+          "offset": 3
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GEngine": {
+      "4.0.2": [
+        {
+          "forward": "48 8B 05 ???????? 32 C9",
+          "offset": 3
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GSerialNumberBlocksForDebugVisualizersRoot": {
+      "4.0.2": [
+        {
+          "forward": "48 FF CA 75 ?? 48 89 0D ????????",
+          "offset": 8
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "NameTable": {
+      "4.0.2": [
+        {
+          "forward": "48 89 83 00 04 00 00 E8 ???????? 48 89 1D ????????",
+          "offset": 15
+        },
+        {
+          "read": "global"
+        }
+      ]
+    }
+  }
+}

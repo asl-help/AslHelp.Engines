@@ -1,7 +1,7 @@
 <Project>
 
   <PropertyGroup>
-    <Description>Shared parts of the asl-help engine libraries: member chains that a script writes 1 name at a time and watcher sources.</Description>
+    <Description>Typed member paths, struct values, watcher sources and profile catalogs that the asl-help engine libraries share.</Description>
     <PackageTags>game-engine memory watcher</PackageTags>
   </PropertyGroup>
 

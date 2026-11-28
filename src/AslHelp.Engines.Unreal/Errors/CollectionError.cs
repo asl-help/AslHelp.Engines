@@ -9,6 +9,11 @@ namespace AslHelp.Engines.Unreal.Errors;
 internal abstract record CollectionError : ResultError
 {
     /// <summary>
+    ///     Gets a value indicating whether the key can't match any key of the collection, like a text key on an array.
+    /// </summary>
+    public virtual bool IsKeyTypeMismatch => false;
+
+    /// <summary>
     ///     Creates the error for a collection whose count is below 0.
     /// </summary>
     /// <param name="property">The name of the property.</param>
@@ -19,6 +24,18 @@ internal abstract record CollectionError : ResultError
     public static CollectionError CountNegative(string property, int count)
     {
         return new CountNegativeError(property, count);
+    }
+
+    /// <summary>
+    ///     Creates the error for a count after a member that isn't a collection.
+    /// </summary>
+    /// <param name="member">The name of the member.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static CollectionError CountNotCollection(string member)
+    {
+        return new CountNotCollectionError(member);
     }
 
     /// <summary>
@@ -131,7 +148,7 @@ internal abstract record CollectionError : ResultError
     }
 
     /// <summary>
-    ///     Creates the error for a member after a collection other than <c>Count</c>.
+    ///     Creates the error for a member after a collection.
     /// </summary>
     /// <param name="property">The name of the collection.</param>
     /// <param name="member">The name of the member.</param>
@@ -222,6 +239,12 @@ file sealed record CountNegativeError(
     public override string Message => SR.FormatCollectionCountNegative(Property, Count);
 }
 
+file sealed record CountNotCollectionError(
+    string Member) : CollectionError
+{
+    public override string Message => SR.FormatCollectionCountNotCollection(Member);
+}
+
 file sealed record DataNullError(
     string Property,
     int Count) : CollectionError
@@ -280,6 +303,8 @@ file sealed record KeyTypeMismatchError(
     string KeyType,
     string Key) : CollectionError
 {
+    public override bool IsKeyTypeMismatch => true;
+
     public override string Message => SR.FormatCollectionKeyTypeMismatch(Property, KeyType, Key);
 }
 

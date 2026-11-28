@@ -27,7 +27,7 @@ internal sealed class KindOffsets(
     /// </returns>
     public Result<TLayout> Finish<TLayout>(TLayout layout)
     {
-        return _missing is null ? layout : ProfileError.KindOffsetsMissing(_className, _missing);
+        return _missing is null ? layout : ProfileMapError.KindOffsetsMissing(_className, _missing);
     }
 
     /// <summary>

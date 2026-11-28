@@ -4,7 +4,7 @@ using AslHelp.Engines.Unreal.Structs;
 namespace AslHelp.Engines.Unreal;
 
 /// <summary>
-///     Represents an object that paths and member chains start at, like a subsystem, found again on each read.
+///     Represents an object that paths start at, like a global or a subsystem. Each read finds the object again.
 /// </summary>
 /// <remarks>
 ///     A root whose object isn't there fails each read and recovers once the object is there.
@@ -23,26 +23,14 @@ public sealed class UnrealRoot
     internal UnrealRoot(ClassReader classReader, PathRoot root, string text)
     {
         _text = text;
-
-        // Create the hop of the root once, because the path and the chain start at the same root.
-        var hop = MemberHop.Root(text);
-        Path = new UnrealPath(new MemberPath(classReader, root, [hop]));
-        Chain = new MemberChain<MemberHop>(new MemberResolver(classReader, root), hop);
+        Path = new UnrealPath(new MemberPath(classReader, root, text));
     }
-
-    /// <summary>
-    ///     Gets the member chain that starts at the object, for a script that writes members through <see langword="dynamic"/>.
-    /// </summary>
-    /// <remarks>
-    ///     <see cref="UnrealGame.GWorldChain"/> lists what a chain takes.
-    /// </remarks>
-    public dynamic Chain { get; }
 
     /// <summary>
     ///     Gets the path that starts at the object.
     /// </summary>
     /// <remarks>
-    ///     Getting the path doesn't read memory.
+    ///     Getting the path doesn't read memory. Its watcher reads the address of the object.
     /// </remarks>
     public UnrealPath Path { get; }
 

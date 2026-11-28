@@ -5,7 +5,7 @@ namespace AslHelp.Engines.Measuring.Cli.Profiles.Errors;
 /// <summary>
 ///     Represents profile documents that can't be written.
 /// </summary>
-internal abstract record ProfileError : ResultError
+internal abstract record ProfileWriteError : ResultError
 {
     /// <summary>
     ///     Creates the error for 2 groups whose documents get the same file name.
@@ -16,7 +16,7 @@ internal abstract record ProfileError : ResultError
     /// <returns>
     ///     The error.
     /// </returns>
-    public static ProfileError SameFileName(string fileName, IReadOnlyList<string> firstVersions, IReadOnlyList<string> otherVersions)
+    public static ProfileWriteError SameFileName(string fileName, IReadOnlyList<string> firstVersions, IReadOnlyList<string> otherVersions)
     {
         return new SameFileNameError(fileName, firstVersions, otherVersions);
     }
@@ -30,7 +30,7 @@ internal abstract record ProfileError : ResultError
     /// <returns>
     ///     The error.
     /// </returns>
-    public static ProfileError SameRouteName(string global, string routeName, IReadOnlyList<string> versions)
+    public static ProfileWriteError SameRouteName(string global, string routeName, IReadOnlyList<string> versions)
     {
         return new SameRouteNameError(global, routeName, versions);
     }
@@ -39,7 +39,7 @@ internal abstract record ProfileError : ResultError
 file sealed record SameFileNameError(
     string FileName,
     IReadOnlyList<string> FirstVersions,
-    IReadOnlyList<string> OtherVersions) : ProfileError
+    IReadOnlyList<string> OtherVersions) : ProfileWriteError
 {
     public override string Message => SR.FormatProfileSameFileName(FileName, string.Join(", ", FirstVersions), string.Join(", ", OtherVersions));
 }
@@ -47,7 +47,7 @@ file sealed record SameFileNameError(
 file sealed record SameRouteNameError(
     string Global,
     string RouteName,
-    IReadOnlyList<string> Versions) : ProfileError
+    IReadOnlyList<string> Versions) : ProfileWriteError
 {
     public override string Message => SR.FormatProfileSameRouteName(Global, string.Join(", ", Versions), RouteName);
 }

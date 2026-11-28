@@ -44,6 +44,7 @@
     <MeziantouPolyfill_IncludedPolyfills>
       M:System.ArgumentNullException.ThrowIfNull(System.Object,System.String);
       T:System.Diagnostics.CodeAnalysis.DoesNotReturnAttribute;
+      T:System.Diagnostics.CodeAnalysis.MaybeNullWhenAttribute;
       T:System.Diagnostics.CodeAnalysis.NotNullAttribute;
       T:System.Diagnostics.CodeAnalysis.NotNullWhenAttribute;
       T:System.Index;

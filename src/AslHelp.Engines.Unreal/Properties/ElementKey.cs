@@ -23,16 +23,11 @@ internal sealed class ElementKey
     /// <summary>
     ///     Initializes a new instance of the <see cref="ElementKey"/> class.
     /// </summary>
-    /// <param name="value">The key, which is an integer, a <see cref="bool"/> or a <see cref="string"/>.</param>
-    public ElementKey(object value)
+    /// <param name="key">The index or key.</param>
+    public ElementKey(PathKey key)
     {
-        Value = value;
-        Text = value switch
-        {
-            string text => $"\"{text}\"",
-            bool flag => flag ? "true" : "false",
-            _ => Convert.ToString(value, CultureInfo.InvariantCulture)!,
-        };
+        Value = key.Value;
+        Text = key.ToString();
     }
 
     /// <summary>
@@ -49,18 +44,6 @@ internal sealed class ElementKey
     ///     Gets the key.
     /// </summary>
     public object Value { get; }
-
-    /// <summary>
-    ///     Checks whether <paramref name="value"/> can be a key, which is an integer, a <see cref="bool"/> or a <see cref="string"/>.
-    /// </summary>
-    /// <param name="value">The key.</param>
-    /// <returns>
-    ///     <see langword="true"/> for a key of 1 of those types.
-    /// </returns>
-    public static bool IsKeyType(object value)
-    {
-        return value is string or bool || IsInteger(Type.GetTypeCode(value.GetType()));
-    }
 
     /// <summary>
     ///     Converts the key to <typeparamref name="TKey"/>, the key type of <paramref name="collection"/>.
@@ -100,6 +83,20 @@ internal sealed class ElementKey
     }
 
     /// <summary>
+    ///     Checks whether the key converts to <typeparamref name="TKey"/>, like <see cref="As{TKey}"/>.
+    /// </summary>
+    /// <typeparam name="TKey">The key type of the collection.</typeparam>
+    /// <param name="collection">The collection, for the kept result.</param>
+    /// <param name="property">The name of the collection, for the failure.</param>
+    /// <returns>
+    ///     A success or the failure of <see cref="As{TKey}"/>.
+    /// </returns>
+    public Result Check<TKey>(object collection, string property)
+    {
+        return As<TKey>(collection, property).TryUnwrapErr(out var error) ? error : Result.Ok();
+    }
+
+    /// <summary>
     ///     Returns the failure for a map that doesn't have the key.
     /// </summary>
     /// <param name="property">The name of the map.</param>
@@ -112,9 +109,9 @@ internal sealed class ElementKey
     }
 
     /// <summary>
-    ///     Returns the failure for an index outside the <paramref name="count"/> elements of an array.
+    ///     Returns the failure for an index outside the <paramref name="count"/> elements of an array or the used slots of a set or map.
     /// </summary>
-    /// <param name="property">The name of the array.</param>
+    /// <param name="property">The name of the collection.</param>
     /// <param name="index">The index, which is the key converted by <see cref="As{TKey}"/>.</param>
     /// <param name="count">The number of elements.</param>
     /// <returns>

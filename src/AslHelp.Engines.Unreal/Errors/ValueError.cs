@@ -118,19 +118,6 @@ internal abstract record ValueError : ResultError
     }
 
     /// <summary>
-    ///     Creates the error for a path that ends on a struct property, which doesn't have a value of its own.
-    /// </summary>
-    /// <param name="property">The name of the property.</param>
-    /// <param name="structName">The name of the struct type.</param>
-    /// <returns>
-    ///     The error.
-    /// </returns>
-    public static ValueError StructEnd(string property, string structName)
-    {
-        return new StructEndError(property, structName);
-    }
-
-    /// <summary>
     ///     Creates the error for a struct property whose pointer to its struct type is 0.
     /// </summary>
     /// <param name="property">The name of the property.</param>
@@ -282,13 +269,6 @@ file sealed record StringTooLongError(
     int MaxLength) : ValueError
 {
     public override string Message => SR.FormatValueStringTooLong(Property, Length, MaxLength);
-}
-
-file sealed record StructEndError(
-    string Property,
-    string StructName) : ValueError
-{
-    public override string Message => SR.FormatValueStructEnd(Property, StructName);
 }
 
 file sealed record StructTypeNullError(

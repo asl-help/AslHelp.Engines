@@ -1,3 +1,4 @@
+using AslHelp.Engines.Profiles;
 using AslHelp.Engines.Unreal.Errors;
 using AslHelp.Engines.Unreal.Names;
 using AslHelp.Engines.Unreal.Objects;
@@ -19,13 +20,22 @@ namespace AslHelp.Engines.Unreal;
 /// </remarks>
 public sealed class UnrealGame
 {
+    // Check the steps after a null GEngine or GWorld against the classes that the engine declares them as.
+    private const string EngineClassName = "Engine";
+    private const string WorldClassName = "World";
+
+    private static readonly Lazy<ProfileCatalog<UnrealProfile>> _shippedCatalog = new(UnrealProfile.CreateCatalog);
+
     private readonly ClassReader _classReader;
-    private readonly UnrealRoot _engine;
     private readonly bool _hasSubsystems;
-    private readonly UnrealRoot _world;
+
+    // Keep 1 root per class name, so the paths of 2 lookups share their reads.
+    private readonly Dictionary<string, UnrealRoot> _subsystems = [];
 
     private UnrealGame(
         IMemoryReader memory,
+        UnrealProfile profile,
+        ProfileSelection<UnrealProfile>? selection,
         ObjectReader objectReader,
         IPropertyReader propertyReader,
         IObjectArray objectArray,
@@ -35,57 +45,49 @@ public sealed class UnrealGame
         bool hasSubsystems)
     {
         Memory = memory;
+        Profile = profile;
+        Selection = selection;
         ObjectReader = objectReader;
         PropertyReader = propertyReader;
         ObjectArray = objectArray;
         _classReader = classReader;
-        _world = new UnrealRoot(classReader, PathRoot.Global(gWorldSlot), UnrealProfile.WorldGlobal);
-        _engine = new UnrealRoot(classReader, PathRoot.Global(gEngineSlot), UnrealProfile.EngineGlobal);
+        GWorld = new UnrealRoot(classReader, PathRoot.Global(classReader, gWorldSlot, WorldClassName), UnrealProfile.WorldGlobal);
+        GEngine = new UnrealRoot(classReader, PathRoot.Global(classReader, gEngineSlot, EngineClassName), UnrealProfile.EngineGlobal);
         _hasSubsystems = hasSubsystems;
     }
 
     /// <summary>
-    ///     Gets the path that starts at the <c>GEngine</c> global, the engine object of the game.
+    ///     Gets the root at the <c>GEngine</c> global.
     /// </summary>
     /// <remarks>
-    ///     Getting the path doesn't read memory.
-    ///     Each read of a longer path reads the pointer in the slot again, so an engine that the game creates later shows up.
+    ///     Each read of a path from the root reads the pointer in the slot again, so an engine that the game creates later shows up.
     /// </remarks>
-    public UnrealPath GEngine => _engine.Path;
+    public UnrealRoot GEngine { get; }
 
     /// <summary>
-    ///     Gets the member chain that starts at the <c>GEngine</c> global, like <c>GEngineChain.GameViewport.World</c>.
+    ///     Gets the root at the <c>GWorld</c> global, like <c>GWorld.Path.Member("AuthorityGameMode")</c>.
     /// </summary>
     /// <remarks>
-    ///     <see cref="GWorldChain"/> lists what a chain takes.
-    /// </remarks>
-    public dynamic GEngineChain => _engine.Chain;
-
-    /// <summary>
-    ///     Gets the path that starts at the <c>GWorld</c> global.
-    /// </summary>
-    /// <remarks>
-    ///     Getting the path doesn't read memory.
-    ///     Each read of a longer path reads the pointer in the slot again, so a world that the game loads later shows up.
+    ///     Each read of a path from the root reads the pointer in the slot again, so a world that the game loads later shows up.
     ///     On Unreal Engine 3 the class <c>World</c> doesn't have any reflected properties, so start at <see cref="GEngine"/>
     ///     or at an object of <see cref="UnrealClass.GetInstances"/>.
     /// </remarks>
-    public UnrealPath GWorld => _world.Path;
+    public UnrealRoot GWorld { get; }
 
     /// <summary>
-    ///     Gets the member chain that starts at the <c>GWorld</c> global, for a script that writes members through <see langword="dynamic"/>.
+    ///     Gets the profile that the game attached with.
+    /// </summary>
+    public UnrealProfile Profile { get; }
+
+    /// <summary>
+    ///     Gets the pick of the catalog with the detected or passed target,
+    ///     or <see langword="null"/> after <see cref="Attach(IMemoryReader, MemoryModule, UnrealProfile)"/>.
     /// </summary>
     /// <remarks>
-    ///     Every chain is an <see cref="IWatcherSource"/>, like <c>GWorldChain.AuthorityGameMode.FixtureData.Hp</c>.
-    ///     Its watcher is a <see cref="Memory.Watching.Watcher{T}"/> of <see cref="object"/> whose value has the type of the kind at the end,
-    ///     like an <see cref="int"/> for an <c>IntProperty</c> or a <see cref="string"/> for a <c>StrProperty</c>.
-    ///     A hop goes through an object property and into a struct property the same way, like <c>FixtureData.Coord.X</c>.
-    ///     An index goes into an array, a set or a map, like <c>FixtureData.Items[1].Count</c> or <c>FixtureData.Dict["two"]</c>.
-    ///     <c>Count</c> after a collection reads its number of elements.
-    ///     A misspelled member or a kind without a value fails when the watcher reads and not on the script line,
-    ///     because a read finds the class of the object. An index of another type than an integer, a bool or a string throws on the script line.
+    ///     Show <see cref="ProfileSelection{TProfile}.Warning"/> to the user when it's set, because then the pick is a guess.
+    ///     The warning is only set when the caller passed <see cref="ProfileGuessHandling.Allow"/>.
     /// </remarks>
-    public dynamic GWorldChain => _world.Chain;
+    public ProfileSelection<UnrealProfile>? Selection { get; }
 
     /// <summary>
     ///     Gets the memory of the game.
@@ -106,6 +108,93 @@ public sealed class UnrealGame
     ///     Gets the reader of properties.
     /// </summary>
     internal IPropertyReader PropertyReader { get; }
+
+    /// <summary>
+    ///     Attaches to a game with the shipped document that fits the engine version and the key that <see cref="UnrealTarget.Detect"/> reads.
+    /// </summary>
+    /// <remarks>
+    ///     Maps the shipped documents on the 1st call and keeps them for later calls.
+    ///     Runs the checks of <see cref="Attach(IMemoryReader, MemoryModule, ProfileSelection{UnrealProfile})"/>.
+    ///     A game that's still starting can fail because its name table doesn't read yet, so attach again a little later.
+    /// </remarks>
+    /// <param name="memory">The memory of the game.</param>
+    /// <param name="module">The executable of the game, which has the version resource and the globals.</param>
+    /// <param name="guessHandling">What to do when no document lists the version or its line.</param>
+    /// <returns>
+    ///     The game or a failure when detection fails, no document fits, the picked document doesn't fit the game or name 0 doesn't read yet.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="memory"/> or <paramref name="module"/> is <see langword="null"/>.
+    /// </exception>
+    public static Result<UnrealGame> Attach(IMemoryReader memory, MemoryModule module, ProfileGuessHandling guessHandling)
+    {
+        return Attach(memory, module, _shippedCatalog.Value, guessHandling);
+    }
+
+    /// <summary>
+    ///     Attaches to a game with the document of <paramref name="catalog"/> that fits the engine version and the key that
+    ///     <see cref="UnrealTarget.Detect"/> reads.
+    /// </summary>
+    /// <remarks>
+    ///     Start from <see cref="UnrealProfile.CreateCatalog"/> and add your own documents to it.
+    ///     Call <see cref="UnrealTarget.Detect"/> with a version or a configuration, pick with <see cref="ProfileCatalog{TProfile}.Select"/>
+    ///     and pass the selection to <see cref="Attach(IMemoryReader, MemoryModule, ProfileSelection{UnrealProfile})"/> when detection is wrong.
+    ///     A game that's still starting can fail because its name table doesn't read yet, so attach again a little later.
+    /// </remarks>
+    /// <param name="memory">The memory of the game.</param>
+    /// <param name="module">The executable of the game, which has the version resource and the globals.</param>
+    /// <param name="catalog">The documents to pick from.</param>
+    /// <param name="guessHandling">What to do when no document lists the version or its line.</param>
+    /// <returns>
+    ///     The game or a failure when detection fails, no document fits, the picked document doesn't fit the game or name 0 doesn't read yet.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="memory"/>, <paramref name="module"/> or <paramref name="catalog"/> is <see langword="null"/>.
+    /// </exception>
+    public static Result<UnrealGame> Attach(
+        IMemoryReader memory,
+        MemoryModule module,
+        ProfileCatalog<UnrealProfile> catalog,
+        ProfileGuessHandling guessHandling)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+
+        if (!UnrealTarget.Detect(memory, module).TryUnwrap(out var target, out var error)
+            || !catalog.Select(target, guessHandling).TryUnwrap(out var selection, out error))
+        {
+            return error;
+        }
+
+        return Attach(memory, module, selection);
+    }
+
+    /// <summary>
+    ///     Attaches to a game with the document of <paramref name="selection"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Finds the globals like <see cref="Attach(IMemoryReader, MemoryModule, UnrealProfile)"/> and then reads name 0 of the name table,
+    ///     which is <c>None</c> in every build. A global that isn't found or a name 0 that isn't <c>None</c> fails with the target
+    ///     and the picked version, because a wrong version or configuration picks a document whose routes or offsets belong to another build.
+    ///     A name 0 that doesn't read fails on its own, because a game that's still starting doesn't have a name table yet.
+    ///     Attach again a little later then. Check the version and the configuration when it keeps failing.
+    /// </remarks>
+    /// <param name="memory">The memory of the game.</param>
+    /// <param name="module">The module that the routes of the globals start at, usually the executable.</param>
+    /// <param name="selection">The pick of <see cref="ProfileCatalog{TProfile}.Select"/> for the game.</param>
+    /// <returns>
+    ///     The game with <see cref="Selection"/> set or a failure when the picked document doesn't fit the game or name 0 doesn't read yet.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="memory"/>, <paramref name="module"/> or <paramref name="selection"/> is <see langword="null"/>.
+    /// </exception>
+    public static Result<UnrealGame> Attach(IMemoryReader memory, MemoryModule module, ProfileSelection<UnrealProfile> selection)
+    {
+        ArgumentNullException.ThrowIfNull(memory);
+        ArgumentNullException.ThrowIfNull(module);
+        ArgumentNullException.ThrowIfNull(selection);
+
+        return Create(memory, module, selection.Entry.Profile, selection);
+    }
 
     /// <summary>
     ///     Attaches to a game by finding the globals of <paramref name="profile"/> in <paramref name="module"/>.
@@ -130,45 +219,7 @@ public sealed class UnrealGame
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(profile);
 
-        if (!profile.NameTableLocator.Locate(memory, module).TryUnwrap(out var nameTableGlobal, out var error))
-        {
-            return AttachError.GlobalNotLocated(profile.NameTableShape.Global, module.Name, error);
-        }
-
-        if (!profile.ObjectArrayLocator.Locate(memory, module).TryUnwrap(out var objectArrayGlobal, out error))
-        {
-            return AttachError.GlobalNotLocated(profile.ObjectArrayGlobal, module.Name, error);
-        }
-
-        // Locate the slot now, so a profile that doesn't fit the game fails here and not on the 1st read.
-        GlobalPointer gWorldSlot = new(memory, module, profile.WorldLocator, TimeSpan.Zero);
-
-        if (gWorldSlot.Locate().TryUnwrapErr(out error))
-        {
-            return AttachError.GlobalNotLocated(UnrealProfile.WorldGlobal, module.Name, error);
-        }
-
-        GlobalPointer gEngineSlot = new(memory, module, profile.EngineLocator, TimeSpan.Zero);
-
-        if (gEngineSlot.Locate().TryUnwrapErr(out error))
-        {
-            return AttachError.GlobalNotLocated(UnrealProfile.EngineGlobal, module.Name, error);
-        }
-
-        var nameTable = profile.NameTableShape.Create(memory, nameTableGlobal);
-        ObjectReader objectReader = new(memory, nameTable, profile.ObjectLayout);
-        StructReader structReader = new(memory, objectReader, profile.StructLayout, profile.ChildLayout);
-
-        if (!profile.ObjectArrayShape.Create(memory, objectArrayGlobal + profile.ObjectArrayOffset).TryUnwrap(out var objectArray, out error))
-        {
-            return error;
-        }
-
-        var propertyReader = profile.PropertyShape.Create(memory, nameTable, objectReader, structReader);
-
-        ClassReader classReader = new(memory, nameTable, objectReader, structReader, propertyReader, objectArray, profile.KindLayouts);
-
-        return new UnrealGame(memory, objectReader, propertyReader, objectArray, classReader, gWorldSlot, gEngineSlot, profile.HasSubsystems);
+        return Create(memory, module, profile, selection: null);
     }
 
     /// <summary>
@@ -192,8 +243,10 @@ public sealed class UnrealGame
     ///     Finds the loaded class called <paramref name="name"/>.
     /// </summary>
     /// <remarks>
-    ///     Compares ordinally. Returns an object of the object array whose class is <c>Class</c> or derives from it,
+    ///     Ignores case like the engine, but a class with the exact name wins.
+    ///     Returns an object of the object array whose class is <c>Class</c> or derives from it,
     ///     as <c>BlueprintGeneratedClass</c> does. When 2 classes have the name, returns the one a call found 1st, in array order within 1 call.
+    ///     A name that only matches in another case reads every kept class name on each call.
     ///     The 1st call reads every object of the array and keeps the name of every class and every package.
     ///     A later call checks the name and the class of a kept class. A miss reads the array again,
     ///     the objects in array slots that changed and the name of each kept Blueprint class.
@@ -239,6 +292,8 @@ public sealed class UnrealGame
     /// <remarks>
     ///     Doesn't read memory and doesn't check that the class is a subsystem. A read of a path from the root finds the object and keeps it,
     ///     so a subsystem that the game creates later shows up and a read finds a replaced subsystem again.
+    ///     Finds the class like <see cref="FindClass"/>. Returns the same root on each call with an ordinally equal name.
+    ///     Isn't thread-safe.
     /// </remarks>
     /// <param name="className">The name of the class without a prefix, like <c>MySubsystem</c>.</param>
     /// <returns>
@@ -256,7 +311,13 @@ public sealed class UnrealGame
             return RootError.SubsystemsUnavailable();
         }
 
-        return new UnrealRoot(_classReader, PathRoot.FirstObject(_classReader, className), className);
+        if (!_subsystems.TryGetValue(className, out var root))
+        {
+            root = new UnrealRoot(_classReader, PathRoot.FirstObject(_classReader, className), className);
+            _subsystems.Add(className, root);
+        }
+
+        return root;
     }
 
     /// <summary>
@@ -286,8 +347,9 @@ public sealed class UnrealGame
     ///     the type of the underlying property for <c>EnumProperty</c>, <see cref="string"/> for <c>NameProperty</c> and <c>StrProperty</c>,
     ///     <see cref="Address"/> for the object properties and <c>WeakObjectProperty</c>, an array of the element type for <c>ArrayProperty</c>,
     ///     a <see cref="HashSet{T}"/> for <c>SetProperty</c>,
-    ///     a <see cref="Dictionary{TKey, TValue}"/> for <c>MapProperty</c>
-    ///     and an array of the number type for a <c>StructProperty</c> whose members are numbers of 1 class.
+    ///     a <see cref="Dictionary{TKey, TValue}"/> for <c>MapProperty</c>,
+    ///     <see cref="StructValue"/> for <c>StructProperty</c>
+    ///     and also an array of the number type for a <c>StructProperty</c> whose members are numbers of 1 class.
     /// </typeparam>
     /// <param name="obj">The address of the object.</param>
     /// <param name="property">The property.</param>
@@ -303,5 +365,84 @@ public sealed class UnrealGame
         ArgumentNullException.ThrowIfNull(property);
 
         return property.Read<T>(Memory, obj);
+    }
+
+    // Check name 0 only for a picked document, because the explicit profile keeps the attach that doesn't read game data.
+    private static Result<UnrealGame> Create(
+        IMemoryReader memory,
+        MemoryModule module,
+        UnrealProfile profile,
+        ProfileSelection<UnrealProfile>? selection)
+    {
+        // Wrap a failure of a picked document, because a wrong version or configuration picks the routes and offsets of another build.
+        ResultError misfit(ResultError cause)
+        {
+            return selection is null ? cause : AttachError.ProfileMisfit(selection.Target, selection.Version, cause);
+        }
+
+        if (!profile.NameTableLocator.Locate(memory, module).TryUnwrap(out var nameTableGlobal, out var error))
+        {
+            return misfit(AttachError.GlobalNotLocated(profile.NameTableShape.Global, module.Name, error));
+        }
+
+        if (!profile.ObjectArrayLocator.Locate(memory, module).TryUnwrap(out var objectArrayGlobal, out error))
+        {
+            return misfit(AttachError.GlobalNotLocated(profile.ObjectArrayGlobal, module.Name, error));
+        }
+
+        // Locate the slot now, so a profile that doesn't fit the game fails here and not on the 1st read.
+        GlobalPointer gWorldSlot = new(memory, module, profile.WorldLocator, TimeSpan.Zero);
+
+        if (gWorldSlot.Locate().TryUnwrapErr(out error))
+        {
+            return misfit(AttachError.GlobalNotLocated(UnrealProfile.WorldGlobal, module.Name, error));
+        }
+
+        GlobalPointer gEngineSlot = new(memory, module, profile.EngineLocator, TimeSpan.Zero);
+
+        if (gEngineSlot.Locate().TryUnwrapErr(out error))
+        {
+            return misfit(AttachError.GlobalNotLocated(UnrealProfile.EngineGlobal, module.Name, error));
+        }
+
+        var nameTable = profile.NameTableShape.Create(memory, nameTableGlobal);
+
+        if (selection is not null)
+        {
+            // Return a failed read without the misfit, because the name table of a game that's still starting can be a null pointer.
+            if (!nameTable.Read(0).TryUnwrap(out string? name, out error))
+            {
+                return AttachError.NameTableNotReady(selection.Target, error);
+            }
+
+            if (name != "None")
+            {
+                return misfit(AttachError.NameZeroMismatch(name));
+            }
+        }
+
+        ObjectReader objectReader = new(memory, nameTable, profile.ObjectLayout);
+        StructReader structReader = new(memory, objectReader, profile.StructLayout, profile.ChildLayout);
+
+        if (!profile.ObjectArrayShape.Create(memory, objectArrayGlobal + profile.ObjectArrayOffset).TryUnwrap(out var objectArray, out error))
+        {
+            return misfit(error);
+        }
+
+        var propertyReader = profile.PropertyShape.Create(memory, nameTable, objectReader, structReader);
+
+        ClassReader classReader = new(memory, nameTable, objectReader, structReader, propertyReader, objectArray, profile.KindLayouts);
+
+        return new UnrealGame(
+            memory,
+            profile,
+            selection,
+            objectReader,
+            propertyReader,
+            objectArray,
+            classReader,
+            gWorldSlot,
+            gEngineSlot,
+            profile.HasSubsystems);
     }
 }

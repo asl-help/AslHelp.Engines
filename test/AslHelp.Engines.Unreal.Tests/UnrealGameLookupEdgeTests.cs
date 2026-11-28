@@ -79,6 +79,45 @@ public sealed class UnrealGameLookupEdgeTests(
         Assert.That(_game.FindPackage("").UnwrapErr().Message, Is.EqualTo("Package  isn't loaded."));
     }
 
+    // The 2nd lookup in another case takes the kept package, so it still gives the real name and the same instance.
+    [Test]
+    public void FindPackage_PathInOtherCaseTwice_KeepsTheRealName()
+    {
+        var first = _game.FindPackage("/script/fixture").Unwrap();
+        var second = _game.FindPackage("/SCRIPT/FIXTURE").Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(second.Name, Is.EqualTo("/Script/Fixture"));
+            Assert.That(second, Is.SameAs(first));
+        }
+    }
+
+    // A class lookup in another case gives the instance of the exact lookup, so it doesn't replace the kept class.
+    [Test]
+    public void FindClass_NameInOtherCaseThenExact_ReturnsTheSameInstance()
+    {
+        var other = _game.FindClass("FIXTUREDATA").Unwrap();
+        var exact = _game.FindClass("FixtureData").Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exact, Is.SameAs(other));
+            Assert.That(_game.FindClass("fixtureData").Unwrap(), Is.SameAs(exact));
+        }
+    }
+
+    // The class of a subsystem ignores case like FindClass, so a lowercase name reads the live subsystem.
+    [Test]
+    public void FindSubsystem_NameInOtherCase_ReadsTheSubsystem()
+    {
+        _fakeGame.AddObject(_fakeGame.Subsystem);
+
+        var value = SubsystemGame().FindSubsystem("fixturesubsystem").Unwrap().Path.Member("subsystemvalue");
+
+        Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
+    }
+
     // The 1st FixtureData class got another name, so the name gives the 2nd class with that name.
     [Test]
     public void FindClass_FirstOfTwoClassesWithOneNameRenamed_ReturnsTheSecond()
@@ -129,18 +168,18 @@ public sealed class UnrealGameLookupEdgeTests(
         var other = _fakeGame.CreateObject("FixtureSubsystem", _fakeGame.SubsystemClass);
         _fakeGame.Memory.WriteInt32(other + FakeGame.SubsystemValueOffset, 17);
 
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue");
 
-        Assert.That(value.Read().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
+        Assert.That(value.Read<int>().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
     }
 
     // A class that isn't loaded fails the read with the class lookup and not with a missing object.
     [Test]
     public void FindSubsystem_ClassNotLoaded_FailsWithTheClassLookup()
     {
-        var value = SubsystemGame().FindSubsystem("Missing").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("Missing").Unwrap().Path.Member("SubsystemValue");
 
-        Assert.That(value.Read().UnwrapErr().Message, Does.EndWith("Can't find a loaded class called Missing."));
+        Assert.That(value.Read<int>().UnwrapErr().Message, Does.EndWith("Can't find a loaded class called Missing."));
     }
 
     // A null class name is a programmer error and throws on every profile.

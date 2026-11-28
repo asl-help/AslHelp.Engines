@@ -1,0 +1,101 @@
+{
+  "engine": "unreal3",
+  "versions": [
+    "2010-09"
+  ],
+  "offsets": {
+    "FName": {
+      "Index": "0x0",
+      "Number": "0x4"
+    },
+    "FNameEntry": {
+      "Index": "0x8",
+      "Name": "0x10"
+    },
+    "FScriptArray": {
+      "Data": "0x0",
+      "ArrayNum": "0x4"
+    },
+    "UArrayProperty": {
+      "Inner": "0x80"
+    },
+    "UBoolProperty": {
+      "BitMask": "0x80"
+    },
+    "UEnum": {
+      "Names": "0x40"
+    },
+    "UField": {
+      "Next": "0x3C"
+    },
+    "UObject": {
+      "ObjectInternalInteger": "0x4",
+      "Outer": "0x28",
+      "Name": "0x2C",
+      "Class": "0x34"
+    },
+    "UObjectProperty": {
+      "PropertyClass": "0x80"
+    },
+    "UProperty": {
+      "ArrayDim": "0x40",
+      "ElementSize": "0x44",
+      "Offset": "0x60",
+      "PropertyLinkNext": "0x64"
+    },
+    "UStruct": {
+      "SuperField": "0x48",
+      "Children": "0x4C",
+      "PropertySize": "0x50"
+    },
+    "UStructProperty": {
+      "Struct": "0x80"
+    }
+  },
+  "globals": {
+    "GNames": {
+      "2010-09": [
+        {
+          "forward": "A3 ???????? 89 33",
+          "offset": 1
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GObjObjects": {
+      "2010-09": [
+        {
+          "forward": "3B F0 8B 0D ????????",
+          "offset": 4
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GEngine": {
+      "2010-09": [
+        {
+          "forward": "2B F0 A1 ????????",
+          "offset": 3
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GWorld": {
+      "2010-09": [
+        {
+          "forward": "89 07 A1 ????????",
+          "offset": 3
+        },
+        {
+          "read": "global"
+        }
+      ]
+    }
+  }
+}

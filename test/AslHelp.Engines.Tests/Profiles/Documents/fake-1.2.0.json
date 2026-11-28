@@ -1,0 +1,7 @@
+{
+  "engine": "fake",
+  "key": "x64",
+  "versions": ["1.2.0"],
+  "offsets": { "Thing": { "Speed": "0x10" } },
+  "globals": { "Things": { "1.2.0": [{ "forward": "A1 ????????", "offset": 1 }, { "read": "global" }] } }
+}

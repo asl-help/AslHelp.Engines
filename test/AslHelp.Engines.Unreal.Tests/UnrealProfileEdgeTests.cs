@@ -35,6 +35,24 @@ public sealed class UnrealProfileEdgeTests
         }
         """;
 
+    // A typo in a key at the root fails the document. The shapes key passes because the unreal4 mapper reads it.
+    [Test]
+    public void Parse_DocumentWithUnknownRootKey_FailsWithTheKey()
+    {
+        Assert.That(
+            UnrealProfile.Parse(Set(Item, "\"win-x64-shipping\"", "kee")).UnwrapErr().Message,
+            Is.EqualTo("The profile has the unknown keys kee."));
+    }
+
+    // A typo of the optional serial number fails, because FUObjectItem then has an offset that the mapper doesn't read.
+    [Test]
+    public void Parse_SerialNumberWithATypo_FailsWithTheUnreadOffset()
+    {
+        Assert.That(
+            UnrealProfile.Parse(Set(Item, "\"0x10\"", "offsets", "FUObjectItem", "SerialNumbr")).UnwrapErr().Message,
+            Is.EqualTo("The profile has the unknown keys offsets.FUObjectItem.SerialNumbr."));
+    }
+
     // A negative JSON number would read memory in front of the object, so it fails with its path and value.
     [TestCase("-1")]
     [TestCase("-2147483648")]

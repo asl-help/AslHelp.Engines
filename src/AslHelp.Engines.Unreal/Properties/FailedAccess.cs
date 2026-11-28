@@ -16,6 +16,9 @@ internal sealed class FailedAccess(
     private readonly ResultError _error = error;
 
     /// <inheritdoc/>
+    public override bool AlwaysFails => true;
+
+    /// <inheritdoc/>
     public override ResultError NotValueOf(Type type)
     {
         return _error;

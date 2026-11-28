@@ -20,6 +20,7 @@ public sealed class UnrealClass
     private readonly ClassReader _classReader;
     private UnrealProperty[]? _ownProperties;
     private Dictionary<string, UnrealProperty>? _properties;
+    private Dictionary<string, UnrealProperty>? _propertiesIgnoringCase;
 
     /// <summary>
     ///     Initializes a new instance of the <see cref="UnrealClass"/> class.
@@ -48,7 +49,8 @@ public sealed class UnrealClass
     ///     Finds the property called <paramref name="name"/> on this class or a class up its super chain.
     /// </summary>
     /// <remarks>
-    ///     Compares ordinally. Returns the property of the most derived class when 2 classes declare the same name.
+    ///     Ignores case like the engine, but a property with the exact name wins.
+    ///     Returns the property of the most derived class when 2 classes declare the same name.
     /// </remarks>
     /// <param name="name">The name of the property.</param>
     /// <returns>
@@ -147,15 +149,16 @@ public sealed class UnrealClass
     /// <summary>
     ///     Finds the property called <paramref name="name"/> on this class or a class up its super chain.
     /// </summary>
-    /// <param name="name">The name of the property.</param>
+    /// <param name="name">The name of the property. A name that only matches in another case finds the property too.</param>
     /// <returns>
     ///     The property, <see langword="null"/> when no class on the chain declares it or a failure when a read of the properties fails.
     /// </returns>
     internal Result<UnrealProperty?> FindPropertyOrNull(string name)
     {
-        if (_properties is null)
+        if (_properties is null || _propertiesIgnoringCase is null)
         {
             Dictionary<string, UnrealProperty> properties = [];
+            Dictionary<string, UnrealProperty> propertiesIgnoringCase = [with(StringComparer.OrdinalIgnoreCase)];
 
             foreach (var item in _classReader.PropertiesOf(Address))
             {
@@ -169,11 +172,16 @@ public sealed class UnrealClass
                 {
                     properties[property.Name] = property;
                 }
+
+                if (!propertiesIgnoringCase.ContainsKey(property.Name))
+                {
+                    propertiesIgnoringCase[property.Name] = property;
+                }
             }
 
-            _properties = properties;
+            (_properties, _propertiesIgnoringCase) = (properties, propertiesIgnoringCase);
         }
 
-        return _properties.TryGetValue(name, out var found) ? found : null;
+        return _properties.TryGetValue(name, out var found) || _propertiesIgnoringCase.TryGetValue(name, out found) ? found : null;
     }
 }

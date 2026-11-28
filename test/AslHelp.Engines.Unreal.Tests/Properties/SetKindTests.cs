@@ -24,7 +24,7 @@ public sealed class SetKindTests(
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;
 
-    private UnrealPath IntSet => _game.GWorld.Member("GameMode").Member("Data").Member("IntSet");
+    private Result<IMemberPath> IntSet => _game.GWorld.Path.Member("GameMode").Member("Data").Member("IntSet");
 
     [SetUp]
     public void SetUp()
@@ -41,8 +41,10 @@ public sealed class SetKindTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(_game.GWorld.Member("GameMode").Member("Data").Member<HashSet<int>>("IntSet").Read().Unwrap(), Is.EquivalentTo(expected));
-            Assert.That(IntSet.Member<int>("Count").Read().Unwrap(), Is.EqualTo(3));
+            Assert.That(
+                _game.GWorld.Path.Member("GameMode").Member("Data").Member("IntSet").Read<HashSet<int>>().Unwrap(),
+                Is.EquivalentTo(expected));
+            Assert.That(IntSet.Count().Read<int>().Unwrap(), Is.EqualTo(3));
         }
     }
 
@@ -52,7 +54,14 @@ public sealed class SetKindTests(
     [TestCase(44, false)]
     public void Element_Key_ReadsWhetherTheSetHasIt(int key, bool expected)
     {
-        Assert.That(IntSet.Element<bool>(key).Read().Unwrap(), Is.EqualTo(expected));
+        Assert.That(IntSet.Item(key).Read<bool>().Unwrap(), Is.EqualTo(expected));
+    }
+
+    // A number past the range of the elements can't be in the set, so it reads false like any other key the set doesn't have.
+    [Test]
+    public void Element_KeyPastTheRangeOfTheElements_ReadsFalse()
+    {
+        Assert.That(IntSet.Item(5_000_000_000).Read<bool>().Unwrap(), Is.False);
     }
 
     // A text key can't match int elements, so it fails with the key type of the set.
@@ -60,7 +69,7 @@ public sealed class SetKindTests(
     public void Element_TextKeyOnIntSet_FailsWithKeyTypeMismatch()
     {
         Assert.That(
-            IntSet.Element<bool>("x").Read().UnwrapErr().Message,
+            IntSet.Item("x").Read<bool>().UnwrapErr().Message,
             Does.EndWith("The keys of IntSet are Int32, which the key \"x\" can't match."));
     }
 
@@ -73,7 +82,9 @@ public sealed class SetKindTests(
         _fakeGame.Memory.WritePointer(_fakeGame.Data + FakeGame.IntSetOffset + _fakeGame.SparseSecondaryBitsOffset, heapBits);
         HashSet<int> expected = [11, 44];
 
-        Assert.That(_game.GWorld.Member("GameMode").Member("Data").Member<HashSet<int>>("IntSet").Read().Unwrap(), Is.EquivalentTo(expected));
+        Assert.That(
+            _game.GWorld.Path.Member("GameMode").Member("Data").Member("IntSet").Read<HashSet<int>>().Unwrap(),
+            Is.EquivalentTo(expected));
     }
 
     // 1025 slots is past the bound, so a lookup fails before it reads any slot.
@@ -82,7 +93,7 @@ public sealed class SetKindTests(
     {
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.IntSetOffset + 0x8, 1025);
 
-        Assert.That(IntSet.Element<bool>(11).Read().UnwrapErr().Message, Does.EndWith("IntSet has 1025 slots, past the limit of 1024."));
+        Assert.That(IntSet.Item(11).Read<bool>().UnwrapErr().Message, Does.EndWith("IntSet has 1025 slots, past the limit of 1024."));
     }
 
     // A watcher of a set that doesn't change keeps its set, so Changed stays false.
@@ -90,7 +101,7 @@ public sealed class SetKindTests(
     public void CreateWatcher_SameSetTwice_KeepsTheSet()
     {
         ManualTicks ticks = new();
-        var watcher = _game.GWorld.Member("GameMode").Member("Data").Member<HashSet<int>>("IntSet").CreateWatcher(ticks);
+        var watcher = _game.GWorld.Path.Member("GameMode").Member("Data").Member("IntSet").Value<HashSet<int>>().Unwrap().CreateWatcher(ticks);
         var first = watcher.Current;
         ticks.Value++;
 
@@ -101,6 +112,22 @@ public sealed class SetKindTests(
         }
     }
 
+    // A path key can't be an address, so an index on a set of objects is the position among the used slots and skips the free slot.
+    [Test]
+    public void Item_SetOfObjects_StepsIntoTheObjectAtThePosition()
+    {
+        var objectSet = _game.GWorld.Path.Member("GameMode").Member("Data").Member("ObjectSet");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(objectSet.Item(1).Member("Hp").Read<int>().Unwrap(), Is.EqualTo(500));
+            Assert.That(objectSet.Item(1).Read().Unwrap(), Is.EqualTo(_fakeGame.OtherData));
+            Assert.That(
+                objectSet.Read().Unwrap(),
+                Is.EquivalentTo((Address[])[_fakeGame.Data, _fakeGame.OtherData]).And.InstanceOf<HashSet<Address>>());
+        }
+    }
+
     // A document without the bit array still attaches and only the set read fails with the missing paths.
     [Test]
     public void Read_SetWithoutBitArrayOffsets_FailsWithProfilePath()
@@ -108,7 +135,7 @@ public sealed class SetKindTests(
         var game = _fakeGame.Attach(Remove(FakeGame.Document(shape, "indirect", "flat"), "offsets", "FScriptBitArray"));
 
         Assert.That(
-            game.GWorld.Member("GameMode").Member("Data").Member("IntSet").Element<bool>(11).Read().UnwrapErr().Message,
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("IntSet").Item(11).Read<bool>().UnwrapErr().Message,
             Does.EndWith(
                 "Can't read SetProperty: the profile doesn't have offsets.FScriptBitArray.AllocatorInstance, offsets.FScriptBitArray.NumBits."));
     }

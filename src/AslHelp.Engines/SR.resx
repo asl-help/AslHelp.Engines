@@ -12,10 +12,46 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="CatalogNoneFits" xml:space="preserve">
+    <value>No profile fits {0}. Add a profile that lists {1}.</value>
+  </data>
+  <data name="CatalogNotListed" xml:space="preserve">
+    <value>No profile lists {0}. Pass ProfileGuessHandling.Allow to use {1}, the nearest listed version.</value>
+  </data>
+  <data name="ProfileGlobalUnreadable" xml:space="preserve">
+    <value>The profile's globals.{0} isn't a locator. {1}</value>
+  </data>
+  <data name="ProfileInvalid" xml:space="preserve">
+    <value>The profile isn't valid. {0}</value>
+  </data>
+  <data name="ProfileMissing" xml:space="preserve">
+    <value>The profile doesn't have {0}.</value>
+  </data>
+  <data name="ProfileOffsetNegative" xml:space="preserve">
+    <value>The profile's {0} is {1}, which is below 0.</value>
+  </data>
+  <data name="ProfileSourceUnreadable" xml:space="preserve">
+    <value>Can't read the profile {0}. {1}</value>
+  </data>
+  <data name="ProfileUnknownKeys" xml:space="preserve">
+    <value>The profile has the unknown keys {0}.</value>
+  </data>
+  <data name="ProfileVersionInvalid" xml:space="preserve">
+    <value>The profile's version '{0}' isn't a version of {1}.</value>
+  </data>
+  <data name="SelectionLowerVersion" xml:space="preserve">
+    <value>No profile lists {0}. Using {1}, the nearest lower version.</value>
+  </data>
+  <data name="SelectionSameMinor" xml:space="preserve">
+    <value>No profile lists {0}. Using {1} of the same minor.</value>
+  </data>
   <data name="StructMemberNotFound" xml:space="preserve">
     <value>{0} doesn't have a member {1}. Members: {2}.</value>
   </data>
   <data name="StructValueCountMismatch" xml:space="preserve">
     <value>A struct value needs 1 value per name. Names: {0}, values: {1}.</value>
+  </data>
+  <data name="VersionPartsEmpty" xml:space="preserve">
+    <value>A version needs at least 1 part.</value>
   </data>
 </root>

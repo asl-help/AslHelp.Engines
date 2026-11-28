@@ -1,3 +1,4 @@
+using AslHelp.Engines.Profiles;
 using AslHelp.Memory;
 using AslHelp.Memory.Remote;
 using NUnit.Framework;
@@ -15,6 +16,7 @@ public sealed class UnrealGameUdkLiveTests
     private const string ExecutableName = "UDK.exe";
     private const string LogPath = @"UDKGame\Logs\Launch.log";
     private const string MapsPath = @"UDKGame\Content\Maps";
+    private const int MaxStarts = 3;
 
     // Set FIXTURES_UNREAL3_PLAYER to the folder of the UDK 2010-09 player to attach to it.
     private const string PlayerVariable = "FIXTURES_UNREAL3_PLAYER";
@@ -181,51 +183,94 @@ public sealed class UnrealGameUdkLiveTests
         });
     }
 
-    // Start the server on the 1st map, wait for its ready line, attach and run the test, then kill the server.
+    // UDK.exe stamps the engine build 7258, so detection reads 2010-09 and the shipped catalog picks the UDK document.
+    [Test]
+    public void Attach_RealPlayerWithoutAProfile_DetectsTheVersionAndPicksTheDocument()
+    {
+        WithPlayer((memory, module) =>
+        {
+            var game = UnrealGame.Attach(memory, module, ProfileGuessHandling.Disallow).Unwrap();
+            var data = game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap().Single();
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(
+                    game.Selection!.Target,
+                    Is.EqualTo(new ProfileTarget(UnrealTarget.Unreal3, UnrealTarget.ParseVersion("2010-09")!, "win-x86-shipping")));
+                Assert.That(game.Selection.Entry.Source, Is.EqualTo("Profiles/unreal3-2010-09.json"));
+                Assert.That(game.Selection.Match, Is.EqualTo(ProfileMatch.Listed));
+                Assert.That(data.Path.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(1337));
+            }
+        });
+    }
+
+    // Parse the profile of FIXTURES_UNREAL3_PROFILE and attach with it to the started server.
     private static void WithAttachedPlayer(Action<UnrealGame> test)
     {
-        string? player = Environment.GetEnvironmentVariable(PlayerVariable);
         string? profilePath = Environment.GetEnvironmentVariable(ProfileVariable);
 
-        Assume.That(player is not null && Directory.Exists(player), $"Set {PlayerVariable} to the UDK 2010-09 player to run this test.");
         Assume.That(
             profilePath is not null && File.Exists(profilePath),
             $"Set {ProfileVariable} to the profile document of that player to run this test.");
 
         var profile = UnrealProfile.Parse(File.ReadAllText(profilePath!)).Unwrap();
+
+        WithPlayer((memory, module) => test(UnrealGame.Attach(memory, module, profile).Unwrap()));
+    }
+
+    // Start the server on the 1st map, wait for its ready line, run the test, then kill the server.
+    // Start again up to 3 times, because another test run can use the same player.
+    private static void WithPlayer(Action<IMemoryReader, MemoryModule> test)
+    {
+        string? player = Environment.GetEnvironmentVariable(PlayerVariable);
+
+        Assume.That(player is not null && Directory.Exists(player), $"Set {PlayerVariable} to the UDK 2010-09 player to run this test.");
+
         string directory = Path.Combine(player!, BinariesPath);
         string logPath = Path.Combine(player!, LogPath);
-
-        // Delete the log of an earlier run, because its ready line would count as this run's.
-        if (File.Exists(logPath))
-        {
-            File.Delete(logPath);
-        }
-
         string arguments = $"server {FirstMap(player!)}?game=Fixture.FixtureGame -unattended -nullrhi -FORCELOGFLUSH";
         ProcessStartInfo startInfo = new(Path.Combine(directory, ExecutableName), arguments)
         {
             UseShellExecute = false,
             WorkingDirectory = directory,
         };
-        using var process = Process.Start(startInfo)!;
 
-        try
+        for (int attempt = 1; ; attempt++)
         {
-            WaitForReadyLine(process, logPath);
-
-            using RemoteProcessMemory memory = new(process);
-            test(UnrealGame.Attach(memory, memory.GetModule(ExecutableName).Unwrap(), profile).Unwrap());
-        }
-        finally
-        {
-            // Skip the kill of a player that already exited, because Kill throws for it on .NET Framework.
-            if (!process.HasExited)
+            // Delete the log of an earlier run, because its ready line would count as this run's.
+            if (File.Exists(logPath))
             {
-                process.Kill();
+                File.Delete(logPath);
             }
 
-            process.WaitForExit();
+            using var process = Process.Start(startInfo)!;
+
+            try
+            {
+                if (!WaitForReadyLine(process, logPath))
+                {
+                    string message = process.HasExited
+                        ? $"The player exited before it logged '{ReadyLine}', {MaxStarts} starts."
+                        : $"The player didn't log '{ReadyLine}' within {_readyTimeout}, {MaxStarts} starts.";
+
+                    Assert.That(attempt, Is.LessThan(MaxStarts), message);
+                    continue;
+                }
+
+                using RemoteProcessMemory memory = new(process);
+                test(memory, memory.GetModule(ExecutableName).Unwrap());
+                return;
+            }
+            finally
+            {
+                // Skip the kill of a player that already exited, because Kill throws for it on .NET Framework.
+                if (!process.HasExited)
+                {
+                    process.Kill();
+                }
+
+                process.WaitForExit();
+            }
         }
     }
 
@@ -261,19 +306,21 @@ public sealed class UnrealGameUdkLiveTests
         return false;
     }
 
-    private static void WaitForReadyLine(Process process, string logPath)
+    // Wait for the ready line and return false when the player exits before it or doesn't log it in time.
+    private static bool WaitForReadyLine(Process process, string logPath)
     {
         var clock = Stopwatch.StartNew();
 
         while (!HasReadyLine(logPath))
         {
-            using (Assert.EnterMultipleScope())
+            if (process.HasExited || clock.Elapsed > _readyTimeout)
             {
-                Assert.That(process.HasExited, Is.False, $"The player exited before it logged '{ReadyLine}'.");
-                Assert.That(clock.Elapsed, Is.LessThan(_readyTimeout), $"The player didn't log '{ReadyLine}' within {_readyTimeout}.");
+                return false;
             }
 
             Thread.Sleep(_readyPollInterval);
         }
+
+        return true;
     }
 }

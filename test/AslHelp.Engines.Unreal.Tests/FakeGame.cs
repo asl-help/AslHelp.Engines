@@ -371,7 +371,6 @@ internal sealed class FakeGame
     private readonly Address _items;
     private readonly Address _metaclass;
     private readonly Address _mixedType;
-    private readonly MemoryModule _module;
     private readonly Address _otherDataProperty;
     private readonly Address _otherGameModeClass;
     private readonly Dictionary<string, Address> _properties = [];
@@ -395,7 +394,7 @@ internal sealed class FakeGame
     {
         _shape = shape;
         _start = start;
-        _module = new MemoryModule(ModuleName, null, new MemoryRange(start, ModuleSize));
+        Module = new MemoryModule(ModuleName, null, new MemoryRange(start, ModuleSize));
 
         _worldClass = start + 0x20_1000;
         GameModeBaseClass = start + 0x22_1000;
@@ -423,6 +422,7 @@ internal sealed class FakeGame
         _itemArray = start + 0x11_0000 + ObjObjects;
         _nextObject = start + 0x2C_0000;
 
+        NameTableGlobal = start + 0x10_0000;
         GWorldSlot = start + 0x12_0000;
         GEngineSlot = start + 0x12_1000;
         Engine = start + 0x2B_0000;
@@ -439,8 +439,8 @@ internal sealed class FakeGame
         UnreadableAddress = start + 0xF0_0000;
 
         Memory = new FakeMemory { Layout = memoryLayout };
-        AddModule(start + 0x10_0000, start + 0x11_0000);
-        AddNames(start + 0x10_0000, start + 0x30_0000, start + 0x30_1000, start + 0x31_0000);
+        AddModule(NameTableGlobal, start + 0x11_0000);
+        AddNames(NameTableGlobal, start + 0x30_0000, start + 0x30_1000, start + 0x31_0000);
         AddItems();
         AddClasses(start + 0x61_2000);
         AddObjects();
@@ -520,6 +520,16 @@ internal sealed class FakeGame
     ///     Gets the memory of the game.
     /// </summary>
     public FakeMemory Memory { get; }
+
+    /// <summary>
+    ///     Gets the module that the routes of <see cref="Document"/> find the globals in.
+    /// </summary>
+    public MemoryModule Module { get; }
+
+    /// <summary>
+    ///     Gets the address of the name table global, which points at the name table.
+    /// </summary>
+    public Address NameTableGlobal { get; }
 
     /// <summary>
     ///     Gets the offsets inside an object.
@@ -764,7 +774,7 @@ internal sealed class FakeGame
     /// </returns>
     public UnrealGame Attach(string document)
     {
-        return UnrealGame.Attach(Memory, _module, UnrealProfile.Parse(document).Unwrap()).Unwrap();
+        return UnrealGame.Attach(Memory, Module, UnrealProfile.Parse(document).Unwrap()).Unwrap();
     }
 
     /// <summary>
@@ -821,8 +831,8 @@ internal sealed class FakeGame
     // Adds the module and the slots of GWorld and GEngine.
     private void AddModule(Address names, Address gUObjectArray)
     {
-        Memory.Add(_module.Range.Start, new byte[ModuleSize]);
-        WriteGlobalReferences(Memory, _module.Range.Start, names, gUObjectArray, GWorldSlot, GEngineSlot);
+        Memory.Add(Module.Range.Start, new byte[ModuleSize]);
+        WriteGlobalReferences(Memory, Module.Range.Start, names, gUObjectArray, GWorldSlot, GEngineSlot);
         Memory.AddPointers(GWorldSlot, World);
         Memory.AddPointers(GEngineSlot, Engine);
     }

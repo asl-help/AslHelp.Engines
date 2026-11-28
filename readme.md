@@ -9,17 +9,44 @@ This repo contains the libraries that read game engines from memory and the tool
 
 `AslHelp.Engines.Unreal` reads names, objects, structs and properties from Unreal Engine 3, 4 and 5 games. You pick the storage shape and pass in its layouts. For properties you use `ObjectPropertyReader` up to 4.24 and `FieldPropertyReader` from 4.25 on. The readers return `Result<T>` and the name tables aren't thread-safe.
 
-`UnrealProfile.Parse` reads an `unreal3` or `unreal4` profile document from `just measure --profiles` (see [Profiles](#profiles)). `UnrealGame.Attach` finds the globals of that profile in the game and picks the readers for its shapes:
+`UnrealGame.Attach(memory, module, ProfileGuessHandling.Allow)` reads the engine version from the file version of the executable, picks the profile document for it from the documents the library ships and finds the globals of that document in the game:
 
 ```cs
-var profile = UnrealProfile.Parse(File.ReadAllText("unreal4-4.18.3-win-x64-shipping.json")).Unwrap();
-var game = UnrealGame.Attach(memory, module, profile).Unwrap();
+var game = UnrealGame.Attach(memory, module, ProfileGuessHandling.Allow).Unwrap();
+
+if (game.Selection!.Warning is { } warning)
+{
+    log(warning);
+}
 
 var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
 var hp = data.Member("Hp").Value<int>().Unwrap().CreateWatcher(ticks);
 var x = data.Member("Coord").Member("X").Value<int>().Unwrap().CreateWatcher(ticks);
 var anyHp = data.Member("Hp").Unwrap().CreateWatcher(ticks);
 ```
+
+- the library ships 1 document per group of the measured players, 4.0 to 5.8 and UDK 2010-09 (see [Profiles](#profiles))
+- the pick takes the document that lists the version. A version without a patch, like a 5.8 stamp, takes the highest listed 5.8.x (a guess when the 5.8.x sit in 2 documents) and a listed 5.8 covers every 5.8.x. If none fits, it guesses the nearest patch of the same minor or else the highest lower version of the same major, like 5.8.4 for 5.9.0. Then `Selection.Warning` has both versions
+- `ProfileGuessHandling.Disallow` doesn't guess and fails with the version a guess would take
+- the key is `win-x64` or `win-x86` from the pointer size, then `development` when the exe name ends with `-Debug` or `-DebugGame` and `shipping` for any other name. UBT leaves the configuration out of the name of a development build (`Game.exe`), so a name without it is a guess. Pass `UnrealConfiguration.Development` for a development build
+- after the pick, attach checks that name 0 of the name table reads `None`. A document that doesn't fit fails with the detected version and the picked version
+- a game that's still starting can fail because its name table doesn't read yet. Attach again a little later
+- the exes of 4.0 to 4.7 don't have a version stamp, so pass the version
+
+To pass the version or the configuration or to add your own documents:
+
+```cs
+var catalog = UnrealProfile.CreateCatalog();
+catalog.AddFile("my-game.json").Unwrap();
+
+var target = UnrealTarget.Detect(memory, module, version: "4.27.2", configuration: UnrealConfiguration.Development).Unwrap();
+var selection = catalog.Select(target, ProfileGuessHandling.Disallow).Unwrap();
+var game = UnrealGame.Attach(memory, module, selection).Unwrap();
+```
+
+A document you add wins over a shipped document for the versions it lists. A key at the root that the engine doesn't read fails the document. So does an offset the engine doesn't read in a type where an optional offset is missing. `UnrealGame.Attach(memory, module, catalog, guessHandling)` detects the target itself. `UnrealProfile.Parse` reads 1 `unreal3` or `unreal4` document and `UnrealGame.Attach(memory, module, profile)` attaches with it as is, without the pick and the name check. `game.Profile` is the profile attach used.
+
+In the 1st example:
 
 - `ticks` is the `ITickCounter` of your host
 - `GWorld` is a root and its `.Path` starts at the world
@@ -101,6 +128,17 @@ Watcher<object?> watcher = health.Unwrap().CreateWatcher(ticks);
 ```
 
 The steps after the 1st one come from extension members on `Result<IMemberPath>`, which pass the 1st failure on.
+
+`ProfileCatalog<TProfile>` picks profile documents for any engine. You pass the mapper and the version parser of your engine. The parser turns version text into the numbers of a `ProfileVersion`, so your engine decides the order, like a rank for a release letter. `ProfileReader` gives the mapper the parts every document has: `engine`, `key`, `versions`, `offsets` and `globals` as `MemoryLocator`s. Other root keys fail unless the mapper reads them with `ReadObject`. `Add`, `AddFile` and `AddEmbedded` add documents and `Select` picks 1 for a `ProfileTarget` with the rules above. The version can come from the file version of the module:
+
+```cs
+var catalog = new ProfileCatalog<MyProfile>(MyProfile.Map, MyVersion.Parse);
+catalog.AddEmbedded(typeof(MyProfile).Assembly, "Profiles/").Unwrap();
+
+var fileVersion = module.GetFileVersion().Unwrap();
+var target = new ProfileTarget("my-engine", MyVersion.Parse(fileVersion.Text!)!, "x64");
+var selection = catalog.Select(target, ProfileGuessHandling.Disallow).Unwrap();
+```
 
 ```
 dotnet add package AslHelp.Engines
@@ -314,7 +352,7 @@ Each group lists `routes` for the globals of its versions. A route finds a globa
 
 ### Profiles
 
-The run also writes 1 JSON file per group when you pass `--profiles`. Each file has what an engine library needs to attach to a game of that group. The file name is `<engine>-<1st version>-<key>.json`, like `unreal4-4.18.3-win-x64-shipping.json`. A group without a key gets `<engine>-<1st version>.json`, like `unreal3-2010-09.json`. Use an empty folder because the run doesn't delete the files of an older run. `globals` gives a locator per global in the JSON form that `MemoryLocator` in AslHelp.Memory reads. Each route of the report becomes 1 locator route, listed under the 1st version it covers.
+The run also writes 1 JSON file per group when you pass `--profiles`. Each file has what an engine library needs to attach to a game of that group. The file name is `<engine>-<1st version>-<key>.json`, like `unreal4-4.18.3-win-x64-shipping.json`. A group without a key gets `<engine>-<1st version>.json`, like `unreal3-2010-09.json`. Use an empty folder because the run doesn't delete the files of an older run. `globals` gives a locator per global in the JSON form that `MemoryLocator` in AslHelp.Memory reads. Each route of the report becomes 1 locator route, listed under the 1st version it covers. The library ships the documents of the measured players from `src/AslHelp.Engines.Unreal/Profiles`, copied there as the run wrote them.
 
 ```json
 {

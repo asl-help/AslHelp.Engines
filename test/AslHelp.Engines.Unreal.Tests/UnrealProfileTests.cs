@@ -276,13 +276,13 @@ public sealed class UnrealProfileTests
         Assert.That(UnrealProfile.Parse(json).UnwrapErr().Message, Does.StartWith("The profile isn't valid. ").And.Length.GreaterThan(30));
     }
 
-    // A root that isn't an object lists every part and doesn't throw from the JSON element.
+    // A root that isn't an object lists engine and versions and doesn't throw from the JSON element.
     [TestCase("[]")]
     [TestCase("1")]
     [TestCase("null")]
-    public void Parse_RootNotAnObject_FailsWithEveryPart(string json)
+    public void Parse_RootNotAnObject_FailsWithEngineAndVersions(string json)
     {
-        Assert.That(UnrealProfile.Parse(json).UnwrapErr().Message, Is.EqualTo("The profile doesn't have engine, versions, offsets, globals."));
+        Assert.That(UnrealProfile.Parse(json).UnwrapErr().Message, Is.EqualTo("The profile doesn't have engine, versions."));
     }
 
     // Every missing offset comes back in 1 message, so a person fixes the document in 1 go.

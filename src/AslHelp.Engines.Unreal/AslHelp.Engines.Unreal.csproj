@@ -12,4 +12,8 @@
     <PackageReference Include="AslHelp.Memory" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Profiles/*.json" LogicalName="Profiles/%(Filename)%(Extension)" WithCulture="false" />
+  </ItemGroup>
+
 </Project>

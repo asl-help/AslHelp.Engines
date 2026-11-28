@@ -65,7 +65,7 @@ internal sealed record ProfileDocument(
 
                 if (!routes.TryAdd(name, [new(route.Forward, route.Offset, null), _readGlobal]))
                 {
-                    return ProfileError.SameRouteName(global, name, group.Versions);
+                    return ProfileWriteError.SameRouteName(global, name, group.Versions);
                 }
             }
 

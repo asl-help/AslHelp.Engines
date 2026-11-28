@@ -15,6 +15,15 @@
   <data name="AttachGlobalNotLocated" xml:space="preserve">
     <value>Can't find {0} in {1}. {2}</value>
   </data>
+  <data name="AttachNameTableNotReady" xml:space="preserve">
+    <value>Name 0 of {0} doesn't read yet. {1} Attach again a little later. Check the version and the configuration if it keeps failing.</value>
+  </data>
+  <data name="AttachNameZeroMismatch" xml:space="preserve">
+    <value>Name 0 reads '{0}' and not None.</value>
+  </data>
+  <data name="AttachProfileMisfit" xml:space="preserve">
+    <value>The {0} profile doesn't fit the game ({1}). {2} Check the version and the configuration.</value>
+  </data>
   <data name="ClassMetaclassNotFound" xml:space="preserve">
     <value>The class chain of the object at {0} doesn't end at Class. Check ObjectLayout.Class (0x{1}).</value>
   </data>
@@ -234,20 +243,8 @@
   <data name="ProfileEngineUnknown" xml:space="preserve">
     <value>The profile's engine '{0}' isn't 1 of {1}.</value>
   </data>
-  <data name="ProfileGlobalUnreadable" xml:space="preserve">
-    <value>The profile's globals.{0} isn't a locator. {1}</value>
-  </data>
-  <data name="ProfileInvalid" xml:space="preserve">
-    <value>The profile isn't valid. {0}</value>
-  </data>
   <data name="ProfileKindOffsetsMissing" xml:space="preserve">
     <value>Can't read {0}: the profile doesn't have {1}.</value>
-  </data>
-  <data name="ProfileMissing" xml:space="preserve">
-    <value>The profile doesn't have {0}.</value>
-  </data>
-  <data name="ProfileOffsetNegative" xml:space="preserve">
-    <value>The profile's {0} is {1}, which is below 0.</value>
   </data>
   <data name="ProfileShapeUnknown" xml:space="preserve">
     <value>The profile's {0} shape '{1}' isn't 1 of {2}.</value>
@@ -326,6 +323,18 @@
   </data>
   <data name="StructSuperUnreadable" xml:space="preserve">
     <value>Can't read the super struct of the struct at {0}: reading {1} failed. {2} Check StructLayout.SuperStruct (0x{3}).</value>
+  </data>
+  <data name="TargetBuildUnknown" xml:space="preserve">
+    <value>The stamp 1.0.{0}.0 isn't a known UDK build. Pass the version, like 2010-09 or 4.27.2.</value>
+  </data>
+  <data name="TargetPointerSizeUnsupported" xml:space="preserve">
+    <value>A pointer size of {0} bytes isn't x86 or x64.</value>
+  </data>
+  <data name="TargetStampMissing" xml:space="preserve">
+    <value>{0} doesn't have an engine version stamp. Pass the version, like 4.27.2.</value>
+  </data>
+  <data name="TargetVersionInvalid" xml:space="preserve">
+    <value>'{0}' isn't an Unreal Engine version, like 4.27.2 or 2010-09.</value>
   </data>
   <data name="ValueBoolMaskUnreadable" xml:space="preserve">
     <value>Can't read the bool mask of {0}: reading {1} failed. {2}</value>

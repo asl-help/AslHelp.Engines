@@ -1,3 +1,4 @@
+using AslHelp.Engines.Profiles;
 using AslHelp.Engines.Unreal.Errors;
 using AslHelp.Engines.Unreal.Names;
 using AslHelp.Engines.Unreal.Objects;
@@ -19,11 +20,15 @@ namespace AslHelp.Engines.Unreal;
 /// </remarks>
 public sealed class UnrealGame
 {
+    private static readonly Lazy<ProfileCatalog<UnrealProfile>> _shippedCatalog = new(UnrealProfile.CreateCatalog);
+
     private readonly ClassReader _classReader;
     private readonly bool _hasSubsystems;
 
     private UnrealGame(
         IMemoryReader memory,
+        UnrealProfile profile,
+        ProfileSelection<UnrealProfile>? selection,
         ObjectReader objectReader,
         IPropertyReader propertyReader,
         IObjectArray objectArray,
@@ -33,6 +38,8 @@ public sealed class UnrealGame
         bool hasSubsystems)
     {
         Memory = memory;
+        Profile = profile;
+        Selection = selection;
         ObjectReader = objectReader;
         PropertyReader = propertyReader;
         ObjectArray = objectArray;
@@ -61,6 +68,21 @@ public sealed class UnrealGame
     public UnrealRoot GWorld { get; }
 
     /// <summary>
+    ///     Gets the profile that the game attached with.
+    /// </summary>
+    public UnrealProfile Profile { get; }
+
+    /// <summary>
+    ///     Gets the pick of the catalog with the detected or passed target,
+    ///     or <see langword="null"/> after <see cref="Attach(IMemoryReader, MemoryModule, UnrealProfile)"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Show <see cref="ProfileSelection{TProfile}.Warning"/> to the user when it's set, because then the pick is a guess.
+    ///     The warning is only set when the caller passed <see cref="ProfileGuessHandling.Allow"/>.
+    /// </remarks>
+    public ProfileSelection<UnrealProfile>? Selection { get; }
+
+    /// <summary>
     ///     Gets the memory of the game.
     /// </summary>
     internal IMemoryReader Memory { get; }
@@ -79,6 +101,93 @@ public sealed class UnrealGame
     ///     Gets the reader of properties.
     /// </summary>
     internal IPropertyReader PropertyReader { get; }
+
+    /// <summary>
+    ///     Attaches to a game with the shipped document that fits the engine version and the key that <see cref="UnrealTarget.Detect"/> reads.
+    /// </summary>
+    /// <remarks>
+    ///     Maps the shipped documents on the 1st call and keeps them for later calls.
+    ///     Runs the checks of <see cref="Attach(IMemoryReader, MemoryModule, ProfileSelection{UnrealProfile})"/>.
+    ///     A game that's still starting can fail because its name table doesn't read yet, so attach again a little later.
+    /// </remarks>
+    /// <param name="memory">The memory of the game.</param>
+    /// <param name="module">The executable of the game, which has the version resource and the globals.</param>
+    /// <param name="guessHandling">What to do when no document lists the version or its line.</param>
+    /// <returns>
+    ///     The game or a failure when detection fails, no document fits, the picked document doesn't fit the game or name 0 doesn't read yet.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="memory"/> or <paramref name="module"/> is <see langword="null"/>.
+    /// </exception>
+    public static Result<UnrealGame> Attach(IMemoryReader memory, MemoryModule module, ProfileGuessHandling guessHandling)
+    {
+        return Attach(memory, module, _shippedCatalog.Value, guessHandling);
+    }
+
+    /// <summary>
+    ///     Attaches to a game with the document of <paramref name="catalog"/> that fits the engine version and the key that
+    ///     <see cref="UnrealTarget.Detect"/> reads.
+    /// </summary>
+    /// <remarks>
+    ///     Start from <see cref="UnrealProfile.CreateCatalog"/> and add your own documents to it.
+    ///     Call <see cref="UnrealTarget.Detect"/> with a version or a configuration, pick with <see cref="ProfileCatalog{TProfile}.Select"/>
+    ///     and pass the selection to <see cref="Attach(IMemoryReader, MemoryModule, ProfileSelection{UnrealProfile})"/> when detection is wrong.
+    ///     A game that's still starting can fail because its name table doesn't read yet, so attach again a little later.
+    /// </remarks>
+    /// <param name="memory">The memory of the game.</param>
+    /// <param name="module">The executable of the game, which has the version resource and the globals.</param>
+    /// <param name="catalog">The documents to pick from.</param>
+    /// <param name="guessHandling">What to do when no document lists the version or its line.</param>
+    /// <returns>
+    ///     The game or a failure when detection fails, no document fits, the picked document doesn't fit the game or name 0 doesn't read yet.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="memory"/>, <paramref name="module"/> or <paramref name="catalog"/> is <see langword="null"/>.
+    /// </exception>
+    public static Result<UnrealGame> Attach(
+        IMemoryReader memory,
+        MemoryModule module,
+        ProfileCatalog<UnrealProfile> catalog,
+        ProfileGuessHandling guessHandling)
+    {
+        ArgumentNullException.ThrowIfNull(catalog);
+
+        if (!UnrealTarget.Detect(memory, module).TryUnwrap(out var target, out var error)
+            || !catalog.Select(target, guessHandling).TryUnwrap(out var selection, out error))
+        {
+            return error;
+        }
+
+        return Attach(memory, module, selection);
+    }
+
+    /// <summary>
+    ///     Attaches to a game with the document of <paramref name="selection"/>.
+    /// </summary>
+    /// <remarks>
+    ///     Finds the globals like <see cref="Attach(IMemoryReader, MemoryModule, UnrealProfile)"/> and then reads name 0 of the name table,
+    ///     which is <c>None</c> in every build. A global that isn't found or a name 0 that isn't <c>None</c> fails with the target
+    ///     and the picked version, because a wrong version or configuration picks a document whose routes or offsets belong to another build.
+    ///     A name 0 that doesn't read fails on its own, because a game that's still starting doesn't have a name table yet.
+    ///     Attach again a little later then. Check the version and the configuration when it keeps failing.
+    /// </remarks>
+    /// <param name="memory">The memory of the game.</param>
+    /// <param name="module">The module that the routes of the globals start at, usually the executable.</param>
+    /// <param name="selection">The pick of <see cref="ProfileCatalog{TProfile}.Select"/> for the game.</param>
+    /// <returns>
+    ///     The game with <see cref="Selection"/> set or a failure when the picked document doesn't fit the game or name 0 doesn't read yet.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="memory"/>, <paramref name="module"/> or <paramref name="selection"/> is <see langword="null"/>.
+    /// </exception>
+    public static Result<UnrealGame> Attach(IMemoryReader memory, MemoryModule module, ProfileSelection<UnrealProfile> selection)
+    {
+        ArgumentNullException.ThrowIfNull(memory);
+        ArgumentNullException.ThrowIfNull(module);
+        ArgumentNullException.ThrowIfNull(selection);
+
+        return Create(memory, module, selection.Entry.Profile, selection);
+    }
 
     /// <summary>
     ///     Attaches to a game by finding the globals of <paramref name="profile"/> in <paramref name="module"/>.
@@ -103,45 +212,7 @@ public sealed class UnrealGame
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(profile);
 
-        if (!profile.NameTableLocator.Locate(memory, module).TryUnwrap(out var nameTableGlobal, out var error))
-        {
-            return AttachError.GlobalNotLocated(profile.NameTableShape.Global, module.Name, error);
-        }
-
-        if (!profile.ObjectArrayLocator.Locate(memory, module).TryUnwrap(out var objectArrayGlobal, out error))
-        {
-            return AttachError.GlobalNotLocated(profile.ObjectArrayGlobal, module.Name, error);
-        }
-
-        // Locate the slot now, so a profile that doesn't fit the game fails here and not on the 1st read.
-        GlobalPointer gWorldSlot = new(memory, module, profile.WorldLocator, TimeSpan.Zero);
-
-        if (gWorldSlot.Locate().TryUnwrapErr(out error))
-        {
-            return AttachError.GlobalNotLocated(UnrealProfile.WorldGlobal, module.Name, error);
-        }
-
-        GlobalPointer gEngineSlot = new(memory, module, profile.EngineLocator, TimeSpan.Zero);
-
-        if (gEngineSlot.Locate().TryUnwrapErr(out error))
-        {
-            return AttachError.GlobalNotLocated(UnrealProfile.EngineGlobal, module.Name, error);
-        }
-
-        var nameTable = profile.NameTableShape.Create(memory, nameTableGlobal);
-        ObjectReader objectReader = new(memory, nameTable, profile.ObjectLayout);
-        StructReader structReader = new(memory, objectReader, profile.StructLayout, profile.ChildLayout);
-
-        if (!profile.ObjectArrayShape.Create(memory, objectArrayGlobal + profile.ObjectArrayOffset).TryUnwrap(out var objectArray, out error))
-        {
-            return error;
-        }
-
-        var propertyReader = profile.PropertyShape.Create(memory, nameTable, objectReader, structReader);
-
-        ClassReader classReader = new(memory, nameTable, objectReader, structReader, propertyReader, objectArray, profile.KindLayouts);
-
-        return new UnrealGame(memory, objectReader, propertyReader, objectArray, classReader, gWorldSlot, gEngineSlot, profile.HasSubsystems);
+        return Create(memory, module, profile, selection: null);
     }
 
     /// <summary>
@@ -277,5 +348,84 @@ public sealed class UnrealGame
         ArgumentNullException.ThrowIfNull(property);
 
         return property.Read<T>(Memory, obj);
+    }
+
+    // Check name 0 only for a picked document, because the explicit profile keeps the attach that doesn't read game data.
+    private static Result<UnrealGame> Create(
+        IMemoryReader memory,
+        MemoryModule module,
+        UnrealProfile profile,
+        ProfileSelection<UnrealProfile>? selection)
+    {
+        // Wrap a failure of a picked document, because a wrong version or configuration picks the routes and offsets of another build.
+        ResultError misfit(ResultError cause)
+        {
+            return selection is null ? cause : AttachError.ProfileMisfit(selection.Target, selection.Version, cause);
+        }
+
+        if (!profile.NameTableLocator.Locate(memory, module).TryUnwrap(out var nameTableGlobal, out var error))
+        {
+            return misfit(AttachError.GlobalNotLocated(profile.NameTableShape.Global, module.Name, error));
+        }
+
+        if (!profile.ObjectArrayLocator.Locate(memory, module).TryUnwrap(out var objectArrayGlobal, out error))
+        {
+            return misfit(AttachError.GlobalNotLocated(profile.ObjectArrayGlobal, module.Name, error));
+        }
+
+        // Locate the slot now, so a profile that doesn't fit the game fails here and not on the 1st read.
+        GlobalPointer gWorldSlot = new(memory, module, profile.WorldLocator, TimeSpan.Zero);
+
+        if (gWorldSlot.Locate().TryUnwrapErr(out error))
+        {
+            return misfit(AttachError.GlobalNotLocated(UnrealProfile.WorldGlobal, module.Name, error));
+        }
+
+        GlobalPointer gEngineSlot = new(memory, module, profile.EngineLocator, TimeSpan.Zero);
+
+        if (gEngineSlot.Locate().TryUnwrapErr(out error))
+        {
+            return misfit(AttachError.GlobalNotLocated(UnrealProfile.EngineGlobal, module.Name, error));
+        }
+
+        var nameTable = profile.NameTableShape.Create(memory, nameTableGlobal);
+
+        if (selection is not null)
+        {
+            // Return a failed read without the misfit, because the name table of a game that's still starting can be a null pointer.
+            if (!nameTable.Read(0).TryUnwrap(out string? name, out error))
+            {
+                return AttachError.NameTableNotReady(selection.Target, error);
+            }
+
+            if (name != "None")
+            {
+                return misfit(AttachError.NameZeroMismatch(name));
+            }
+        }
+
+        ObjectReader objectReader = new(memory, nameTable, profile.ObjectLayout);
+        StructReader structReader = new(memory, objectReader, profile.StructLayout, profile.ChildLayout);
+
+        if (!profile.ObjectArrayShape.Create(memory, objectArrayGlobal + profile.ObjectArrayOffset).TryUnwrap(out var objectArray, out error))
+        {
+            return misfit(error);
+        }
+
+        var propertyReader = profile.PropertyShape.Create(memory, nameTable, objectReader, structReader);
+
+        ClassReader classReader = new(memory, nameTable, objectReader, structReader, propertyReader, objectArray, profile.KindLayouts);
+
+        return new UnrealGame(
+            memory,
+            profile,
+            selection,
+            objectReader,
+            propertyReader,
+            objectArray,
+            classReader,
+            gWorldSlot,
+            gEngineSlot,
+            profile.HasSubsystems);
     }
 }

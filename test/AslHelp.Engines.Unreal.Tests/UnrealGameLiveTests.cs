@@ -1,3 +1,4 @@
+using AslHelp.Engines.Profiles;
 using AslHelp.Engines.Unreal.Objects;
 using AslHelp.Memory;
 using AslHelp.Memory.Remote;
@@ -16,6 +17,7 @@ namespace AslHelp.Engines.Unreal.Tests;
 public sealed class UnrealGameLiveTests
 {
     private const string ExecutableName = "Fixture-Win64-Shipping.exe";
+    private const int MaxStarts = 3;
 
     // Set FIXTURES_UNREAL_PLAYER to the folder of the 4.19.2 x64 shipping player to attach to it.
     private const string PlayerVariable = "FIXTURES_UNREAL_PLAYER";
@@ -337,6 +339,27 @@ public sealed class UnrealGameLiveTests
             Is.EqualTo("Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile.")));
     }
 
+    // The 4.19.2 player stamps its version, so detection and the shipped catalog pick the document of 4.18.3, which lists 4.19.2.
+    [Test]
+    public void Attach_RealPlayerWithoutAProfile_DetectsTheVersionAndPicksTheDocument()
+    {
+        WithPlayer((memory, module) =>
+        {
+            var game = UnrealGame.Attach(memory, module, ProfileGuessHandling.Disallow).Unwrap();
+            var world = game.GWorld.Path.Read().Unwrap();
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(
+                    game.Selection!.Target,
+                    Is.EqualTo(new ProfileTarget(UnrealTarget.Unreal4, UnrealTarget.ParseVersion("4.19.2")!, "win-x64-shipping")));
+                Assert.That(game.Selection.Entry.Source, Is.EqualTo("Profiles/unreal4-4.18.3-win-x64-shipping.json"));
+                Assert.That(game.Selection.Match, Is.EqualTo(ProfileMatch.Listed));
+                Assert.That(game.ClassOf(world).Unwrap().Name, Is.EqualTo("World"));
+            }
+        });
+    }
+
     // Read a float or double member as a double, so a vector compares the same on both sides of 5.0.
     private static double Number(Result<IMemberPath> path)
     {
@@ -356,59 +379,83 @@ public sealed class UnrealGameLiveTests
         };
     }
 
-    // Start the player, wait for its ready file, attach and run the test, then kill the player.
+    // Parse the profile of FIXTURES_UNREAL_PROFILE and attach with it to the started player.
     private static void WithAttachedPlayer(Action<UnrealGame> test)
     {
-        string? player = Environment.GetEnvironmentVariable(PlayerVariable);
         string? profilePath = Environment.GetEnvironmentVariable(ProfileVariable);
 
-        Assume.That(player is not null && Directory.Exists(player), $"Set {PlayerVariable} to the 4.19.2 x64 shipping player to run this test.");
         Assume.That(
             profilePath is not null && File.Exists(profilePath),
             $"Set {ProfileVariable} to the profile document of that player to run this test.");
-        Assume.That(Environment.Is64BitProcess, "Run this test in a 64-bit process, because the player is x64.");
 
         var profile = UnrealProfile.Parse(File.ReadAllText(profilePath!)).Unwrap();
+
+        WithPlayer((memory, module) => test(UnrealGame.Attach(memory, module, profile).Unwrap()));
+    }
+
+    // Start the player, wait for its ready file, run the test, then kill the player.
+    // Start again up to 3 times, because another test run can use the same player.
+    private static void WithPlayer(Action<IMemoryReader, MemoryModule> test)
+    {
+        string? player = Environment.GetEnvironmentVariable(PlayerVariable);
+
+        Assume.That(player is not null && Directory.Exists(player), $"Set {PlayerVariable} to the 4.19.2 x64 shipping player to run this test.");
+        Assume.That(Environment.Is64BitProcess, "Run this test in a 64-bit process, because the player is x64.");
+
         string directory = Path.Combine(player!, "Fixture", "Binaries", "Win64");
         string readyPath = Path.Combine(directory, ReadyFileName);
-        var started = DateTime.UtcNow;
-
         ProcessStartInfo startInfo = new(Path.Combine(directory, ExecutableName), "-nullrhi -nosound") { UseShellExecute = false };
-        using var process = Process.Start(startInfo)!;
 
-        try
+        for (int attempt = 1; ; attempt++)
         {
-            WaitForReadyFile(process, readyPath, started);
+            var started = DateTime.UtcNow;
+            using var process = Process.Start(startInfo)!;
 
-            using RemoteProcessMemory memory = new(process);
-            test(UnrealGame.Attach(memory, memory.GetModule(ExecutableName).Unwrap(), profile).Unwrap());
-        }
-        finally
-        {
-            // Skip the kill of a player that already exited, because Kill throws for it on .NET Framework.
-            if (!process.HasExited)
+            try
             {
-                process.Kill();
-            }
+                if (!WaitForReadyFile(process, readyPath, started))
+                {
+                    string message = process.HasExited
+                        ? $"The player exited before it wrote {ReadyFileName}, {MaxStarts} starts."
+                        : $"The player didn't write {ReadyFileName} within {_readyTimeout}, {MaxStarts} starts.";
 
-            process.WaitForExit();
+                    Assert.That(attempt, Is.LessThan(MaxStarts), message);
+                    continue;
+                }
+
+                using RemoteProcessMemory memory = new(process);
+                test(memory, memory.GetModule(ExecutableName).Unwrap());
+                return;
+            }
+            finally
+            {
+                // Skip the kill of a player that already exited, because Kill throws for it on .NET Framework.
+                if (!process.HasExited)
+                {
+                    process.Kill();
+                }
+
+                process.WaitForExit();
+            }
         }
     }
 
     // Wait for a ready file written after the start, because the file of an earlier run stays next to the executable.
-    private static void WaitForReadyFile(Process process, string readyPath, DateTime started)
+    // Return false when the player exits before it or doesn't write it in time.
+    private static bool WaitForReadyFile(Process process, string readyPath, DateTime started)
     {
         var clock = Stopwatch.StartNew();
 
         while (!File.Exists(readyPath) || File.GetLastWriteTimeUtc(readyPath) < started)
         {
-            using (Assert.EnterMultipleScope())
+            if (process.HasExited || clock.Elapsed > _readyTimeout)
             {
-                Assert.That(process.HasExited, Is.False, $"The player exited before it wrote {ReadyFileName}.");
-                Assert.That(clock.Elapsed, Is.LessThan(_readyTimeout), $"The player didn't write {ReadyFileName} within {_readyTimeout}.");
+                return false;
             }
 
             Thread.Sleep(_readyPollInterval);
         }
+
+        return true;
     }
 }

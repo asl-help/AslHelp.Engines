@@ -1,7 +1,7 @@
 <Project>
 
   <PropertyGroup>
-    <Description>Unreal Engine reads for asl-help: names, objects, structs and properties of Unreal Engine 3, 4 and 5 games.</Description>
+    <Description>Unreal Engine 3, 4 and 5 reads for asl-help: names, objects, structs, properties, engine version and shipped profiles.</Description>
     <PackageTags>unreal-engine memory reflection</PackageTags>
   </PropertyGroup>
 

@@ -1,5 +1,3 @@
-using AslHelp.Engines.Unreal.Objects;
-using AslHelp.Memory;
 using NUnit.Framework;
 using static AslHelp.Engines.Unreal.Tests.FakeUdkGame;
 using static AslHelp.Engines.Unreal.Tests.JsonEdits;
@@ -18,21 +16,13 @@ public sealed class UnrealProfileUdkEdgeTests
             Does.StartWith("The profile's globals.GEngine isn't a locator. "));
     }
 
-    // The engine picks the readers, so shapes in an unreal3 document don't change them.
+    // The unreal3 mapper doesn't read shapes, so shapes in an unreal3 document fail as an unknown key instead of passing unread.
     [Test]
-    public void Parse_ShapesInUnreal3Document_KeepsTheUnreal3Readers()
+    public void Parse_ShapesInUnreal3Document_FailsAsAnUnknownKey()
     {
         string shapes = """{ "FField": "ffield", "FNameEntry": "chunked", "FUObjectArray": "chunked" }""";
 
-        var profile = UnrealProfile.Parse(Set(Document, shapes, "shapes")).Unwrap();
-        FakeMemory memory = new() { Layout = MemoryLayout.X86 };
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(profile.NameTableShape.Global, Is.EqualTo("GNames"));
-            Assert.That(profile.ObjectArrayGlobal, Is.EqualTo("GObjObjects"));
-            Assert.That(profile.ObjectArrayShape.Create(memory, Address.Zero).Unwrap(), Is.TypeOf<PointerObjectArray>());
-        }
+        Assert.That(UnrealProfile.Parse(Set(Document, shapes, "shapes")).UnwrapErr().Message, Is.EqualTo("The profile has the unknown keys shapes."));
     }
 
     // GNames or GObjObjects that isn't a locator fails with its key and doesn't throw.

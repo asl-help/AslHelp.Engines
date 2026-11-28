@@ -16,4 +16,9 @@
     <PackageReference Include="NUnit3TestAdapter" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Profiles/Broken/*.json" LogicalName="Broken/%(Filename)%(Extension)" WithCulture="false" />
+    <EmbeddedResource Include="Profiles/Documents/*.json" LogicalName="Documents/%(Filename)%(Extension)" WithCulture="false" />
+  </ItemGroup>
+
 </Project>

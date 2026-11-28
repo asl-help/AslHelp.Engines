@@ -1,7 +1,7 @@
 <Project>
 
   <PropertyGroup>
-    <Description>Typed member paths, struct values and watcher sources that the asl-help engine libraries implement.</Description>
+    <Description>Typed member paths, struct values, watcher sources and profile catalogs that the asl-help engine libraries share.</Description>
     <PackageTags>game-engine memory watcher</PackageTags>
   </PropertyGroup>
 

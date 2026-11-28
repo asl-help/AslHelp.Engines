@@ -1,0 +1,194 @@
+{
+  "engine": "unreal4",
+  "key": "win-x64-development",
+  "versions": [
+    "5.3.2",
+    "5.4.4",
+    "5.5.4",
+    "5.6.1"
+  ],
+  "shapes": {
+    "FField": "ffield",
+    "FNameEntry": "chunked",
+    "FUObjectArray": "chunked"
+  },
+  "offsets": {
+    "FArrayProperty": {
+      "Inner": "0x78"
+    },
+    "FBoolProperty": {
+      "ByteOffset": "0x71",
+      "FieldMask": "0x73"
+    },
+    "FByteProperty": {
+      "Enum": "0x70"
+    },
+    "FChunkedFixedUObjectArray": {
+      "Objects": "0x0",
+      "NumElements": "0x14",
+      "NumChunks": "0x1C",
+      "NumElementsPerChunk": "0x10000"
+    },
+    "FEnumProperty": {
+      "UnderlyingProp": "0x70",
+      "Enum": "0x78"
+    },
+    "FField": {
+      "ClassPrivate": "0x8",
+      "Next": "0x18",
+      "NamePrivate": "0x20"
+    },
+    "FFieldClass": {
+      "Name": "0x0"
+    },
+    "FMapProperty": {
+      "KeyProp": "0x70",
+      "ValueProp": "0x78",
+      "MapLayout": "0x80"
+    },
+    "FName": {
+      "ComparisonIndex": "0x0",
+      "Number": "0x4"
+    },
+    "FNameDebugVisualizer": {
+      "EntryStride": "0x2",
+      "BlockBits": "0xD",
+      "OffsetBits": "0x10"
+    },
+    "FNameEntry": {
+      "Header": "0x0",
+      "AnsiName": "0x2",
+      "WideName": "0x2"
+    },
+    "FObjectProperty": {
+      "PropertyClass": "0x70"
+    },
+    "FProperty": {
+      "ArrayDim": "0x30",
+      "ElementSize": "0x34",
+      "Offset_Internal": "0x44",
+      "PropertyLinkNext": "0x48"
+    },
+    "FScriptArray": {
+      "Data": "0x0",
+      "ArrayNum": "0x8",
+      "ArrayMax": "0xC"
+    },
+    "FScriptBitArray": {
+      "AllocatorInstance": "0x0",
+      "NumBits": "0x18",
+      "MaxBits": "0x1C"
+    },
+    "FScriptMap": {
+      "Pairs": "0x0"
+    },
+    "FScriptMapLayout": {
+      "ValueOffset": "0x0",
+      "SetLayout": "0x4"
+    },
+    "FScriptSet": {
+      "Elements": "0x0"
+    },
+    "FScriptSetLayout": {
+      "Size": "0x8"
+    },
+    "FScriptSparseArray": {
+      "Data": "0x0",
+      "AllocationFlags": "0x10",
+      "FirstFreeIndex": "0x30",
+      "NumFreeIndices": "0x34"
+    },
+    "FSetProperty": {
+      "ElementProp": "0x70",
+      "SetLayout": "0x78"
+    },
+    "FString": {
+      "Data": "0x0"
+    },
+    "FStructProperty": {
+      "Struct": "0x70"
+    },
+    "FSubsystemCollectionBase": {
+      "SubsystemMap": "0x8"
+    },
+    "FUObjectArray": {
+      "ObjObjects": "0x10"
+    },
+    "FUObjectItem": {
+      "Object": "0x0",
+      "SerialNumber": "0x10",
+      "sizeof": "0x20"
+    },
+    "FWeakObjectPtr": {
+      "ObjectIndex": "0x0",
+      "ObjectSerialNumber": "0x4"
+    },
+    "UEnum": {
+      "Names": "0x40"
+    },
+    "UField": {
+      "Next": "0x28"
+    },
+    "UGameInstance": {
+      "SubsystemCollection": "0x130"
+    },
+    "UObjectBase": {
+      "InternalIndex": "0xC",
+      "ClassPrivate": "0x10",
+      "NamePrivate": "0x18",
+      "OuterPrivate": "0x20"
+    },
+    "UStruct": {
+      "SuperStruct": "0x40",
+      "Children": "0x48",
+      "ChildProperties": "0x50",
+      "PropertiesSize": "0x58"
+    }
+  },
+  "globals": {
+    "GUObjectArray": {
+      "5.3.2": [
+        {
+          "forward": "48 8D 0D ???????? 48 0F 44 FD",
+          "offset": 3
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GWorld": {
+      "5.3.2": [
+        {
+          "forward": "48 8B 15 ???????? 48 8D 4F 28",
+          "offset": 3
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "GEngine": {
+      "5.3.2": [
+        {
+          "forward": "48 8B 05 ???????? FF C1",
+          "offset": 3
+        },
+        {
+          "read": "global"
+        }
+      ]
+    },
+    "NamePoolData": {
+      "5.3.2": [
+        {
+          "forward": "8B D9 74 ?? 48 8D 35 ????????",
+          "offset": 7
+        },
+        {
+          "read": "global"
+        }
+      ]
+    }
+  }
+}

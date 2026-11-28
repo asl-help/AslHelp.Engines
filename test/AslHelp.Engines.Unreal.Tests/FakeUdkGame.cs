@@ -225,6 +225,7 @@ internal sealed class FakeUdkGame
         _stringData = start + 0x40_3000;
         _defaultData = start + 0x40_6000;
 
+        NameTableGlobal = start + 0x10_0000;
         GWorldSlot = start + 0x12_0000;
         GEngineSlot = start + 0x12_1000;
         World = start + 0x40_0000;
@@ -234,8 +235,8 @@ internal sealed class FakeUdkGame
         SecondData = start + 0x40_5000;
 
         Memory = new FakeMemory { Layout = MemoryLayout.X86 };
-        AddModule(start + 0x10_0000, start + 0x11_0000);
-        AddNames(start + 0x10_0000, start + 0x10_1000, start + 0x30_0000);
+        AddModule(NameTableGlobal, start + 0x11_0000);
+        AddNames(NameTableGlobal, start + 0x10_1000, start + 0x30_0000);
         AddObjectArray(start + 0x11_0000, start + 0x11_1000);
         AddClasses();
         AddProperties(start + 0x50_0000);
@@ -277,6 +278,11 @@ internal sealed class FakeUdkGame
     ///     Gets the module that the routes of <see cref="Document"/> find the globals in.
     /// </summary>
     public MemoryModule Module { get; }
+
+    /// <summary>
+    ///     Gets the address of <c>GNames</c>, the array of name entry pointers.
+    /// </summary>
+    public Address NameTableGlobal { get; }
 
     /// <summary>
     ///     Gets the address of the 2nd data object, called <c>FixtureData_1</c>, whose <c>IntValue</c> is 7.

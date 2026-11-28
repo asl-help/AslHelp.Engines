@@ -19,10 +19,6 @@ public sealed record UnrealPlayer(
     Architecture Arch,
     UnrealConfig Config)
 {
-    private const int FirstMajor = 4;
-
-    private static readonly Version _firstShippingNameMinor = new(4, 3);
-
     /// <summary>
     ///     Gets the architecture, <see cref="Architecture.X64"/> or <see cref="Architecture.X86"/>.
     /// </summary>
@@ -45,11 +41,7 @@ public sealed record UnrealPlayer(
     /// <summary>
     ///     Gets the platform of the build tools, <c>Win64</c> or <c>Win32</c>.
     /// </summary>
-    public string Platform => Arch switch
-    {
-        Architecture.X64 => "Win64",
-        _ => "Win32",
-    };
+    public string Platform => UnrealPlayerNames.Platform(Arch == Architecture.X64);
 
     /// <summary>
     ///     Gets the configuration of the build tools, <c>Shipping</c> or <c>Development</c>.
@@ -86,12 +78,7 @@ public sealed record UnrealPlayer(
         ArgumentNullException.ThrowIfNull(playerDirectory);
         ArgumentNullException.ThrowIfNull(version);
 
-        // Pick the plain name before 4.3 too, because those shipping builds stage the executable and the PDB under it.
-        string name = Config == UnrealConfig.Shipping && new Version(version.Major, version.Minor) >= _firstShippingNameMinor
-            ? $"Fixture-{Platform}-Shipping.exe"
-            : "Fixture.exe";
-
-        return Path.Combine(playerDirectory, "Fixture", "Binaries", Platform, name);
+        return UnrealPlayerNames.ExecutablePath(playerDirectory, version, Arch == Architecture.X64, Config == UnrealConfig.Shipping);
     }
 
     /// <summary>
@@ -239,27 +226,12 @@ public sealed record UnrealPlayer(
         [NotNullWhen(true)] out Version? version,
         [NotNullWhen(true)] out UnrealPlayer? player)
     {
-        version = null;
-        player = null;
+        player = UnrealPlayerNames.TryParseId(id, out version, out string? archName, out string? configName)
+            && TryParseArch(archName, out var arch)
+            && TryParseConfig(configName, out var config)
+            ? new UnrealPlayer(arch, config)
+            : null;
 
-        if (id is null)
-        {
-            return false;
-        }
-
-        // Split at the 1st dash, because a version doesn't have one and a tag has 2.
-        int dash = id.IndexOf('-', StringComparison.Ordinal);
-
-        if (dash <= 0
-            || !Version.TryParse(id.AsSpan(0, dash), out var parsed)
-            || parsed.Major < FirstMajor
-            || !TryParse(id[(dash + 1)..], out player))
-        {
-            return false;
-        }
-
-        version = parsed;
-
-        return true;
+        return player is not null;
     }
 }

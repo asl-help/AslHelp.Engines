@@ -191,6 +191,28 @@ public sealed class UnrealGameRootTests(
         Assert.That(_fakeGame.Memory.Reads - reads, Is.EqualTo(4));
     }
 
+    // 2 lookups of 1 class give 1 root, so watchers of both read the root and the class of the subsystem once per tick.
+    [Test]
+    public void FindSubsystem_SameClassTwice_SharesTheSteps()
+    {
+        _fakeGame.AddObject(_fakeGame.Subsystem);
+        var game = SubsystemGame();
+        ManualTicks ticks = new();
+        var first = game.FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Unwrap().CreateWatcher(ticks);
+        var second = game.FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Unwrap().CreateWatcher(ticks);
+        (_, _) = (first.Current, second.Current);
+        ticks.Value++;
+
+        int reads = _fakeGame.Memory.Reads;
+        (_, _) = (first.Current, second.Current);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(second.Current, Is.EqualTo(FakeGame.SubsystemValue));
+            Assert.That(_fakeGame.Memory.Reads - reads, Is.EqualTo(4 + 1));
+        }
+    }
+
     // The default object of the subsystem class isn't the subsystem.
     [Test]
     public void FindSubsystem_DefaultObjectOnly_FailsWithoutALiveObject()

@@ -23,7 +23,7 @@ public sealed class UnrealRoot
     internal UnrealRoot(ClassReader classReader, PathRoot root, string text)
     {
         _text = text;
-        Path = new UnrealPath(new MemberPath(classReader, root, [MemberHop.Root(text)]));
+        Path = new UnrealPath(new MemberPath(classReader, root, text));
     }
 
     /// <summary>

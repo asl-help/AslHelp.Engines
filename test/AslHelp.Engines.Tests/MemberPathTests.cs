@@ -177,6 +177,96 @@ public sealed class MemberPathTests
         }
     }
 
+    // The engine keeps a TickMemo per step, so 30 watchers of 1 counter look Player up once per tick.
+    [Test]
+    public void CreateWatcher_ThirtyWatchersWithSharedSteps_ReadTheSharedStepsOncePerTick()
+    {
+        ManualTicks ticks = new();
+        var world = World();
+        var watchers = new Watcher<object?>[30];
+
+        for (int i = 0; i < watchers.Length; i++)
+        {
+            watchers[i] = world.Path.Member("Player").Member("Name").Unwrap().CreateWatcher(ticks);
+        }
+
+        ticks.Value++;
+        int worldReads = world.Reads;
+
+        foreach (var watcher in watchers)
+        {
+            _ = watcher.Current;
+        }
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(world.Reads - worldReads, Is.EqualTo(1));
+            Assert.That(watchers[^1].Current, Is.EqualTo("hero"));
+        }
+    }
+
+    // The world gets another Player between 2 ticks, so both watchers read the new object on the 2nd tick.
+    [Test]
+    public void CreateWatcher_SharedStepChangesBetweenTicks_EveryWatcherGetsTheNewObject()
+    {
+        ManualTicks ticks = new();
+        var world = World();
+        var name = world.Path.Member("Player").Member("Name").Unwrap().CreateWatcher(ticks);
+        var health = world.Path.Member("Player").Member("Stats").Member("Health").Unwrap().CreateWatcher(ticks);
+        (_, _) = (name.Current, health.Current);
+
+        FakeObject other = new("other", "Player");
+        other.Members["Name"] = "villain";
+        other.Members["Stats"] = new FakeObject("otherStats", "Stats") { Members = { ["Health"] = 5 } };
+        world.Members["Player"] = other;
+        ticks.Value++;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(name.Current, Is.EqualTo("villain"));
+            Assert.That(health.Current, Is.EqualTo(5));
+        }
+    }
+
+    // Both watchers fail on the null Player of the shared steps and each error shows the path of its own watcher.
+    [Test]
+    public void CreateWatcher_NullOnTheSharedSteps_EachWatcherFailsWithItsOwnPath()
+    {
+        ManualTicks ticks = new();
+        var world = World();
+        world.Members["Player"] = null;
+        var name = world.Path.Member("Player").Member("Name").Unwrap().CreateWatcher(ticks);
+        var health = world.Path.Member("Player").Member("Stats").Member("Health").Unwrap().CreateWatcher(ticks);
+        (_, _) = (name.Current, health.Current);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(name.Error?.Message, Is.EqualTo("Can't read world.Player.Name: world.Player is null."));
+            Assert.That(health.Error?.Message, Is.EqualTo("Can't read world.Player.Stats.Health: world.Player is null."));
+        }
+    }
+
+    // A watcher of another counter reads the shared steps itself, so it gets a Player written after the 1st watcher read.
+    [Test]
+    public void CreateWatcher_TwoTickCounters_DoNotShare()
+    {
+        var world = World();
+        var first = world.Path.Member("Player").Member("Name").Unwrap().CreateWatcher(new ManualTicks());
+        var second = world.Path.Member("Player").Member("Name").Unwrap().CreateWatcher(new ManualTicks());
+        int worldReads = world.Reads;
+
+        object? firstName = first.Current;
+        FakeObject other = new("other", "Player") { Members = { ["Name"] = "villain" } };
+        world.Members["Player"] = other;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(firstName, Is.EqualTo("hero"));
+            Assert.That(second.Current, Is.EqualTo("villain"));
+            Assert.That(world.Reads - worldReads, Is.EqualTo(2));
+        }
+    }
+
     // The steps on a failed step pass its failure on, so the 1st typo shows up at the end.
     [Test]
     public void Member_AfterAFailedStep_KeepsTheFirstError()
@@ -190,5 +280,13 @@ public sealed class MemberPathTests
             Assert.That(typo.Count().UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
             Assert.That(typo.Value<int>().UnwrapErr(), Is.SameAs(typo.UnwrapErr()));
         }
+    }
+
+    private FakeObject World()
+    {
+        FakeObject world = new("world", "World");
+        world.Members["Player"] = _player;
+
+        return world;
     }
 }

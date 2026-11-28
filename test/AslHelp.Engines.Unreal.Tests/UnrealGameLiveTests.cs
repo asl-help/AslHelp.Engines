@@ -164,6 +164,31 @@ public sealed class UnrealGameLiveTests
         });
     }
 
+    // On 2 ticks, 30 watchers of 1 counter that share the steps up to FixtureData give what a watcher of its own counter reads.
+    [Test]
+    public void CreateWatcher_RealPlayer_WatchersWithSharedStepsGiveTheValuesOfSingleReads()
+    {
+        WithAttachedPlayer(game =>
+        {
+            string[] names = ["IntValue", "LongValue", "FloatValue", "DoubleValue", "BoolValue", "Kind", "StringValue", "NameValue"];
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
+            ManualTicks ticks = new();
+            var watchers = Enumerable.Range(0, 30).Select(index => data.Member(names[index % names.Length]).Unwrap().CreateWatcher(ticks)).ToArray();
+
+            object?[] first = [.. watchers.Select(static watcher => watcher.Current)];
+            ticks.Value++;
+            object?[] single = [.. Enumerable.Range(0, 30).Select(index =>
+                data.Member(names[index % names.Length]).Unwrap().CreateWatcher(new ManualTicks()).Current)];
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(first, Is.EqualTo(single));
+                Assert.That(watchers.Select(static watcher => watcher.Current), Is.EqualTo(single));
+                Assert.That(first[0], Is.EqualTo(1337));
+            }
+        });
+    }
+
     // Typed paths read the arrays, the maps, the set and the weak pointer of FixtureData with the values BeginPlay sets.
     [Test]
     public void Read_RealPlayer_ReadsCollectionsThroughTypedPaths()

@@ -23,6 +23,15 @@ namespace AslHelp.Engines.Unreal.Paths;
 ///         so both are written the same way.
 ///     </para>
 ///     <para>
+///         The watchers of 1 tick counter read the steps their paths share and the class of the object each step reaches once per tick,
+///         also when each path is built again from the same root. A watcher that reads again in the same tick,
+///         like after <see cref="Watcher.Enabled"/> turns back on, gets the shared steps of that tick and only reads its last step again.
+///         A read without a watcher, like a step, reads the whole path.
+///     </para>
+///     <para>
+///         The root keeps every path a step returned, so build a path once and not on each tick.
+///     </para>
+///     <para>
 ///         Isn't thread-safe, because a read keeps the property of each hop.
 ///     </para>
 /// </remarks>
@@ -47,7 +56,7 @@ public sealed class UnrealPath : IMemberPath
     /// </returns>
     public Result<IMemberPath> Count()
     {
-        return Step(_memberPath.Append(MemberHop.Count()));
+        return Step(_memberPath.AppendCount());
     }
 
     /// <summary>
@@ -99,7 +108,7 @@ public sealed class UnrealPath : IMemberPath
     /// </returns>
     public Result<IMemberPath> Item(PathKey key)
     {
-        return Step(_memberPath.Append(MemberHop.Index(key)));
+        return Step(_memberPath.AppendItem(key));
     }
 
     /// <summary>
@@ -159,22 +168,28 @@ public sealed class UnrealPath : IMemberPath
         return _memberPath.ReadContainer();
     }
 
-    private static Result<IMemberPath> Step(MemberPath memberPath)
+    private static Result<IMemberPath> Step(Result<MemberPath> memberPath)
     {
-        return memberPath.Check().TryUnwrapErr(out var error) ? error : Result.Ok<IMemberPath>(new UnrealPath(memberPath));
+        return memberPath.TryUnwrap(out var child, out var error) ? Result.Ok<IMemberPath>(new UnrealPath(child)) : error;
     }
 }
 
-file sealed class BoxedPathWatcher(
-    ITickCounter ticks,
-    MemberPath memberPath) : Watcher<object?>(ticks)
+file sealed class BoxedPathWatcher : Watcher<object?>
 {
+    private readonly MemberPath _memberPath;
+
     // Keep the last value apart from Current, because Clear empties Current and a read returns the last box when the value is equal.
     private object? _last;
 
+    public BoxedPathWatcher(ITickCounter ticks, MemberPath memberPath)
+        : base(ticks)
+    {
+        _memberPath = memberPath;
+    }
+
     protected override Result<object?> Read()
     {
-        var result = memberPath.ReadBoxed(_last);
+        var result = _memberPath.ReadBoxed(Ticks, _last);
 
         if (result.IsOk)
         {
@@ -186,6 +201,6 @@ file sealed class BoxedPathWatcher(
 
     public override string ToString()
     {
-        return memberPath.ToString();
+        return _memberPath.ToString();
     }
 }

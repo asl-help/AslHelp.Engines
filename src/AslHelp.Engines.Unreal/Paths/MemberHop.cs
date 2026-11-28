@@ -10,7 +10,7 @@ namespace AslHelp.Engines.Unreal.Paths;
 ///     a member with the property it resolved to for each class, an index of a collection or its count.
 /// </summary>
 /// <remarks>
-///     Every path that extends another one shares its hops, so a class gets resolved once per hop.
+///     Paths from 1 root with equal steps are 1 node with 1 hop, so a class gets resolved once per hop.
 ///     Isn't thread-safe.
 /// </remarks>
 internal sealed class MemberHop

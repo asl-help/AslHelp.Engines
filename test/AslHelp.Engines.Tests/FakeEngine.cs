@@ -39,7 +39,27 @@ internal sealed class FakeObject(
     /// <summary>
     ///     Gets the path that starts at the object.
     /// </summary>
-    public IMemberPath Path => new FakePath(this, []);
+    public IMemberPath Path => field ??= FakePath.Root(this);
+
+    /// <summary>
+    ///     Gets the number of member lookups, which a test compares to count the reads of a path.
+    /// </summary>
+    public int Reads { get; private set; }
+
+    /// <summary>
+    ///     Looks a member up and counts the lookup.
+    /// </summary>
+    /// <param name="name">The name of the member.</param>
+    /// <param name="value">The value of the member or <see langword="null"/>.</param>
+    /// <returns>
+    ///     <see langword="true"/> when the object has the member.
+    /// </returns>
+    public bool TryRead(string name, out object? value)
+    {
+        Reads++;
+
+        return Members.TryGetValue(name, out value);
+    }
 }
 
 /// <summary>
@@ -70,9 +90,13 @@ internal sealed class FakeStruct(
 }
 
 file sealed class FakePath(
-    FakeObject root,
-    FakeStep[] steps) : IMemberPath
+    FakeNode node) : IMemberPath
 {
+    public static FakePath Root(FakeObject root)
+    {
+        return new FakePath(new FakeNode(root, null, null));
+    }
+
     public Result<IMemberPath> Count()
     {
         return Step(new CountStep());
@@ -100,121 +124,154 @@ file sealed class FakePath(
         return Step(new MemberStep(name));
     }
 
-    public Result<T> Read<T>()
+    // Read the value at the end, once per tick of a watcher's counter and every time for a step check.
+    public Result<T> Read<T>(ITickCounter? ticks)
     {
-        if (!Read(out _).TryUnwrap(out object? value, out var error))
+        if (!node.Read(ticks, out _).TryUnwrap(out object? value, out var error))
         {
             return error;
         }
 
-        return value is T typed ? typed : new WrongTypeError(this, typeof(T).Name);
+        return ToValue(value) is T typed ? typed : new WrongTypeError(node, typeof(T).Name);
     }
 
     public override string ToString()
     {
-        return root.Name + string.Concat<FakeStep>(steps);
+        return node.ToString();
     }
 
     public Result<IWatcherSource<T>> Value<T>()
     {
-        if (Read(out _).TryUnwrap(out object? value) && value is not T)
+        if (node.Read(null, out _).TryUnwrap(out object? value) && ToValue(value) is not T)
         {
-            return new WrongTypeError(this, typeof(T).Name);
+            return new WrongTypeError(node, typeof(T).Name);
         }
 
         return Result.Ok<IWatcherSource<T>>(new FakeSource<T>(this));
     }
 
-    // Read the value at the end. fits is false when the path doesn't fit the members it reads, so a step fails at once.
-    private Result<object?> Read(out bool fits)
+    private static object? ToValue(object? value)
     {
-        fits = true;
-        object? current = root;
-
-        for (int i = 0; i < steps.Length; i++)
-        {
-            var start = Start(i);
-
-            switch (steps[i], current)
-            {
-                case (_, null):
-                {
-                    return new NullObjectError(this, start);
-                }
-                case (MemberStep member, FakeObject obj):
-                {
-                    if (!obj.Members.TryGetValue(member.Name, out current))
-                    {
-                        fits = false;
-
-                        return new MissingMemberError(obj.ClassName, member.Name);
-                    }
-
-                    break;
-                }
-                case (MemberStep member, FakeStruct value):
-                {
-                    int index = Array.IndexOf(value.Names, member.Name);
-
-                    if (index < 0)
-                    {
-                        fits = false;
-
-                        return new MissingMemberError(value.TypeName, member.Name);
-                    }
-
-                    current = value.Values[index];
-                    break;
-                }
-                case (ItemStep { Key.Value: long index }, List<object?> list):
-                {
-                    if (index >= list.Count)
-                    {
-                        return new MissingItemError(start, steps[i]);
-                    }
-
-                    current = list[(int)index];
-                    break;
-                }
-                case (ItemStep { Key.Value: string key }, Dictionary<string, object?> map):
-                {
-                    if (!map.TryGetValue(key, out current))
-                    {
-                        return new MissingItemError(start, steps[i]);
-                    }
-
-                    break;
-                }
-                case (CountStep, ICollection collection):
-                {
-                    current = collection.Count;
-                    break;
-                }
-                default:
-                {
-                    fits = false;
-
-                    return new MismatchError(start, steps[i]);
-                }
-            }
-        }
-
-        return current is FakeStruct fake ? new StructValue(fake.TypeName, fake.Names, [.. fake.Values]) : Result.Ok(current);
-    }
-
-    private FakePath Start(int stepCount)
-    {
-        var start = new FakeStep[stepCount];
-        Array.Copy(steps, start, stepCount);
-
-        return new FakePath(root, start);
+        return value is FakeStruct fake ? new StructValue(fake.TypeName, fake.Names, [.. fake.Values]) : value;
     }
 
     private Result<IMemberPath> Step(FakeStep step)
     {
-        FakePath path = new(root, [.. steps, step]);
+        var child = node.Child(step);
 
-        return !path.Read(out bool fits).TryUnwrapErr(out var error) || fits ? Result.Ok<IMemberPath>(path) : error;
+        return !child.Read(null, out bool fits).TryUnwrapErr(out var error) || fits ? Result.Ok<IMemberPath>(new FakePath(child)) : error;
+    }
+}
+
+// Keep 1 node per step, so paths built apart with equal steps share the TickMemo of each step.
+file sealed class FakeNode(
+    FakeObject root,
+    FakeNode? parent,
+    FakeStep? step)
+{
+    private readonly Dictionary<FakeStep, FakeNode> _children = [];
+    private readonly TickMemo<Result<object?>> _value = new();
+
+    public FakeNode Child(FakeStep childStep)
+    {
+        if (!_children.TryGetValue(childStep, out var child))
+        {
+            child = new FakeNode(root, this, childStep);
+            _children.Add(childStep, child);
+        }
+
+        return child;
+    }
+
+    // Read the value at this step. fits is false when the path doesn't fit the members it reads, so a step fails at once.
+    public Result<object?> Read(ITickCounter? ticks, out bool fits)
+    {
+        fits = true;
+
+        if (ticks is not null && _value.TryGet(ticks, out var kept))
+        {
+            return kept;
+        }
+
+        var value = ReadStep(ticks, out fits);
+
+        if (ticks is not null)
+        {
+            _value.Set(ticks, value);
+        }
+
+        return value;
+    }
+
+    public override string ToString()
+    {
+        return parent is null ? root.Name : parent.ToString() + step;
+    }
+
+    private Result<object?> ReadStep(ITickCounter? ticks, out bool fits)
+    {
+        fits = true;
+
+        if (parent is null)
+        {
+            return Result.Ok<object?>(root);
+        }
+
+        if (!parent.Read(ticks, out fits).TryUnwrap(out object? current, out var error))
+        {
+            // Show this path in a null object error of a step before it, like a read of the whole path does.
+            return error is NullObjectError nullObject ? new NullObjectError(this, nullObject.Start) : error;
+        }
+
+        switch (step, current)
+        {
+            case (_, null):
+            {
+                return new NullObjectError(this, parent);
+            }
+            case (MemberStep member, FakeObject obj):
+            {
+                if (!obj.TryRead(member.Name, out current))
+                {
+                    fits = false;
+
+                    return new MissingMemberError(obj.ClassName, member.Name);
+                }
+
+                return Result.Ok(current);
+            }
+            case (MemberStep member, FakeStruct value):
+            {
+                int index = Array.IndexOf(value.Names, member.Name);
+
+                if (index < 0)
+                {
+                    fits = false;
+
+                    return new MissingMemberError(value.TypeName, member.Name);
+                }
+
+                return Result.Ok(value.Values[index]);
+            }
+            case (ItemStep { Key.Value: long index }, List<object?> list):
+            {
+                return index < list.Count ? Result.Ok(list[(int)index]) : new MissingItemError(parent, step);
+            }
+            case (ItemStep { Key.Value: string key }, Dictionary<string, object?> map):
+            {
+                return map.TryGetValue(key, out current) ? Result.Ok(current) : new MissingItemError(parent, step);
+            }
+            case (CountStep, ICollection collection):
+            {
+                return Result.Ok<object?>(collection.Count);
+            }
+            default:
+            {
+                fits = false;
+
+                return new MismatchError(parent, step!);
+            }
+        }
     }
 }
 
@@ -232,16 +289,21 @@ file sealed class FakeSource<T>(
     }
 }
 
-file sealed class FakeWatcher<T>(
-    ITickCounter ticks,
-    FakePath path) : Watcher<T>(ticks)
+file sealed class FakeWatcher<T> : Watcher<T>
 {
+    private readonly FakePath _path;
+
+    public FakeWatcher(ITickCounter ticks, FakePath path)
+        : base(ticks)
+    {
+        _path = path;
+    }
+
     protected override Result<T> Read()
     {
-        return path.Read<T>();
+        return _path.Read<T>(Ticks);
     }
 }
-
 file abstract record FakeStep;
 
 file sealed record CountStep : FakeStep
@@ -271,14 +333,14 @@ file sealed record MemberStep(
 }
 
 file sealed record MismatchError(
-    FakePath Start,
+    FakeNode Start,
     FakeStep Step) : ResultError
 {
     public override string Message => $"{Start} doesn't take {Step}.";
 }
 
 file sealed record MissingItemError(
-    FakePath Start,
+    FakeNode Start,
     FakeStep Step) : ResultError
 {
     public override string Message => $"{Start} doesn't have the item {Step}.";
@@ -292,14 +354,14 @@ file sealed record MissingMemberError(
 }
 
 file sealed record NullObjectError(
-    FakePath Path,
-    FakePath Start) : ResultError
+    FakeNode Path,
+    FakeNode Start) : ResultError
 {
     public override string Message => $"Can't read {Path}: {Start} is null.";
 }
 
 file sealed record WrongTypeError(
-    FakePath Path,
+    FakeNode Path,
     string TypeName) : ResultError
 {
     public override string Message => $"{Path} isn't a {TypeName}.";

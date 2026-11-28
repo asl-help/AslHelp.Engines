@@ -94,6 +94,8 @@ The path types are in `AslHelp.Engines.Unreal.Paths`.
 
 The boxed watcher of a path picks the type from the property at read time. Before the 1st good read `Current` and `Old` are null. When another class has a member with that name and another kind, `Old` keeps the old type for 1 tick and `Changed` is true. The path of a root alone reads the `Address` of its object.
 
+Watchers with the same tick counter read the steps their paths share once per tick, also when each path is built again from the same root. 30 watchers under `GWorld.GameMode.Data` cost 39 reads per tick instead of 300, so give all watchers the same counter. `GWorld`, `GEngine` and `FindSubsystem` return 1 root each, but every object a lookup returns has its own root. When the game writes a pointer in the middle of a tick, all of them get it on the next tick. A read without a watcher, like a step check, always reads the whole path. The root keeps every path a step returned, so build paths once and not on each tick.
+
 Every root gives its path through `.Path`:
 
 ```cs
@@ -121,6 +123,7 @@ var score = subsystem.Path.Member("Score").Value<int>();
 - `PathKey`: an index or key. `PathKey.TryCreate(object)` takes any integer, a `string` or a `bool`
 - `StructValue`: a struct with its members by name, with value equality so `Changed` works
 - `IWatcherSource` and `IWatcherSource<T>`: something a host can create a watcher from
+- `TickMemo<T>`: keeps 1 value for 1 tick of 1 counter, so the watchers of a counter read the shared steps of paths once per tick
 
 ```cs
 Result<IMemberPath> health = root.Path.Member("Player").Member("Health");

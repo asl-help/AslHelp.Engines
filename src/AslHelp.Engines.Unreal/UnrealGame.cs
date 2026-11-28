@@ -25,6 +25,9 @@ public sealed class UnrealGame
     private readonly ClassReader _classReader;
     private readonly bool _hasSubsystems;
 
+    // Keep 1 root per class name, so the paths of 2 lookups share their reads.
+    private readonly Dictionary<string, UnrealRoot> _subsystems = [];
+
     private UnrealGame(
         IMemoryReader memory,
         UnrealProfile profile,
@@ -283,6 +286,8 @@ public sealed class UnrealGame
     /// <remarks>
     ///     Doesn't read memory and doesn't check that the class is a subsystem. A read of a path from the root finds the object and keeps it,
     ///     so a subsystem that the game creates later shows up and a read finds a replaced subsystem again.
+    ///     Returns the same root on each call with an ordinally equal name.
+    ///     Isn't thread-safe.
     /// </remarks>
     /// <param name="className">The name of the class without a prefix, like <c>MySubsystem</c>.</param>
     /// <returns>
@@ -300,7 +305,13 @@ public sealed class UnrealGame
             return RootError.SubsystemsUnavailable();
         }
 
-        return new UnrealRoot(_classReader, PathRoot.FirstObject(_classReader, className), className);
+        if (!_subsystems.TryGetValue(className, out var root))
+        {
+            root = new UnrealRoot(_classReader, PathRoot.FirstObject(_classReader, className), className);
+            _subsystems.Add(className, root);
+        }
+
+        return root;
     }
 
     /// <summary>

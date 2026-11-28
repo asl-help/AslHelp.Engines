@@ -70,20 +70,26 @@ internal sealed class UnrealValuePath<T> : IWatcherSource<T>
     /// </returns>
     public Result<T> Read()
     {
-        return _memberPath.ReadValue<T>(default);
+        return _memberPath.ReadValue<T>(null, default);
     }
 }
 
-file sealed class ValuePathWatcher<T>(
-    ITickCounter ticks,
-    MemberPath memberPath) : Watcher<T>(ticks)
+file sealed class ValuePathWatcher<T> : Watcher<T>
 {
+    private readonly MemberPath _memberPath;
+
     // Keep the last value apart from Current, because Clear empties Current and a string read returns the last text when it's equal.
     private T? _last;
 
+    public ValuePathWatcher(ITickCounter ticks, MemberPath memberPath)
+        : base(ticks)
+    {
+        _memberPath = memberPath;
+    }
+
     protected override Result<T> Read()
     {
-        var result = memberPath.ReadValue(_last);
+        var result = _memberPath.ReadValue(Ticks, _last);
 
         if (result.IsOk)
         {
@@ -95,6 +101,6 @@ file sealed class ValuePathWatcher<T>(
 
     public override string ToString()
     {
-        return SR.FormatPathValueWatcher(typeof(T).Name, memberPath);
+        return SR.FormatPathValueWatcher(typeof(T).Name, _memberPath);
     }
 }

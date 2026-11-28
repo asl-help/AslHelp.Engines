@@ -90,6 +90,31 @@ public sealed class UnrealGameUdkLiveTests
         });
     }
 
+    // On 2 ticks, 30 watchers of 1 counter that share the root at FixtureData give what a watcher of its own counter reads.
+    [Test]
+    public void CreateWatcher_RealPlayer_WatchersWithSharedStepsGiveTheValuesOfSingleReads()
+    {
+        WithAttachedPlayer(game =>
+        {
+            string[] names = ["IntValue", "FloatValue", "BoolValue", "bFirst", "bSecond", "Kind", "StringValue", "NameValue"];
+            var data = game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap().Single().Path;
+            ManualTicks ticks = new();
+            var watchers = Enumerable.Range(0, 30).Select(index => data.Member(names[index % names.Length]).Unwrap().CreateWatcher(ticks)).ToArray();
+
+            object?[] first = [.. watchers.Select(static watcher => watcher.Current)];
+            ticks.Value++;
+            object?[] single = [.. Enumerable.Range(0, 30).Select(index =>
+                data.Member(names[index % names.Length]).Unwrap().CreateWatcher(new ManualTicks()).Current)];
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(first, Is.EqualTo(single));
+                Assert.That(watchers.Select(static watcher => watcher.Current), Is.EqualTo(single));
+                Assert.That(first[0], Is.EqualTo(1337));
+            }
+        });
+    }
+
     // Coord steps into the struct by its offset with the measured UStructProperty.Struct, so X reads the 7 PostBeginPlay sets.
     [Test]
     public void Read_RealPlayer_StepsIntoCoordOfFixtureData()

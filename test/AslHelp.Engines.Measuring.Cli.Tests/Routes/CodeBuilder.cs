@@ -78,17 +78,17 @@ internal sealed class CodeBuilder(
     }
 
     /// <summary>
-    ///     Adds 1-byte instructions that do nothing.
+    ///     Adds 1-byte <c>cld</c> instructions, which a window runs across, unlike the padding of <c>nop</c> and <c>int3</c>.
     /// </summary>
     /// <param name="count">The number of instructions.</param>
     /// <returns>
     ///     This builder.
     /// </returns>
-    public CodeBuilder Nops(int count)
+    public CodeBuilder Fillers(int count)
     {
         for (int index = 0; index < count; index++)
         {
-            _ = Raw(0x90);
+            _ = Raw(0xFC);
         }
 
         return this;

@@ -666,9 +666,10 @@ public sealed class UnrealMeasurerEdgeTests
         pdb.AddStruct("Player", size, pdb.AddFieldList(FakePdb.Member("Member", memberOffset)));
         pdb.Write(id.PdbPath(directory));
 
+        // Give each function its own bytes and 6 literals, because a window doesn't cross a return and the 2 x64 loads are the same.
         var code = id.Player.Arch == Architecture.X64
-            ? new CodeBuilder(true).MovRax(DataRva).Ret().MovRax(OtherDataRva).Ret()
-            : new CodeBuilder(false).MovEcx(DataRva).Ret().MovEdx(OtherDataRva).Ret();
+            ? new CodeBuilder(true).Fillers(3).MovRax(DataRva).Fillers(1).Ret().Fillers(3).MovRax(OtherDataRva).Ret()
+            : new CodeBuilder(false).Fillers(3).MovEcx(DataRva).Ret().Fillers(3).MovEdx(OtherDataRva).Ret();
 
         FakeExecutable.Write(id.ExecutablePath(directory), code, executableGuid ?? _guid, executableAge);
 

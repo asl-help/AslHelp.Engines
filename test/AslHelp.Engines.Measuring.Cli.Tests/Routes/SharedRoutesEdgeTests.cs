@@ -90,7 +90,7 @@ public sealed class SharedRoutesEdgeTests
     [TestCase(0x10000)]
     public void Find_FileCutInsideItsSection_FailsOnlyThatVersion(int sectionSize)
     {
-        var whole = Version("b", new CodeBuilder(false).Nops(sectionSize), GlobalB);
+        var whole = Version("b", new CodeBuilder(false).Fillers(sectionSize), GlobalB);
         File.WriteAllBytes(whole.ExecutablePath, File.ReadAllBytes(whole.ExecutablePath)[..^(sectionSize / 2)]);
 
         AssertOnlyBFails(whole);
@@ -206,7 +206,7 @@ public sealed class SharedRoutesEdgeTests
         var found = Find(
             Version("a", new CodeBuilder(false).MovEcx(GlobalA).Ret(), GlobalA),
             Version("b", new CodeBuilder(false).MovEcx(GlobalB).Ret(), GlobalB),
-            Version("c", new CodeBuilder(false).MovEcx(Other).Nops(1).Raw(0xB8).MovEcx(GlobalA).Ret(), GlobalA));
+            Version("c", new CodeBuilder(false).MovEcx(Other).Fillers(1).Raw(0xB8).MovEcx(GlobalA).Ret(), GlobalA));
 
         var route = found[Global].Routes.Single();
 
@@ -266,7 +266,7 @@ public sealed class SharedRoutesEdgeTests
     {
         var found = Find(Version(
             "a",
-            new CodeBuilder(false).MovEcx(Other).Ret().MovEcx(GlobalA).Nops(1).Raw(0xC7, 0x05).Absolute(GlobalA).Raw(0x01, 0x00, 0x00, 0x00),
+            new CodeBuilder(false).MovEcx(Other).Ret().MovEcx(GlobalA).Fillers(1).Raw(0xC7, 0x05).Absolute(GlobalA).Raw(0x01, 0x00, 0x00, 0x00),
             GlobalA));
 
         var route = found[Global].Routes.Single();
@@ -282,7 +282,7 @@ public sealed class SharedRoutesEdgeTests
     [Test]
     public void Find_TwoGlobalsInOneFile_GetTheirOwnRoutes()
     {
-        string path = Write("a", new CodeBuilder(false).MovEcx(GlobalA).Nops(1).MovEdx(GlobalB));
+        string path = Write("a", new CodeBuilder(false).MovEcx(GlobalA).Fillers(1).MovEdx(GlobalB));
 
         var found = Find(new RouteVersion("a", path, new Dictionary<string, IReadOnlyList<uint>> { ["X"] = [GlobalA], ["Y"] = [GlobalB] }));
 
@@ -337,7 +337,7 @@ public sealed class SharedRoutesEdgeTests
     [Test]
     public void Find_VersionsWithDifferentGlobals_KeepsFirstSeenOrder()
     {
-        string path = Write("a", new CodeBuilder(false).Nops(1));
+        string path = Write("a", new CodeBuilder(false).Fillers(1));
         Dictionary<string, IReadOnlyList<uint>> first = new() { ["X"] = [GlobalA], ["Y"] = [GlobalA] };
         Dictionary<string, IReadOnlyList<uint>> second = new() { ["Z"] = [GlobalA], ["X"] = [GlobalA] };
 
@@ -351,9 +351,9 @@ public sealed class SharedRoutesEdgeTests
     public void Find_SeveralUncovered_KeepsVersionOrder()
     {
         var found = Find(
-            Version("c", new CodeBuilder(false).Nops(1), GlobalA),
-            Version("a", new CodeBuilder(false).Nops(1), GlobalA),
-            Version("b", new CodeBuilder(false).Nops(1), GlobalA));
+            Version("c", new CodeBuilder(false).Fillers(1), GlobalA),
+            Version("a", new CodeBuilder(false).Fillers(1), GlobalA),
+            Version("b", new CodeBuilder(false).Fillers(1), GlobalA));
 
         Assert.That(found[Global].Uncovered!.Keys, Is.EqualTo(_inputOrder));
     }

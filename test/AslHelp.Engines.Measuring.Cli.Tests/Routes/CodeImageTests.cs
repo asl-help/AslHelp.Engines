@@ -58,7 +58,7 @@ public sealed class CodeImageTests
     public void Read_BuiltFile_ReturnsTheSectionBytes(bool is64Bit, ulong imageBase)
     {
         string path = Path.Combine(_folder.Root, "file.bin");
-        var written = new CodeBuilder(is64Bit, imageBase).Nops(3).Ret().Build();
+        var written = new CodeBuilder(is64Bit, imageBase).Fillers(3).Ret().Build();
         CodeBuilder.WritePe(path, written);
 
         using var image = CodeImage.Read(path).Unwrap();
@@ -78,7 +78,7 @@ public sealed class CodeImageTests
     public void Read_BuiltFileWithData_ReturnsHeadersAndDataSections()
     {
         string path = Path.Combine(_folder.Root, "file.bin");
-        var data = new CodeBuilder(false, rva: 0x3000).Nops(5).Section();
+        var data = new CodeBuilder(false, rva: 0x3000).Fillers(5).Section();
         CodeBuilder.WritePe(path, new CodeBuilder(false).Ret().Build(data));
 
         using PEReader reader = new(File.OpenRead(path));
@@ -99,7 +99,7 @@ public sealed class CodeImageTests
     public void Dispose_MappedFile_ReleasesTheFile()
     {
         string path = Path.Combine(_folder.Root, "file.bin");
-        CodeBuilder.WritePe(path, new CodeBuilder(false).Nops(0x10000).Ret().Build());
+        CodeBuilder.WritePe(path, new CodeBuilder(false).Fillers(0x10000).Ret().Build());
 
         var image = CodeImage.Read(path).Unwrap();
 
@@ -120,7 +120,7 @@ public sealed class CodeImageTests
     public void Dispose_ThenBytesRead_Throws()
     {
         string path = Path.Combine(_folder.Root, "file.bin");
-        CodeBuilder.WritePe(path, new CodeBuilder(false).Ret().Build(new CodeBuilder(false, rva: 0x3000).Nops(5).Section()));
+        CodeBuilder.WritePe(path, new CodeBuilder(false).Ret().Build(new CodeBuilder(false, rva: 0x3000).Fillers(5).Section()));
 
         var image = CodeImage.Read(path).Unwrap();
         var code = image.Sections.Single().Bytes;

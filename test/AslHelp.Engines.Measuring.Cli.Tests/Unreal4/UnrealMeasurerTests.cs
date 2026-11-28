@@ -358,8 +358,9 @@ public sealed class UnrealMeasurerTests
     [Test]
     public async Task RunAsync_ReportJson_HasKeyAndShapesPerGroup()
     {
-        _ = WritePlayer("4.19.2-win-x64-shipping", new CodeBuilder(true).MovRax(GlobalRva).Ret(), _guid, 1, _guid, 1);
-        _ = WritePlayer("4.19.2-win-x86-shipping", new CodeBuilder(false).MovEcx(GlobalRva).Ret(), _guid, 1, _guid, 1);
+        // Put fillers in front of the load, because a window ends at the return and a route needs 6 literals.
+        _ = WritePlayer("4.19.2-win-x64-shipping", new CodeBuilder(true).Fillers(2).MovRax(GlobalRva).Ret(), _guid, 1, _guid, 1);
+        _ = WritePlayer("4.19.2-win-x86-shipping", new CodeBuilder(false).Fillers(3).MovEcx(GlobalRva).Ret(), _guid, 1, _guid, 1);
         string targets = Path.Combine(_folder.Root, "targets.example");
         await File.WriteAllTextAsync(targets, TargetsFile);
 

@@ -53,7 +53,7 @@ public sealed class UnrealMeasurementEdgeTests
     [Test]
     public void Measure_LoadAtTheLastInstruction_ReportsIt()
     {
-        var image = new CodeBuilder(true).Nops(511).MovRax(DataRva).Ret().Build();
+        var image = new CodeBuilder(true).Fillers(511).MovRax(DataRva).Ret().Build();
 
         Assert.That(MeasureFunction(image).Unwrap().Globals["Static"].Single(), Is.EqualTo(DataRva));
     }
@@ -62,7 +62,7 @@ public sealed class UnrealMeasurementEdgeTests
     [Test]
     public void Measure_LoadPastTheLastInstruction_Fails()
     {
-        var image = new CodeBuilder(true).Nops(512).MovRax(DataRva).Ret().Build();
+        var image = new CodeBuilder(true).Fillers(512).MovRax(DataRva).Ret().Build();
 
         Assert.That(MeasureFunction(image).UnwrapErr().Message, Is.EqualTo(UnrealSR.FormatFunctionStaticNotFound(Function, "1000")));
     }

@@ -26,7 +26,7 @@ public sealed class UnrealValuePathTests(
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;
 
-    private UnrealValuePath<int> Hp => _game.GWorld.Member("GameMode").Member("Data").Member<int>("Hp");
+    private Result<IWatcherSource<int>> Hp => _game.GWorld.Path.Member("GameMode").Member("Data").Member("Hp").Value<int>();
 
     [SetUp]
     public void SetUp()
@@ -81,7 +81,7 @@ public sealed class UnrealValuePathTests(
     public void Read_ObjectMemberAsInt_FailsWithWrongKind()
     {
         Assert.That(
-            _game.GWorld.Member<int>("GameMode").Read().UnwrapErr().Message,
+            _game.GWorld.Path.Member("GameMode").Value<int>().Read().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode. GameMode is ObjectProperty, which reads as Address, not Int32."));
     }
 
@@ -90,7 +90,7 @@ public sealed class UnrealValuePathTests(
     public void Read_FloatMemberAsInt_FailsWithWrongKind()
     {
         Assert.That(
-            _game.GWorld.Member("GameMode").Member("Data").Member<int>("Speed").Read().UnwrapErr().Message,
+            _game.GWorld.Path.Member("GameMode").Member("Data").Member("Speed").Value<int>().Read().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.Speed. Speed is FloatProperty, which reads as Single, not Int32."));
     }
 
@@ -119,7 +119,7 @@ public sealed class UnrealValuePathTests(
     [Test]
     public void CreateWatcher_ReadableValue_CurrentIsTheValue()
     {
-        var watcher = Hp.CreateWatcher(new ManualTicks());
+        var watcher = Hp.Unwrap().CreateWatcher(new ManualTicks());
 
         using (Assert.EnterMultipleScope())
         {
@@ -133,7 +133,7 @@ public sealed class UnrealValuePathTests(
     public void CreateWatcher_ValueChangesBetweenTicks_ReportsOldAndCurrent()
     {
         ManualTicks ticks = new();
-        var watcher = Hp.CreateWatcher(ticks);
+        var watcher = Hp.Unwrap().CreateWatcher(ticks);
 
         _ = watcher.Current;
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.HpOffset, 990);
@@ -154,7 +154,7 @@ public sealed class UnrealValuePathTests(
         ManualTicks ticks = new();
         var hp = Hp;
         _ = hp.Read().Unwrap();
-        var watcher = hp.CreateWatcher(ticks);
+        var watcher = hp.Unwrap().CreateWatcher(ticks);
 
         int reads = _fakeGame.Memory.Reads;
         _ = watcher.Current;
@@ -179,7 +179,7 @@ public sealed class UnrealValuePathTests(
     public void CreateWatcher_FailedRead_ClearsTheValuesAndFillsAgain()
     {
         ManualTicks ticks = new();
-        var watcher = Hp.CreateWatcher(ticks);
+        var watcher = Hp.Unwrap().CreateWatcher(ticks);
 
         _ = watcher.Current;
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
@@ -200,7 +200,7 @@ public sealed class UnrealValuePathTests(
     [Test]
     public void CreateWatcher_FailActionThrow_ThrowsWithThePath()
     {
-        var watcher = Hp.CreateWatcher(new ManualTicks());
+        var watcher = Hp.Unwrap().CreateWatcher(new ManualTicks());
         watcher.FailAction = FailAction.Throw;
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
 
@@ -214,7 +214,7 @@ public sealed class UnrealValuePathTests(
     [Test]
     public void CreateWatcher_ThroughIWatcherSource_ReturnsANewWatcherPerCall()
     {
-        IWatcherSource source = Hp;
+        IWatcherSource source = Hp.Unwrap();
         ManualTicks ticks = new();
 
         var first = source.CreateWatcher(ticks);
@@ -231,6 +231,6 @@ public sealed class UnrealValuePathTests(
     [Test]
     public void CreateWatcher_NullTicks_Throws()
     {
-        Assert.That(() => Hp.CreateWatcher(null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("ticks"));
+        Assert.That(() => Hp.Unwrap().CreateWatcher(null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("ticks"));
     }
 }

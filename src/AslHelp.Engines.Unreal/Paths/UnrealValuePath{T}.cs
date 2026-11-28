@@ -5,16 +5,16 @@ using System;
 namespace AslHelp.Engines.Unreal.Paths;
 
 /// <summary>
-///     Represents a path from a global of a game through members to a value of type <typeparamref name="T"/>, like
+///     Represents a path from a root object of a game through members to a value of type <typeparamref name="T"/>, like
 ///     <c>GWorld.AuthorityGameMode.FixtureData.Hp</c>.
 /// </summary>
 /// <remarks>
-///     Read the value with a watcher from <see cref="CreateWatcher"/>.
+///     Create one with <see cref="UnrealPath.Value{T}"/> and read the value with a watcher from <see cref="CreateWatcher"/>.
 ///     When a read fails, like on a null object on the way, the watcher applies its <see cref="Watcher.FailAction"/>.
 ///     Isn't thread-safe, because a read keeps the property of each hop.
 /// </remarks>
 /// <typeparam name="T">The type of the value.</typeparam>
-public sealed class UnrealValuePath<T> : IWatcherSource
+internal sealed class UnrealValuePath<T> : IWatcherSource<T>
 {
     private readonly MemberPath _memberPath;
 
@@ -22,7 +22,7 @@ public sealed class UnrealValuePath<T> : IWatcherSource
     ///     Initializes a new instance of the <see cref="UnrealValuePath{T}"/> class.
     /// </summary>
     /// <param name="memberPath">The path to read.</param>
-    internal UnrealValuePath(MemberPath memberPath)
+    public UnrealValuePath(MemberPath memberPath)
     {
         _memberPath = memberPath;
     }
@@ -52,7 +52,7 @@ public sealed class UnrealValuePath<T> : IWatcherSource
     }
 
     /// <summary>
-    ///     Returns the global and the members of the path joined by a period.
+    ///     Returns the root and the steps of the path.
     /// </summary>
     /// <returns>
     ///     The text of the path, like <c>GWorld.AuthorityGameMode.FixtureData.Hp</c>.
@@ -68,7 +68,7 @@ public sealed class UnrealValuePath<T> : IWatcherSource
     /// <returns>
     ///     The value or a failure.
     /// </returns>
-    internal Result<T> Read()
+    public Result<T> Read()
     {
         return _memberPath.ReadValue<T>(default);
     }

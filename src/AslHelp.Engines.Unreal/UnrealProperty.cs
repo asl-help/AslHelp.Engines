@@ -156,8 +156,16 @@ public sealed class UnrealProperty
             return error;
         }
 
-        return access is ValueAccess<T> valueAccess
-            ? valueAccess.Read(memory, obj, default)
-            : access.NotValueOf(typeof(T));
+        if (access is ValueAccess<T> valueAccess)
+        {
+            return valueAccess.Read(memory, obj, default);
+        }
+
+        if (typeof(T) == typeof(StructValue))
+        {
+            return access.ReadStruct(memory, obj, null).TryUnwrap(out var value, out error) ? (T)(object)value : error;
+        }
+
+        return access.NotValueOf(typeof(T));
     }
 }

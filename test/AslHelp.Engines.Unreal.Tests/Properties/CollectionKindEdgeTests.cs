@@ -27,7 +27,7 @@ public sealed class CollectionKindEdgeTests(
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;
 
-    private UnrealPath Data => _game.GWorld.Member("GameMode").Member("Data");
+    private Result<IMemberPath> Data => _game.GWorld.Path.Member("GameMode").Member("Data");
 
     private Address DictPairs => _fakeGame.CollectionData + 0x4500;
 
@@ -58,7 +58,7 @@ public sealed class CollectionKindEdgeTests(
             _fakeGame.Memory.WriteInt32(_fakeGame.CollectionData + (i * sizeof(int)), i);
         }
 
-        int[] values = Data.Member<int[]>("IntArray").Read().Unwrap();
+        int[] values = Data.Member("IntArray").Value<int[]>().Read().Unwrap();
 
         using (Assert.EnterMultipleScope())
         {
@@ -73,7 +73,7 @@ public sealed class CollectionKindEdgeTests(
     public void CreateWatcher_ArrayGrowsPastTheBuffer_ReadsTheNewElements()
     {
         ManualTicks ticks = new();
-        var watcher = Data.Member<int[]>("IntArray").CreateWatcher(ticks);
+        var watcher = Data.Member("IntArray").Value<int[]>().Unwrap().CreateWatcher(ticks);
         _ = watcher.Current;
 
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.IntArrayOffset + 0x8, 600);
@@ -94,7 +94,7 @@ public sealed class CollectionKindEdgeTests(
     public void CreateWatcher_ArrayEmpties_ChangesOnceThenKeepsTheEmptyArray()
     {
         ManualTicks ticks = new();
-        var watcher = Data.Member<int[]>("IntArray").CreateWatcher(ticks);
+        var watcher = Data.Member("IntArray").Value<int[]>().Unwrap().CreateWatcher(ticks);
         _ = watcher.Current;
 
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.IntArrayOffset + 0x8, 0);
@@ -122,9 +122,9 @@ public sealed class CollectionKindEdgeTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(Data.Member<HashSet<int>>("IntSet").Read().Unwrap(), Is.Empty);
-            Assert.That(Data.Member("IntSet").Member<int>("Count").Read().Unwrap(), Is.Zero);
-            Assert.That(Data.Member("IntSet").Element<bool>(11).Read().Unwrap(), Is.False);
+            Assert.That(Data.Member("IntSet").Value<HashSet<int>>().Read().Unwrap(), Is.Empty);
+            Assert.That(Data.Member("IntSet").Count().Value<int>().Read().Unwrap(), Is.Zero);
+            Assert.That(Data.Member("IntSet").Item(11).Value<bool>().Read().Unwrap(), Is.False);
         }
     }
 
@@ -137,9 +137,9 @@ public sealed class CollectionKindEdgeTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(Data.Member<HashSet<int>>("IntSet").Read().Unwrap(), Is.Empty);
-            Assert.That(Data.Member("IntSet").Member<int>("Count").Read().Unwrap(), Is.Zero);
-            Assert.That(Data.Member("IntSet").Element<bool>(22).Read().Unwrap(), Is.False);
+            Assert.That(Data.Member("IntSet").Value<HashSet<int>>().Read().Unwrap(), Is.Empty);
+            Assert.That(Data.Member("IntSet").Count().Value<int>().Read().Unwrap(), Is.Zero);
+            Assert.That(Data.Member("IntSet").Item(22).Value<bool>().Read().Unwrap(), Is.False);
         }
     }
 
@@ -151,7 +151,7 @@ public sealed class CollectionKindEdgeTests(
         _fakeGame.Memory.WriteInt32(IntSet + 0x34, free);
 
         Assert.That(
-            Data.Member("IntSet").Count.Read().UnwrapErr().Message,
+            Data.Member("IntSet").Count().Value<int>().Read().UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read GWorld.GameMode.Data.IntSet.Count. IntSet has {free} free slots of 4. Check the NumFreeIndices offset in the profile."));
     }
@@ -164,7 +164,7 @@ public sealed class CollectionKindEdgeTests(
         _fakeGame.Memory.WriteInt32(IntSet + 0x34, -10);
 
         Assert.That(
-            Data.Member("IntSet").Count.Read().UnwrapErr().Message,
+            Data.Member("IntSet").Count().Value<int>().Read().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.IntSet.Count. IntSet has the count -5, which is below 0."));
     }
 
@@ -174,7 +174,7 @@ public sealed class CollectionKindEdgeTests(
     {
         var slotSize = _fakeGame.PropertyAddress("IntSet") + FakeGame.SetSlotSizeOffset;
         _fakeGame.Memory.WriteInt32(slotSize, 0);
-        string message = Data.Member<HashSet<int>>("IntSet").Read().UnwrapErr().Message;
+        string message = Data.Member("IntSet").Value<HashSet<int>>().Read().UnwrapErr().Message;
 
         _fakeGame.Memory.WriteInt32(slotSize, IntSetSlotSize);
 
@@ -183,7 +183,7 @@ public sealed class CollectionKindEdgeTests(
             Assert.That(
                 message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.IntSet. The elements of IntSet are 0 bytes. Check SetLayout in the profile."));
-            Assert.That(Data.Member<HashSet<int>>("IntSet").Read().Unwrap(), Has.Count.EqualTo(3));
+            Assert.That(Data.Member("IntSet").Value<HashSet<int>>().Read().Unwrap(), Has.Count.EqualTo(3));
         }
     }
 
@@ -194,7 +194,7 @@ public sealed class CollectionKindEdgeTests(
         _fakeGame.Memory.WriteInt32(_fakeGame.PropertyAddress("IntArrayInner") + FakeGame.PropertyElementSizeOffset, -4);
 
         Assert.That(
-            Data.Member<int[]>("IntArray").Read().UnwrapErr().Message,
+            Data.Member("IntArray").Value<int[]>().Read().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.IntArray. The elements of IntArray are -4 bytes. Check ElementSize in the profile."));
     }
 
@@ -202,7 +202,7 @@ public sealed class CollectionKindEdgeTests(
     [Test]
     public void Element_SteadyIndexOutOfRange_ReturnsTheSameError()
     {
-        var value = Data.Member("IntArray").Element<int>(5);
+        var value = Data.Member("IntArray").Item(5).Value<int>();
         var first = value.Read().UnwrapErr();
 
         Assert.That(value.Read().UnwrapErr(), Is.SameAs(first));
@@ -215,7 +215,7 @@ public sealed class CollectionKindEdgeTests(
         _fakeGame.Memory.WritePointer(IntSet, Address.Zero);
 
         Assert.That(
-            Data.Member<HashSet<int>>("IntSet").Read().UnwrapErr().Message,
+            Data.Member("IntSet").Value<HashSet<int>>().Read().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.IntSet. IntSet has 4 elements, but its data pointer is 0."));
     }
 
@@ -230,9 +230,9 @@ public sealed class CollectionKindEdgeTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(Data.Member<HashSet<int>>("IntSet").Read().Unwrap(), Is.EquivalentTo(expected));
-            Assert.That(Data.Member("IntSet").Element<bool>(1039).Read().Unwrap(), Is.True);
-            Assert.That(Data.Member("IntSet").Element<bool>(1032).Read().Unwrap(), Is.False);
+            Assert.That(Data.Member("IntSet").Value<HashSet<int>>().Read().Unwrap(), Is.EquivalentTo(expected));
+            Assert.That(Data.Member("IntSet").Item(1039).Value<bool>().Read().Unwrap(), Is.True);
+            Assert.That(Data.Member("IntSet").Item(1032).Value<bool>().Read().Unwrap(), Is.False);
         }
     }
 
@@ -253,8 +253,8 @@ public sealed class CollectionKindEdgeTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(Data.Member<HashSet<int>>("IntSet").Read().Unwrap(), Is.EquivalentTo(expected));
-            Assert.That(Data.Member("IntSet").Element<bool>(2023).Read().Unwrap(), Is.True);
+            Assert.That(Data.Member("IntSet").Value<HashSet<int>>().Read().Unwrap(), Is.EquivalentTo(expected));
+            Assert.That(Data.Member("IntSet").Item(2023).Value<bool>().Read().Unwrap(), Is.True);
         }
     }
 
@@ -264,7 +264,7 @@ public sealed class CollectionKindEdgeTests(
     {
         HashSet<int> expected = [11, 22];
         ManualTicks ticks = new();
-        var watcher = Data.Member<HashSet<int>>("IntSet").CreateWatcher(ticks);
+        var watcher = Data.Member("IntSet").Value<HashSet<int>>().Unwrap().CreateWatcher(ticks);
         _ = watcher.Current;
 
         _fakeGame.Memory.WriteInt32(IntSetSlots + (2 * IntSetSlotSize), 22);
@@ -283,7 +283,7 @@ public sealed class CollectionKindEdgeTests(
     {
         Dictionary<int, int> expected = new() { [4] = 40, [5] = 50 };
         ManualTicks ticks = new();
-        var watcher = Data.Member<Dictionary<int, int>>("IntDict").CreateWatcher(ticks);
+        var watcher = Data.Member("IntDict").Value<Dictionary<int, int>>().Unwrap().CreateWatcher(ticks);
         _ = watcher.Current;
 
         WritePair(2, 5, 50);
@@ -303,14 +303,14 @@ public sealed class CollectionKindEdgeTests(
         Dictionary<int, int> expected = new() { [4] = 40, [5] = 60 };
         WritePair(2, 5, 60);
 
-        Assert.That(Data.Member<Dictionary<int, int>>("IntDict").Read().Unwrap(), Is.EquivalentTo(expected));
+        Assert.That(Data.Member("IntDict").Value<Dictionary<int, int>>().Read().Unwrap(), Is.EquivalentTo(expected));
     }
 
     // The pair of 6 moves from slot 2 to slot 0, so the lookup misses at the slot it matched last and finds the new slot.
     [Test]
     public void Element_KeyMovesToAnotherSlot_FindsTheNewSlot()
     {
-        var value = Data.Member("IntDict").Element<int>(6);
+        var value = Data.Member("IntDict").Item(6).Value<int>();
         int first = value.Read().Unwrap();
 
         WritePair(0, 6, 66);
@@ -327,7 +327,7 @@ public sealed class CollectionKindEdgeTests(
     [Test]
     public void Element_SlotOfLastMatchFreed_FailsWithTheKey()
     {
-        var value = Data.Member("IntDict").Element<int>(6);
+        var value = Data.Member("IntDict").Item(6).Value<int>();
         _ = value.Read().Unwrap();
 
         _fakeGame.Memory.Write(_fakeGame.Data + IntDictOffset + 0x10, 0b011u);
@@ -337,7 +337,7 @@ public sealed class CollectionKindEdgeTests(
             Assert.That(
                 value.Read().UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.IntDict[6]. IntDict doesn't have the key 6."));
-            Assert.That(Data.Member<Dictionary<int, int>>("IntDict").Read().Unwrap().ContainsKey(6), Is.False);
+            Assert.That(Data.Member("IntDict").Value<Dictionary<int, int>>().Read().Unwrap().ContainsKey(6), Is.False);
         }
     }
 
@@ -353,8 +353,8 @@ public sealed class CollectionKindEdgeTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(Data.Member("Dict").Element<int>(key).Read().Unwrap(), Is.EqualTo(2));
-            Assert.That(Data.Member<Dictionary<string, int>>("Dict").Read().Unwrap()[key], Is.EqualTo(2));
+            Assert.That(Data.Member("Dict").Item(key).Value<int>().Read().Unwrap(), Is.EqualTo(2));
+            Assert.That(Data.Member("Dict").Value<Dictionary<string, int>>().Read().Unwrap()[key], Is.EqualTo(2));
         }
     }
 
@@ -365,7 +365,7 @@ public sealed class CollectionKindEdgeTests(
         _fakeGame.Memory.WritePointer(DictPairs, Address.Zero);
         _fakeGame.Memory.WriteInt32(DictPairs + 0x8, 0);
 
-        Assert.That(Data.Member("Dict").Element<int>(string.Empty).Read().Unwrap(), Is.EqualTo(1));
+        Assert.That(Data.Member("Dict").Item(string.Empty).Value<int>().Read().Unwrap(), Is.EqualTo(1));
     }
 
     // A watcher of 1 map value keeps working while the key changes slots on every tick.
@@ -373,7 +373,7 @@ public sealed class CollectionKindEdgeTests(
     public void CreateWatcher_KeySwapsSlotsEveryTick_ReadsTheValueEachTime()
     {
         ManualTicks ticks = new();
-        var watcher = Data.Member("IntDict").Element<int>(4).CreateWatcher(ticks);
+        var watcher = Data.Member("IntDict").Item(4).Value<int>().Unwrap().CreateWatcher(ticks);
         List<object?> values = [watcher.Current];
 
         for (int tick = 0; tick < 4; tick++)

@@ -24,7 +24,7 @@ public sealed class UnrealGameUdkTests
     {
         var game = _fakeGame.Attach();
 
-        var world = game.GWorld.Read().Unwrap();
+        var world = game.GWorld.Path.Read().Unwrap();
 
         using (Assert.EnterMultipleScope())
         {
@@ -41,7 +41,7 @@ public sealed class UnrealGameUdkTests
     {
         var game = _fakeGame.Attach();
 
-        var intValue = game.GWorld.Member("Game").Member("FixtureData").Member<int>("IntValue");
+        var intValue = game.GWorld.Path.Member("Game").Member("FixtureData").Member("IntValue").Value<int>();
 
         Assert.That(intValue.Read().Unwrap(), Is.EqualTo(IntValue));
     }
@@ -89,14 +89,13 @@ public sealed class UnrealGameUdkTests
         Assert.That(game.FindClass(WideClassName).Unwrap().Name, Is.EqualTo(WideClassName));
     }
 
-    // A chain written through dynamic watches IntValue and still reads it on the 2nd tick.
+    // A boxed watcher of IntValue still reads it on the 2nd tick.
     [Test]
-    public void GWorldChain_UdkGame_WatchesTheIntThroughTheChain()
+    public void CreateWatcher_UdkGame_WatchesTheIntBoxed()
     {
         var game = _fakeGame.Attach();
-        IWatcherSource intValue = game.GWorldChain.Game.FixtureData.IntValue;
         ManualTicks ticks = new();
-        var watcher = (Watcher<object?>)intValue.CreateWatcher(ticks);
+        var watcher = game.GWorld.Path.Member("Game").Member("FixtureData").Member("IntValue").Unwrap().CreateWatcher(ticks);
 
         object? first = watcher.Current;
         ticks.Value++;
@@ -112,10 +111,13 @@ public sealed class UnrealGameUdkTests
     [Test]
     public void Read_Unreal3Bool_UsesFourByteBitMask()
     {
-        var data = _fakeGame.Attach().GWorld.Member("Game").Member("FixtureData");
+        var data = _fakeGame.Attach().GWorld.Path.Member("Game").Member("FixtureData");
 
         Assert.That(
-            (data.Member<bool>("bFirst").Read().Unwrap(), data.Member<bool>("bSecond").Read().Unwrap(), data.Member<bool>("bThird").Read().Unwrap()),
+            (
+                data.Member("bFirst").Value<bool>().Read().Unwrap(),
+                data.Member("bSecond").Value<bool>().Read().Unwrap(),
+                data.Member("bThird").Value<bool>().Read().Unwrap()),
             Is.EqualTo((true, false, true)));
     }
 
@@ -123,18 +125,18 @@ public sealed class UnrealGameUdkTests
     [Test]
     public void Read_Unreal3String_ReadsTheText()
     {
-        var data = _fakeGame.Attach().GWorld.Member("Game").Member("FixtureData");
+        var data = _fakeGame.Attach().GWorld.Path.Member("Game").Member("FixtureData");
 
-        Assert.That(data.Member<string>("StringValue").Read().Unwrap(), Is.EqualTo(StringText));
+        Assert.That(data.Member("StringValue").Value<string>().Read().Unwrap(), Is.EqualTo(StringText));
     }
 
     // NameValue is an id and a number in the layout of the document.
     [Test]
     public void Read_Unreal3Name_ReadsTheText()
     {
-        var data = _fakeGame.Attach().GWorld.Member("Game").Member("FixtureData");
+        var data = _fakeGame.Attach().GWorld.Path.Member("Game").Member("FixtureData");
 
-        Assert.That(data.Member<string>("NameValue").Read().Unwrap(), Is.EqualTo(NameText));
+        Assert.That(data.Member("NameValue").Value<string>().Read().Unwrap(), Is.EqualTo(NameText));
     }
 
     // An unreal3 document without the bool mask or the name id fails with the paths of Unreal Engine 3 and not with those of 4 and 5.
@@ -143,30 +145,31 @@ public sealed class UnrealGameUdkTests
     {
         string json = Remove(Remove(Document, "offsets", "UBoolProperty"), "offsets", "FName", "Index");
         var data = UnrealGame.Attach(_fakeGame.Memory, _fakeGame.Module, UnrealProfile.Parse(json).Unwrap()).Unwrap()
-            .GWorld.Member("Game").Member("FixtureData");
+            .GWorld.Path.Member("Game").Member("FixtureData");
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                data.Member<bool>("bFirst").Read().UnwrapErr().Message,
+                data.Member("bFirst").Value<bool>().Read().UnwrapErr().Message,
                 Does.EndWith("Can't read BoolProperty: the profile doesn't have offsets.UBoolProperty.BitMask."));
             Assert.That(
-                data.Member<string>("NameValue").Read().UnwrapErr().Message,
+                data.Member("NameValue").Value<string>().Read().UnwrapErr().Message,
                 Does.EndWith("Can't read NameProperty: the profile doesn't have offsets.FName.Index."));
         }
     }
 
-    // Coord is a struct, so the path and the chain go into it by its offset and read X and Y.
+    // Coord is a struct, so the typed and the boxed path go into it by its offset and read X and Y.
     [Test]
     public void Read_Unreal3StructMember_StepsByOffset()
     {
         var game = _fakeGame.Attach();
-        IWatcherSource y = game.GWorldChain.Game.FixtureData.Coord.Y;
-        var watcher = (Watcher<object?>)y.CreateWatcher(new ManualTicks());
+        var watcher = game.GWorld.Path.Member("Game").Member("FixtureData").Member("Coord").Member("Y").Unwrap().CreateWatcher(new ManualTicks());
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(game.GWorld.Member("Game").Member("FixtureData").Member("Coord").Member<int>("X").Read().Unwrap(), Is.EqualTo(CoordX));
+            Assert.That(
+                game.GWorld.Path.Member("Game").Member("FixtureData").Member("Coord").Member("X").Value<int>().Read().Unwrap(),
+                Is.EqualTo(CoordX));
             Assert.That(watcher.Current, Is.EqualTo(CoordY));
         }
     }

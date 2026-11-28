@@ -30,26 +30,46 @@ public sealed class UnrealGameRootTests(
         _game = _fakeGame.Attach();
     }
 
+    // GWorld and GEngine are roots, whose paths start with the name of the global and read the address of its object.
+    [Test]
+    public void Path_GWorldAndGEngine_StartsAtTheGlobal()
+    {
+        var world = _game.GWorld.Path.Value<Address>().Read();
+        var engine = _game.GEngine.Path.CreateWatcher(new ManualTicks()).Current;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(_game.GWorld.Path.ToString(), Is.EqualTo("GWorld"));
+            Assert.That(_game.GEngine.ToString(), Is.EqualTo("GEngine"));
+            Assert.That(world.Unwrap(), Is.EqualTo(_fakeGame.World));
+            Assert.That(engine, Is.EqualTo(_fakeGame.Engine));
+        }
+    }
+
+    // A root reads as the address of its object, so a typed int read fails on the step.
+    [Test]
+    public void Value_PathOfARootAsInt_FailsOnTheStep()
+    {
+        Assert.That(_game.GEngine.Path.Value<int>().UnwrapErr().Message, Is.EqualTo("Can't read GEngine as Int32. An object reads as Address."));
+    }
     // GEngine points at an object of GameEngine and its base Engine declares Data.
     [Test]
     public void GEngine_Path_ReadsAMemberThroughTheEngineObject()
     {
-        var hp = _game.GEngine.Member("Data").Member<int>("Hp");
+        var hp = _game.GEngine.Path.Member("Data").Member("Hp").Value<int>();
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(hp.Read().Unwrap(), Is.EqualTo(FakeGame.Hp));
-            Assert.That(hp.ToString(), Is.EqualTo("GEngine.Data.Hp"));
+            Assert.That(hp.Unwrap().ToString(), Is.EqualTo("GEngine.Data.Hp"));
         }
     }
 
-    // A chain from GEngine is a watcher source like a chain from GWorld.
+    // A boxed watcher of a path from GEngine reads like one from GWorld.
     [Test]
-    public void GEngineChain_Member_WatchesTheValue()
+    public void CreateWatcher_GEngineMember_WatchesTheValue()
     {
-        IWatcherSource hp = _game.GEngineChain.Data.Hp;
-
-        var watcher = (Watcher<object?>)hp.CreateWatcher(new ManualTicks());
+        var watcher = _game.GEngine.Path.Member("Data").Member("Hp").Unwrap().CreateWatcher(new ManualTicks());
 
         Assert.That(watcher.Current, Is.EqualTo(FakeGame.Hp));
     }
@@ -58,7 +78,7 @@ public sealed class UnrealGameRootTests(
     [Test]
     public void GEngine_NullSlot_FailsThenReadsOnceTheSlotIsSet()
     {
-        var hp = _game.GEngine.Member("Data").Member<int>("Hp");
+        var hp = _game.GEngine.Path.Member("Data").Member("Hp").Value<int>();
         _fakeGame.Memory.WritePointer(_fakeGame.GEngineSlot, Address.Zero);
 
         var failure = hp.Read();
@@ -92,12 +112,12 @@ public sealed class UnrealGameRootTests(
     {
         _fakeGame.AddObject(_fakeGame.Subsystem);
 
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Value<int>();
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(value.Read().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
-            Assert.That(value.ToString(), Is.EqualTo("FixtureSubsystem.SubsystemValue"));
+            Assert.That(value.Unwrap().ToString(), Is.EqualTo("FixtureSubsystem.SubsystemValue"));
         }
     }
 
@@ -105,7 +125,7 @@ public sealed class UnrealGameRootTests(
     [Test]
     public void FindSubsystem_SubsystemThatAppearsLater_FailsThenReads()
     {
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Value<int>();
 
         var failure = value.Read();
         int classReads = _fakeGame.Memory.ReadsAt(_fakeGame.World + FakeGame.ObjectLayout.Class);
@@ -130,7 +150,7 @@ public sealed class UnrealGameRootTests(
     public void FindSubsystem_SubsystemInTheSlotOfAFreedObject_FailsThenReads()
     {
         _ = _fakeGame.CreateObject("Default__FixtureSubsystem", _fakeGame.SubsystemClass);
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Value<int>();
 
         var failure = value.Read();
         _fakeGame.ReplaceLastObject(_fakeGame.Subsystem);
@@ -147,7 +167,7 @@ public sealed class UnrealGameRootTests(
     public void FindSubsystem_SubsystemReplaced_FollowsTheNewObject()
     {
         _fakeGame.AddObject(_fakeGame.Subsystem);
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Value<int>();
         _ = value.Read().Unwrap();
 
         _fakeGame.WriteClass(_fakeGame.Subsystem, _fakeGame.FixtureGameModeClass);
@@ -162,7 +182,7 @@ public sealed class UnrealGameRootTests(
     public void FindSubsystem_SteadyRead_ReadsOnlyTheClassPointerAndTheValue()
     {
         _fakeGame.AddObject(_fakeGame.Subsystem);
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Value<int>();
         _ = value.Read().Unwrap();
         int reads = _fakeGame.Memory.Reads;
 
@@ -177,7 +197,7 @@ public sealed class UnrealGameRootTests(
     {
         _ = _fakeGame.CreateObject("Default__FixtureSubsystem", _fakeGame.SubsystemClass);
 
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Value<int>();
 
         Assert.That(value.Read().UnwrapErr().Message, Does.EndWith("Can't find a live object of the class FixtureSubsystem."));
     }

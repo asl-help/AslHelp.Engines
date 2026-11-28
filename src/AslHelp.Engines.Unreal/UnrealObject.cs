@@ -5,7 +5,7 @@ using AslHelp.Memory;
 namespace AslHelp.Engines.Unreal;
 
 /// <summary>
-///     Represents a live object of a class, which paths and member chains can start at.
+///     Represents a live object of a class, which paths can start at.
 /// </summary>
 /// <remarks>
 ///     A path from the object reads its slot of the object array and its class pointer first. It fails once the game freed the object
@@ -39,14 +39,6 @@ public sealed class UnrealObject
     public Address Address { get; }
 
     /// <summary>
-    ///     Gets the member chain that starts at the object, like <c>obj.Chain.Hp</c>.
-    /// </summary>
-    /// <remarks>
-    ///     <see cref="UnrealGame.GWorldChain"/> lists what a chain takes.
-    /// </remarks>
-    public dynamic Chain => Root.Chain;
-
-    /// <summary>
     ///     Gets the class of the object.
     /// </summary>
     public UnrealClass Class { get; }
@@ -57,7 +49,7 @@ public sealed class UnrealObject
     public string Name { get; }
 
     /// <summary>
-    ///     Gets the path that starts at the object, like <c>obj.Path.Member&lt;int&gt;("Hp")</c>.
+    ///     Gets the path that starts at the object, like <c>obj.Path.Member("Hp")</c>.
     /// </summary>
     /// <remarks>
     ///     The text of the path starts with the name of the class.

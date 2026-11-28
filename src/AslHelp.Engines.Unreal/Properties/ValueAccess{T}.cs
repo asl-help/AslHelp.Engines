@@ -67,7 +67,7 @@ internal abstract class ValueAccess<T>(
     public abstract Result<T> Read(IMemoryReader memory, Address container, T? last);
 
     /// <inheritdoc/>
-    public sealed override Result<object?> ReadBoxed(IMemoryReader memory, Address container, object? last)
+    public override Result<object?> ReadBoxed(IMemoryReader memory, Address container, object? last)
     {
         var lastValue = last is T kept ? kept : default;
 

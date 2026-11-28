@@ -23,9 +23,9 @@ public sealed class ArrayKindTests(
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;
 
-    private UnrealPath Data => _game.GWorld.Member("GameMode").Member("Data");
+    private Result<IMemberPath> Data => _game.GWorld.Path.Member("GameMode").Member("Data");
 
-    private UnrealValuePath<int[]> IntArray => Data.Member<int[]>("IntArray");
+    private Result<IWatcherSource<int[]>> IntArray => Data.Member("IntArray").Value<int[]>();
 
     [SetUp]
     public void SetUp()
@@ -55,7 +55,7 @@ public sealed class ArrayKindTests(
     public void CreateWatcher_SameElementsTwice_KeepsTheArray()
     {
         ManualTicks ticks = new();
-        var watcher = IntArray.CreateWatcher(ticks);
+        var watcher = IntArray.Unwrap().CreateWatcher(ticks);
         int[]? first = watcher.Current;
         ticks.Value++;
 
@@ -73,7 +73,7 @@ public sealed class ArrayKindTests(
         int[] old = [100, 200, 300];
         int[] current = [100, 250, 300];
         ManualTicks ticks = new();
-        var watcher = IntArray.CreateWatcher(ticks);
+        var watcher = IntArray.Unwrap().CreateWatcher(ticks);
         _ = watcher.Current;
 
         _fakeGame.Memory.WriteInt32(_fakeGame.CollectionData + 4, 250);
@@ -133,11 +133,13 @@ public sealed class ArrayKindTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(intArray.Element<int>(2).Read().Unwrap(), Is.EqualTo(300));
+            Assert.That(intArray.Item(2).Value<int>().Read().Unwrap(), Is.EqualTo(300));
             Assert.That(
-                intArray.Element<int>(3).Read().UnwrapErr().Message,
+                intArray.Item(3).Value<int>().Read().UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.IntArray[3]. IntArray doesn't have index 3. It has 3 elements."));
-            Assert.That(intArray.Element<int>(-1).Read().UnwrapErr().Message, Does.EndWith("IntArray doesn't have index -1. It has 3 elements."));
+            Assert.That(
+                intArray.Item(-1).Value<int>().Read().UnwrapErr().Message,
+                Does.EndWith("IntArray doesn't have index -1. It has 3 elements."));
         }
     }
 
@@ -148,7 +150,7 @@ public sealed class ArrayKindTests(
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.IntArrayOffset + 0x8, 2001);
         _fakeGame.Memory.WriteInt32(_fakeGame.CollectionData + (2000 * sizeof(int)), 42);
 
-        Assert.That(Data.Member("IntArray").Element<int>(2000).Read().Unwrap(), Is.EqualTo(42));
+        Assert.That(Data.Member("IntArray").Item(2000).Value<int>().Read().Unwrap(), Is.EqualTo(42));
     }
 
     // A string key on an array can't be an index, so it fails with the key type of the array.
@@ -156,7 +158,7 @@ public sealed class ArrayKindTests(
     public void Element_StringKeyOnArray_FailsWithKeyTypeMismatch()
     {
         Assert.That(
-            Data.Member("IntArray").Element<int>("one").Read().UnwrapErr().Message,
+            Data.Member("IntArray").Item("one").Value<int>().Read().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.IntArray[\"one\"]. The keys of IntArray are Int32, which the key \"one\" can't match."));
     }
 
@@ -164,7 +166,7 @@ public sealed class ArrayKindTests(
     [Test]
     public void Indexer_StructArray_StepsByTheElementSizeOfInner()
     {
-        Assert.That(Data.Member("CoordArray")[1].Member<int>("X").Read().Unwrap(), Is.EqualTo(3));
+        Assert.That(Data.Member("CoordArray").Item(1).Member("X").Value<int>().Read().Unwrap(), Is.EqualTo(3));
     }
 
     // FixtureCoord has 2 int members, so an array of it reads as an array of int arrays.
@@ -173,14 +175,14 @@ public sealed class ArrayKindTests(
     {
         int[][] expected = [[1, 2], [3, 4]];
 
-        Assert.That(Data.Member<int[][]>("CoordArray").Read().Unwrap(), Is.EqualTo(expected));
+        Assert.That(Data.Member("CoordArray").Value<int[][]>().Read().Unwrap(), Is.EqualTo(expected));
     }
 
     // Items has object elements, so an index reads the pointer and Items[1].Hp reads the Hp of the other data object.
     [Test]
     public void Indexer_ObjectArray_DereferencesTheElement()
     {
-        Assert.That(Data.Member("Items")[1].Member<int>("Hp").Read().Unwrap(), Is.EqualTo(500));
+        Assert.That(Data.Member("Items").Item(1).Member("Hp").Value<int>().Read().Unwrap(), Is.EqualTo(500));
     }
 
     // A null element is a null object, so a member after it fails like any null object on a path.
@@ -190,7 +192,7 @@ public sealed class ArrayKindTests(
         _fakeGame.Memory.WritePointer(_fakeGame.CollectionData + 0x4300, Address.Zero);
 
         Assert.That(
-            Data.Member("Items")[0].Member<int>("Hp").Read().UnwrapErr().Message,
+            Data.Member("Items").Item(0).Member("Hp").Value<int>().Read().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.Items[0].Hp: GWorld.GameMode.Data.Items[0] is null."));
     }
 
@@ -200,7 +202,7 @@ public sealed class ArrayKindTests(
     {
         string[] expected = ["a", "b", "c"];
         ManualTicks ticks = new();
-        var watcher = Data.Member<string[]>("StringArray").CreateWatcher(ticks);
+        var watcher = Data.Member("StringArray").Value<string[]>().Unwrap().CreateWatcher(ticks);
         string[]? first = watcher.Current;
         ticks.Value++;
 
@@ -216,11 +218,11 @@ public sealed class ArrayKindTests(
     public void Read_AsWrongElementType_FailsWithBothTypes()
     {
         Assert.That(
-            Data.Member<long[]>("IntArray").Read().UnwrapErr().Message,
+            Data.Member("IntArray").Value<long[]>().Read().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.IntArray. IntArray is ArrayProperty, which reads as Int32[], not Int64[]."));
     }
 
-    // Count after the array reads its number of elements and any other member after it fails.
+    // Count after the array reads its number of elements and any member after it fails.
     [Test]
     public void Count_Array_ReadsTheCountAndRefusesOtherMembers()
     {
@@ -228,10 +230,12 @@ public sealed class ArrayKindTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(items.Member<int>("Count").Read().Unwrap(), Is.EqualTo(2));
+            Assert.That(items.Count().Value<int>().Read().Unwrap(), Is.EqualTo(2));
             Assert.That(
-                items.Member<int>("Length").Read().UnwrapErr().Message,
-                Is.EqualTo("Can't read GWorld.GameMode.Data.Items.Length. Items is a collection, so it takes an index or Count, not Length."));
+                items.Member("Length").Value<int>().Read().UnwrapErr().Message,
+                Is.EqualTo(
+                    "Can't read GWorld.GameMode.Data.Items.Length. "
+                    + "Items is a collection, so it takes an index or Count, not the member Length."));
         }
     }
 
@@ -240,7 +244,7 @@ public sealed class ArrayKindTests(
     public void Element_OnAStructMember_FailsNotCollection()
     {
         Assert.That(
-            Data.Member("Mixed").Element<int>(0).Read().UnwrapErr().Message,
+            Data.Member("Mixed").Item(0).Value<int>().Read().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.Mixed[0]. Mixed isn't a collection, so it can't take the index 0."));
     }
 
@@ -252,7 +256,7 @@ public sealed class ArrayKindTests(
         var game = _fakeGame.Attach(Remove(FakeGame.Document(shape, "indirect", "flat"), "offsets", arrayType));
 
         Assert.That(
-            game.GWorld.Member("GameMode").Member("Data").Member<int[]>("IntArray").Read().UnwrapErr().Message,
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("IntArray").Value<int[]>().Read().UnwrapErr().Message,
             Is.EqualTo($"Can't read GWorld.GameMode.Data.IntArray. Can't read ArrayProperty: the profile doesn't have offsets.{arrayType}.Inner."));
     }
 }

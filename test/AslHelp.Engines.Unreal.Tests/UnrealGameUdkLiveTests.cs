@@ -33,7 +33,7 @@ public sealed class UnrealGameUdkLiveTests
     {
         WithAttachedPlayer(game =>
         {
-            var world = game.GWorld.Read().Unwrap();
+            var world = game.GWorld.Path.Read().Unwrap();
 
             using (Assert.EnterMultipleScope())
             {
@@ -55,8 +55,8 @@ public sealed class UnrealGameUdkLiveTests
             using (Assert.EnterMultipleScope())
             {
                 Assert.That(game.FindClass("World").Unwrap().GetProperties().Unwrap(), Is.Empty);
-                Assert.That(data.Path.Member<int>("IntValue").Read().Unwrap(), Is.EqualTo(1337));
-                Assert.That(data.Path.Member<int>("Hp").Read().Unwrap(), Is.InRange(1, 1000));
+                Assert.That(data.Path.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(1337));
+                Assert.That(data.Path.Member("Hp").Value<int>().Read().Unwrap(), Is.InRange(1, 1000));
             }
         });
     }
@@ -131,6 +131,26 @@ public sealed class UnrealGameUdkLiveTests
         });
     }
 
+    // Position steps into X, Y and Z by name and reads as a struct value with member names. The UDK fixture doesn't have a rotator.
+    [Test]
+    public void Read_RealPlayer_StepsIntoVectorByName()
+    {
+        WithAttachedPlayer(game =>
+        {
+            var data = game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap().Single().Path;
+            var position = data.Member("Position").Unwrap().CreateWatcher(new ManualTicks()).Current as StructValue;
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(data.Member("Position").Member("X").Value<float>().Read().Unwrap(), Is.EqualTo(1f));
+                Assert.That(data.Member("Position").Member("Y").Value<float>().Read().Unwrap(), Is.EqualTo(2f));
+                Assert.That(data.Member("Position").Member("Z").Value<float>().Read().Unwrap(), Is.EqualTo(3f));
+                Assert.That(position?.Names, Is.EqualTo(["X", "Y", "Z"]));
+                Assert.That(position?.Values, Is.EqualTo([1f, 2f, 3f]));
+            }
+        });
+    }
+
     // Unreal Engine 3 packages have bare names, so the fixture script package is Fixture and its classes are the fixture classes.
     [Test]
     public void FindPackage_RealPlayer_FindsTheFixturePackageByBareName()
@@ -155,8 +175,8 @@ public sealed class UnrealGameUdkLiveTests
         {
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(game.ClassOf(game.GEngine.Read().Unwrap()).Unwrap().Name, Is.EqualTo("GameEngine"));
-                Assert.That(game.GEngine.Member<string>("TinyFontName").Read().Unwrap(), Is.EqualTo("EngineFonts.TinyFont"));
+                Assert.That(game.ClassOf(game.GEngine.Path.Read().Unwrap()).Unwrap().Name, Is.EqualTo("GameEngine"));
+                Assert.That(game.GEngine.Path.Member("TinyFontName").Value<string>().Read().Unwrap(), Is.EqualTo("EngineFonts.TinyFont"));
             }
         });
     }

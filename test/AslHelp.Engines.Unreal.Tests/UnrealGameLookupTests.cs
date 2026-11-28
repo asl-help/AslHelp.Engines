@@ -315,22 +315,22 @@ public sealed class UnrealGameLookupTests(
     [Test]
     public void Path_Instance_ReadsAMemberOfTheObject()
     {
-        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member<int>("Hp");
+        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp").Value<int>();
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(hp.Read().Unwrap(), Is.EqualTo(FakeGame.Hp));
-            Assert.That(hp.ToString(), Is.EqualTo("FixtureData.Hp"));
+            Assert.That(hp.Unwrap().ToString(), Is.EqualTo("FixtureData.Hp"));
         }
     }
 
-    // A chain from an object is a watcher source whose watcher gives the boxed int.
+    // A boxed watcher of a path from an object gives the int.
     [Test]
-    public void Chain_Instance_WatchesAMemberOfTheObject()
+    public void CreateWatcher_InstanceMember_WatchesAMemberOfTheObject()
     {
-        IWatcherSource hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Chain.Hp;
+        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp").Unwrap();
 
-        var watcher = (Watcher<object?>)hp.CreateWatcher(new ManualTicks());
+        var watcher = hp.CreateWatcher(new ManualTicks());
 
         Assert.That(watcher.Current, Is.EqualTo(FakeGame.Hp));
     }
@@ -339,7 +339,7 @@ public sealed class UnrealGameLookupTests(
     [Test]
     public void Path_InstanceWhoseAddressGotAnotherClass_FailsAsFreed()
     {
-        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member<int>("Hp");
+        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp").Value<int>();
         _fakeGame.WriteClass(_fakeGame.Data, _fakeGame.FixtureGameModeClass);
 
         Assert.That(
@@ -352,7 +352,7 @@ public sealed class UnrealGameLookupTests(
     [Test]
     public void Path_InstanceWhoseSlotGotCleared_FailsAsFreed()
     {
-        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member<int>("Hp");
+        var hp = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap()[0].Path.Member("Hp").Value<int>();
         _fakeGame.FreeObject(_fakeGame.Data);
 
         Assert.That(
@@ -366,6 +366,6 @@ public sealed class UnrealGameLookupTests(
     {
         var world = _game.FindClass("World").Unwrap().GetInstances().Unwrap().Single();
 
-        Assert.That(world.Path.Member("GameMode").Member("Data").Member<int>("Hp").Read().Unwrap(), Is.EqualTo(FakeGame.Hp));
+        Assert.That(world.Path.Member("GameMode").Member("Data").Member("Hp").Value<int>().Read().Unwrap(), Is.EqualTo(FakeGame.Hp));
     }
 }

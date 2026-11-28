@@ -6,6 +6,7 @@ using NUnit.Framework;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -33,7 +34,7 @@ public sealed class UnrealGameLiveTests
     {
         WithAttachedPlayer(game =>
         {
-            var world = game.GWorld.Read().Unwrap();
+            var world = game.GWorld.Path.Read().Unwrap();
 
             using (Assert.EnterMultipleScope())
             {
@@ -50,7 +51,7 @@ public sealed class UnrealGameLiveTests
     {
         WithAttachedPlayer(game =>
         {
-            var world = game.GWorld.Read().Unwrap();
+            var world = game.GWorld.Path.Read().Unwrap();
             var gameMode = game.Read<Address>(world, game.ClassOf(world).Unwrap().FindProperty("AuthorityGameMode").Unwrap()).Unwrap();
             var gameModeClass = game.ClassOf(gameMode).Unwrap();
             var data = game.Read<Address>(gameMode, gameModeClass.FindProperty("FixtureData").Unwrap()).Unwrap();
@@ -72,10 +73,10 @@ public sealed class UnrealGameLiveTests
     {
         WithAttachedPlayer(game =>
         {
-            var data = game.GWorld.Member("AuthorityGameMode").Member("FixtureData");
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
             ManualTicks ticks = new();
-            var hp = data.Member<int>("Hp").CreateWatcher(ticks);
-            var intValue = data.Member<int>("IntValue").CreateWatcher(ticks);
+            var hp = data.Member("Hp").Value<int>().Unwrap().CreateWatcher(ticks);
+            var intValue = data.Member("IntValue").Value<int>().Unwrap().CreateWatcher(ticks);
 
             int firstHp = hp.Current;
             _ = intValue.Current;
@@ -83,8 +84,8 @@ public sealed class UnrealGameLiveTests
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(data.Member<int>("IntValue").Read().Unwrap(), Is.EqualTo(1337));
-                Assert.That(data.Member<int>("Hp").Read().Unwrap(), Is.InRange(1, 1000));
+                Assert.That(data.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(1337));
+                Assert.That(data.Member("Hp").Value<int>().Read().Unwrap(), Is.InRange(1, 1000));
                 Assert.That(firstHp, Is.InRange(1, 1000));
                 Assert.That(hp.Current, Is.InRange(1, 1000));
                 Assert.That(intValue.Current, Is.EqualTo(1337));
@@ -99,62 +100,62 @@ public sealed class UnrealGameLiveTests
     {
         WithAttachedPlayer(game =>
         {
-            var data = game.GWorld.Member("AuthorityGameMode").Member("FixtureData");
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(data.Member<int>("IntValue").Read().Unwrap(), Is.EqualTo(1337));
-                Assert.That(data.Member<long>("LongValue").Read().Unwrap(), Is.EqualTo(9_000_000_000));
-                Assert.That(data.Member<float>("FloatValue").Read().Unwrap(), Is.EqualTo(3.5f));
-                Assert.That(data.Member<double>("DoubleValue").Read().Unwrap(), Is.EqualTo(2.718281828));
-                Assert.That(data.Member<bool>("BoolValue").Read().Unwrap(), Is.True);
-                Assert.That(data.Member<bool>("bFirst").Read().Unwrap(), Is.True);
-                Assert.That(data.Member<bool>("bSecond").Read().Unwrap(), Is.False);
-                Assert.That(data.Member<bool>("bThird").Read().Unwrap(), Is.True);
-                Assert.That(data.Member<byte>("Kind").Read().Unwrap(), Is.EqualTo(1));
-                Assert.That(data.Member<byte>("OldKind").Read().Unwrap(), Is.EqualTo(1));
-                Assert.That(data.Member<string>("StringValue").Read().Unwrap(), Is.EqualTo("hello-fixture"));
-                Assert.That(data.Member<string>("NameValue").Read().Unwrap(), Is.EqualTo("fixture-name"));
-                Assert.That(data.Member("Coord").Member<int>("X").Read().Unwrap(), Is.EqualTo(7));
-                Assert.That(data.Member("Coord").Member<int>("Y").Read().Unwrap(), Is.EqualTo(9));
-                Assert.That(data.Member<int>("Hp").Read().Unwrap(), Is.InRange(1, 1000));
+                Assert.That(data.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(1337));
+                Assert.That(data.Member("LongValue").Value<long>().Read().Unwrap(), Is.EqualTo(9_000_000_000));
+                Assert.That(data.Member("FloatValue").Value<float>().Read().Unwrap(), Is.EqualTo(3.5f));
+                Assert.That(data.Member("DoubleValue").Value<double>().Read().Unwrap(), Is.EqualTo(2.718281828));
+                Assert.That(data.Member("BoolValue").Value<bool>().Read().Unwrap(), Is.True);
+                Assert.That(data.Member("bFirst").Value<bool>().Read().Unwrap(), Is.True);
+                Assert.That(data.Member("bSecond").Value<bool>().Read().Unwrap(), Is.False);
+                Assert.That(data.Member("bThird").Value<bool>().Read().Unwrap(), Is.True);
+                Assert.That(data.Member("Kind").Value<byte>().Read().Unwrap(), Is.EqualTo(1));
+                Assert.That(data.Member("OldKind").Value<byte>().Read().Unwrap(), Is.EqualTo(1));
+                Assert.That(data.Member("StringValue").Value<string>().Read().Unwrap(), Is.EqualTo("hello-fixture"));
+                Assert.That(data.Member("NameValue").Value<string>().Read().Unwrap(), Is.EqualTo("fixture-name"));
+                Assert.That(data.Member("Coord").Member("X").Value<int>().Read().Unwrap(), Is.EqualTo(7));
+                Assert.That(data.Member("Coord").Member("Y").Value<int>().Read().Unwrap(), Is.EqualTo(9));
+                Assert.That(data.Member("Hp").Value<int>().Read().Unwrap(), Is.InRange(1, 1000));
             }
         });
     }
 
-    // Chain watchers give every value of FixtureData in the type of its kind, so a script gets an int, a float, a bool or a string.
+    // Boxed watchers give every value of FixtureData in the type of its kind, so a script gets an int, a float, a bool or a string.
     [Test]
-    public void GWorldChain_RealPlayer_WatchesEveryFixtureValue()
+    public void CreateWatcher_RealPlayer_WatchesEveryFixtureValueBoxed()
     {
         WithAttachedPlayer(game =>
         {
-            var data = game.GWorldChain.AuthorityGameMode.FixtureData;
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
             ManualTicks ticks = new();
-            Watcher<object?> watch(IWatcherSource chain)
+            Watcher<object?> watch(Result<IMemberPath> path)
             {
-                return (Watcher<object?>)chain.CreateWatcher(ticks);
+                return path.Unwrap().CreateWatcher(ticks);
             }
 
-            var hp = watch(data.Hp);
+            var hp = watch(data.Member("Hp"));
             object? firstHp = hp.Current;
             ticks.Value++;
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(watch(data.IntValue).Current, Is.TypeOf<int>().And.EqualTo(1337));
-                Assert.That(watch(data.LongValue).Current, Is.TypeOf<long>().And.EqualTo(9_000_000_000));
-                Assert.That(watch(data.FloatValue).Current, Is.TypeOf<float>().And.EqualTo(3.5f));
-                Assert.That(watch(data.DoubleValue).Current, Is.TypeOf<double>().And.EqualTo(2.718281828));
-                Assert.That(watch(data.BoolValue).Current, Is.TypeOf<bool>().And.True);
-                Assert.That(watch(data.bFirst).Current, Is.True);
-                Assert.That(watch(data.bSecond).Current, Is.False);
-                Assert.That(watch(data.bThird).Current, Is.True);
-                Assert.That(watch(data.Kind).Current, Is.TypeOf<byte>().And.EqualTo(1));
-                Assert.That(watch(data.OldKind).Current, Is.TypeOf<byte>().And.EqualTo(1));
-                Assert.That(watch(data.StringValue).Current, Is.EqualTo("hello-fixture"));
-                Assert.That(watch(data.NameValue).Current, Is.EqualTo("fixture-name"));
-                Assert.That(watch(data.Coord.X).Current, Is.TypeOf<int>().And.EqualTo(7));
-                Assert.That(watch(data.Coord.Y).Current, Is.EqualTo(9));
+                Assert.That(watch(data.Member("IntValue")).Current, Is.TypeOf<int>().And.EqualTo(1337));
+                Assert.That(watch(data.Member("LongValue")).Current, Is.TypeOf<long>().And.EqualTo(9_000_000_000));
+                Assert.That(watch(data.Member("FloatValue")).Current, Is.TypeOf<float>().And.EqualTo(3.5f));
+                Assert.That(watch(data.Member("DoubleValue")).Current, Is.TypeOf<double>().And.EqualTo(2.718281828));
+                Assert.That(watch(data.Member("BoolValue")).Current, Is.TypeOf<bool>().And.True);
+                Assert.That(watch(data.Member("bFirst")).Current, Is.True);
+                Assert.That(watch(data.Member("bSecond")).Current, Is.False);
+                Assert.That(watch(data.Member("bThird")).Current, Is.True);
+                Assert.That(watch(data.Member("Kind")).Current, Is.TypeOf<byte>().And.EqualTo(1));
+                Assert.That(watch(data.Member("OldKind")).Current, Is.TypeOf<byte>().And.EqualTo(1));
+                Assert.That(watch(data.Member("StringValue")).Current, Is.EqualTo("hello-fixture"));
+                Assert.That(watch(data.Member("NameValue")).Current, Is.EqualTo("fixture-name"));
+                Assert.That(watch(data.Member("Coord").Member("X")).Current, Is.TypeOf<int>().And.EqualTo(7));
+                Assert.That(watch(data.Member("Coord").Member("Y")).Current, Is.EqualTo(9));
                 Assert.That(firstHp, Is.TypeOf<int>().And.InRange(1, 1000));
                 Assert.That(hp.Current, Is.InRange(1, 1000));
             }
@@ -167,50 +168,51 @@ public sealed class UnrealGameLiveTests
     {
         WithAttachedPlayer(game =>
         {
-            var data = game.GWorld.Member("AuthorityGameMode").Member("FixtureData");
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
             int[] intArray = [100, 200, 300];
             string[] stringArray = ["a", "b", "c"];
             int[][] coordArray = [[1, 2], [3, 4]];
             HashSet<int> intSet = [11, 22, 33];
             Dictionary<string, int> dict = new() { ["one"] = 1, ["two"] = 2, ["three"] = 3 };
-            var shield = data.Member("Items").Element<Address>(1).Read().Unwrap();
+            var shield = data.Member("Items").Item(1).Value<Address>().Read().Unwrap();
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(data.Member<int[]>("IntArray").Read().Unwrap(), Is.EqualTo(intArray));
-                Assert.That(data.Member<string[]>("StringArray").Read().Unwrap(), Is.EqualTo(stringArray));
-                Assert.That(data.Member<int[][]>("CoordArray").Read().Unwrap(), Is.EqualTo(coordArray));
-                Assert.That(data.Member("CoordArray")[1].Member<int>("X").Read().Unwrap(), Is.EqualTo(3));
-                Assert.That(data.Member("Items")[1].Member<int>("Count").Read().Unwrap(), Is.EqualTo(3));
-                Assert.That(data.Member("Items").Member<int>("Count").Read().Unwrap(), Is.EqualTo(2));
-                Assert.That(data.Member<Dictionary<string, int>>("Dict").Read().Unwrap(), Is.EquivalentTo(dict));
-                Assert.That(data.Member("Dict").Element<int>("two").Read().Unwrap(), Is.EqualTo(2));
-                Assert.That(data.Member("IntDict").Element<int>(5).Read().Unwrap(), Is.EqualTo(50));
-                Assert.That(data.Member<HashSet<int>>("IntSet").Read().Unwrap(), Is.EquivalentTo(intSet));
-                Assert.That(data.Member("IntSet").Element<bool>(22).Read().Unwrap(), Is.True);
-                Assert.That(data.Member<Address>("WeakItem").Read().Unwrap(), Is.EqualTo(shield));
-                Assert.That(data.Member("WeakItem").Member<string>("ItemName").Read().Unwrap(), Is.EqualTo("shield"));
+                Assert.That(data.Member("IntArray").Value<int[]>().Read().Unwrap(), Is.EqualTo(intArray));
+                Assert.That(data.Member("StringArray").Value<string[]>().Read().Unwrap(), Is.EqualTo(stringArray));
+                Assert.That(data.Member("CoordArray").Value<int[][]>().Read().Unwrap(), Is.EqualTo(coordArray));
+                Assert.That(data.Member("CoordArray").Item(1).Member("X").Value<int>().Read().Unwrap(), Is.EqualTo(3));
+                Assert.That(data.Member("Items").Item(1).Member("Count").Value<int>().Read().Unwrap(), Is.EqualTo(3));
+                Assert.That(data.Member("Items").Item(1).Count().IsErr, Is.True);
+                Assert.That(data.Member("Items").Count().Value<int>().Read().Unwrap(), Is.EqualTo(2));
+                Assert.That(data.Member("Dict").Value<Dictionary<string, int>>().Read().Unwrap(), Is.EquivalentTo(dict));
+                Assert.That(data.Member("Dict").Item("two").Value<int>().Read().Unwrap(), Is.EqualTo(2));
+                Assert.That(data.Member("IntDict").Item(5).Value<int>().Read().Unwrap(), Is.EqualTo(50));
+                Assert.That(data.Member("IntSet").Value<HashSet<int>>().Read().Unwrap(), Is.EquivalentTo(intSet));
+                Assert.That(data.Member("IntSet").Item(22).Value<bool>().Read().Unwrap(), Is.True);
+                Assert.That(data.Member("WeakItem").Value<Address>().Read().Unwrap(), Is.EqualTo(shield));
+                Assert.That(data.Member("WeakItem").Member("ItemName").Value<string>().Read().Unwrap(), Is.EqualTo("shield"));
             }
         });
     }
 
-    // Chain watchers read the same collections with index and key hops and a 2nd tick gives the same instances.
+    // Boxed watchers read the same collections with index and key steps and a 2nd tick gives the same instances.
     [Test]
-    public void GWorldChain_RealPlayer_WatchesCollections()
+    public void CreateWatcher_RealPlayer_WatchesCollectionsBoxed()
     {
         WithAttachedPlayer(game =>
         {
-            var data = game.GWorldChain.AuthorityGameMode.FixtureData;
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
             double[] firstVector = [1.25, -2.5, 3.75];
             double[] secondVector = [4.5, 5.25, -6.75];
             ManualTicks ticks = new();
-            Watcher<object?> watch(IWatcherSource chain)
+            Watcher<object?> watch(Result<IMemberPath> path)
             {
-                return (Watcher<object?>)chain.CreateWatcher(ticks);
+                return path.Unwrap().CreateWatcher(ticks);
             }
 
-            var intArray = watch(data.IntArray);
-            var intSet = watch(data.IntSet);
+            var intArray = watch(data.Member("IntArray"));
+            var intSet = watch(data.Member("IntSet"));
             object? firstArray = intArray.Current;
             object? firstSet = intSet.Current;
             ticks.Value++;
@@ -219,14 +221,41 @@ public sealed class UnrealGameLiveTests
             {
                 Assert.That(intArray.Current, Is.SameAs(firstArray));
                 Assert.That(intSet.Current, Is.SameAs(firstSet));
-                Assert.That(watch(data.Items[1].ItemName).Current, Is.EqualTo("shield"));
-                Assert.That(watch(data.Dict["two"]).Current, Is.EqualTo(2));
-                Assert.That(watch(data.IntDict[6]).Current, Is.EqualTo(60));
-                Assert.That(watch(data.IntSet[33]).Current, Is.True);
-                Assert.That(watch(data.Items.Count).Current, Is.EqualTo(2));
-                Assert.That(watch(data.WeakItem.Count).Current, Is.EqualTo(3));
-                Assert.That(Numbers(watch(data.VecArray[0]).Current), Is.EqualTo(firstVector));
-                Assert.That(Numbers(watch(data.VecArray[1]).Current), Is.EqualTo(secondVector));
+                Assert.That(watch(data.Member("Items").Item(1).Member("ItemName")).Current, Is.EqualTo("shield"));
+                Assert.That(watch(data.Member("Dict").Item("two")).Current, Is.EqualTo(2));
+                Assert.That(watch(data.Member("IntDict").Item(6)).Current, Is.EqualTo(60));
+                Assert.That(watch(data.Member("IntSet").Item(33)).Current, Is.True);
+                Assert.That(watch(data.Member("Items").Count()).Current, Is.EqualTo(2));
+                Assert.That(watch(data.Member("WeakItem").Member("Count")).Current, Is.EqualTo(3));
+                Assert.That(Numbers(watch(data.Member("VecArray").Item(0)).Current), Is.EqualTo(firstVector));
+                Assert.That(Numbers(watch(data.Member("VecArray").Item(1)).Current), Is.EqualTo(secondVector));
+            }
+        });
+    }
+
+    // Position and the items of VecArray step into X, Y and Z by name and read as struct values with member names.
+    [Test]
+    public void Read_RealPlayer_StepsIntoVectorByName()
+    {
+        WithAttachedPlayer(game =>
+        {
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
+            ManualTicks ticks = new();
+            var position = data.Member("Position").Value<StructValue>().Unwrap().CreateWatcher(ticks).Current;
+
+            var firstVector = data.Member("VecArray").Item(0).Unwrap().CreateWatcher(ticks).Current as StructValue;
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(Number(data.Member("Position").Member("X")), Is.EqualTo(1));
+                Assert.That(Number(data.Member("Position").Member("Y")), Is.EqualTo(2));
+                Assert.That(Number(data.Member("Position").Member("Z")), Is.EqualTo(3));
+
+                Assert.That(Number(data.Member("VecArray").Item(0).Member("Y")), Is.EqualTo(-2.5));
+                Assert.That(position?.Names, Is.EqualTo(["X", "Y", "Z"]));
+                Assert.That(Numbers(position?.Values), Is.EqualTo([1d, 2d, 3d]));
+
+                Assert.That(Numbers(firstVector?.Values), Is.EqualTo([1.25, -2.5, 3.75]));
             }
         });
     }
@@ -260,8 +289,10 @@ public sealed class UnrealGameLiveTests
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(items.Select(static item => item.Path.Member<string>("ItemName").Read().Unwrap()), Is.EqualTo(["sword", "shield"]));
-                Assert.That(data.Single().Path.Member<int>("IntValue").Read().Unwrap(), Is.EqualTo(1337));
+                Assert.That(
+                    items.Select(static item => item.Path.Member("ItemName").Value<string>().Read().Unwrap()),
+                    Is.EqualTo(["sword", "shield"]));
+                Assert.That(data.Single().Path.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(1337));
             }
         });
     }
@@ -290,8 +321,8 @@ public sealed class UnrealGameLiveTests
     {
         WithAttachedPlayer(game =>
         {
-            var world = game.GEngine.Member("GameViewport").Member("World");
-            var intValue = world.Member("AuthorityGameMode").Member("FixtureData").Member<int>("IntValue");
+            var world = game.GEngine.Path.Member("GameViewport").Member("World");
+            var intValue = world.Member("AuthorityGameMode").Member("FixtureData").Member("IntValue").Value<int>();
 
             Assert.That(intValue.Read().Unwrap(), Is.EqualTo(1337));
         });
@@ -306,11 +337,19 @@ public sealed class UnrealGameLiveTests
             Is.EqualTo("Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile.")));
     }
 
-    // Turn a float or double array into doubles, so a vector compares the same on both sides of 5.0.
+    // Read a float or double member as a double, so a vector compares the same on both sides of 5.0.
+    private static double Number(Result<IMemberPath> path)
+    {
+        return Convert.ToDouble(path.Unwrap().CreateWatcher(new ManualTicks()).Current, CultureInfo.InvariantCulture);
+    }
+
+    // Turn the members of a struct value or a float or double array into doubles, so a vector compares the same on both sides of 5.0.
     private static double[] Numbers(object? value)
     {
         return value switch
         {
+            StructValue members => Numbers(members.Values),
+            IEnumerable<object?> members => [.. members.Select(static number => Convert.ToDouble(number, CultureInfo.InvariantCulture))],
             float[] floats => [.. floats.Select(static number => (double)number)],
             double[] doubles => doubles,
             _ => [],

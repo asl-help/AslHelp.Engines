@@ -7,14 +7,14 @@ namespace AslHelp.Engines.Unreal.Properties;
 /// </summary>
 /// <remarks>
 ///     An index or a key finds the address of 1 element, which <see cref="Element"/> then reads or steps into.
-///     The member <c>Count</c> reads the number of elements. Isn't thread-safe.
+///     A count hop reads the number of elements. Isn't thread-safe.
 /// </remarks>
 /// <param name="property">The collection property, for the messages.</param>
 internal abstract class CollectionAccess(
     UnrealProperty property)
 {
     /// <summary>
-    ///     The name of the member after a collection that reads its number of elements.
+    ///     The text of the hop after a collection that reads its number of elements.
     /// </summary>
     public const string CountMember = "Count";
 

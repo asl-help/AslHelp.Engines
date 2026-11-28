@@ -83,8 +83,8 @@ public sealed class UnrealGameEdgeTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(firstGame.GWorld.Read().Unwrap(), Is.EqualTo(_world));
-            Assert.That(secondGame.GWorld.Read().Unwrap(), Is.EqualTo(_otherWorld));
+            Assert.That(firstGame.GWorld.Path.Read().Unwrap(), Is.EqualTo(_world));
+            Assert.That(secondGame.GWorld.Path.Read().Unwrap(), Is.EqualTo(_otherWorld));
         }
     }
 
@@ -101,7 +101,7 @@ public sealed class UnrealGameEdgeTests(
 
         var game = UnrealGame.Attach(memory, Module, Profile("indirect", "pointers")).Unwrap();
 
-        Assert.That(game.GWorld.Read().UnwrapErr().Message, Is.EqualTo($"Can't read GWorld. No block contains {_gWorld}."));
+        Assert.That(game.GWorld.Path.Read().UnwrapErr().Message, Is.EqualTo($"Can't read GWorld. No block contains {_gWorld}."));
     }
 
     // Writes a document with the offsets of the indirect and chunked name tables and the flat and pointer arrays.

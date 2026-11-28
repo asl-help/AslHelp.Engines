@@ -129,7 +129,7 @@ public sealed class UnrealGameLookupEdgeTests(
         var other = _fakeGame.CreateObject("FixtureSubsystem", _fakeGame.SubsystemClass);
         _fakeGame.Memory.WriteInt32(other + FakeGame.SubsystemValueOffset, 17);
 
-        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("FixtureSubsystem").Unwrap().Path.Member("SubsystemValue").Value<int>();
 
         Assert.That(value.Read().Unwrap(), Is.EqualTo(FakeGame.SubsystemValue));
     }
@@ -138,7 +138,7 @@ public sealed class UnrealGameLookupEdgeTests(
     [Test]
     public void FindSubsystem_ClassNotLoaded_FailsWithTheClassLookup()
     {
-        var value = SubsystemGame().FindSubsystem("Missing").Unwrap().Path.Member<int>("SubsystemValue");
+        var value = SubsystemGame().FindSubsystem("Missing").Unwrap().Path.Member("SubsystemValue").Value<int>();
 
         Assert.That(value.Read().UnwrapErr().Message, Does.EndWith("Can't find a loaded class called Missing."));
     }

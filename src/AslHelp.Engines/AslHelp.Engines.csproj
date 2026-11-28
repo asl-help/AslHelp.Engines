@@ -4,6 +4,11 @@
     <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
 
+  <!-- Hide the internals from the tests, so their fake engine builds against the public types only, like any other engine. -->
+  <ItemGroup>
+    <InternalsVisibleTo Remove="$(MSBuildProjectName).Tests" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="AslHelp.Memory" />
   </ItemGroup>

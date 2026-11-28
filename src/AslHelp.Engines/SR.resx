@@ -12,7 +12,10 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="ChainIndexCount" xml:space="preserve">
-    <value>Can't index {0}: write 1 index that isn't null, like [2] or ["two"].</value>
+  <data name="StructMemberNotFound" xml:space="preserve">
+    <value>{0} doesn't have a member {1}. Members: {2}.</value>
+  </data>
+  <data name="StructValueCountMismatch" xml:space="preserve">
+    <value>A struct value needs 1 value per name. Names: {0}, values: {1}.</value>
   </data>
 </root>

@@ -32,6 +32,8 @@ internal sealed class ObjectKind : PropertyKind
 file sealed class ObjectAccess(
     UnrealProperty property) : ValueAccess<Address>(property)
 {
+    public override bool StepReadsMemory => true;
+
     public override Result<Address> Read(IMemoryReader memory, Address container, Address last)
     {
         var address = container + Property.Offset;

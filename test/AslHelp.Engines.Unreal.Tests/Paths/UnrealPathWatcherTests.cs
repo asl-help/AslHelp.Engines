@@ -3,12 +3,11 @@ using AslHelp.Memory.Watching;
 using NUnit.Framework;
 using System;
 using System.Collections.Generic;
-using System.Dynamic;
 
-namespace AslHelp.Engines.Unreal.Tests;
+namespace AslHelp.Engines.Unreal.Tests.Paths;
 
 [TestFixtureSource(nameof(_fixtures))]
-public sealed class UnrealGameChainTests(
+public sealed class UnrealPathWatcherTests(
     MemoryLayout memoryLayout,
     Address start,
     string shape)
@@ -27,6 +26,8 @@ public sealed class UnrealGameChainTests(
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;
 
+    private Result<IMemberPath> Data => _game.GWorld.Path.Member("GameMode").Member("Data");
+
     [SetUp]
     public void SetUp()
     {
@@ -34,13 +35,11 @@ public sealed class UnrealGameChainTests(
         _game = _fakeGame.Attach();
     }
 
-    // A chain prints the same text as the path with the same members.
+    // A boxed watcher prints the path it reads.
     [Test]
-    public void GWorldChain_MembersAfterTheChain_PrintsThePath()
+    public void CreateWatcher_AMember_PrintsThePath()
     {
-        object chain = _game.GWorldChain.GameMode.Data.Hp;
-
-        Assert.That(chain.ToString(), Is.EqualTo(_game.GWorld.Member("GameMode").Member("Data").Member<int>("Hp").ToString()));
+        Assert.That(Watch("Hp").ToString(), Is.EqualTo("GWorld.GameMode.Data.Hp"));
     }
 
     // The 1st good read gives the value in the type of the kind, Old stays null and Changed stays false.
@@ -154,7 +153,7 @@ public sealed class UnrealGameChainTests(
         }
     }
 
-    // The chain goes through the game mode and data pointers and then into the Coord struct by its offset.
+    // The path goes through the game mode and data pointers and then into the Coord struct by its offset.
     [Test]
     public void CreateWatcher_ThroughObjectsAndStruct_ReadsTheValue()
     {
@@ -163,18 +162,13 @@ public sealed class UnrealGameChainTests(
         Assert.That(watcher.Current, Is.EqualTo(FakeGame.CoordY));
     }
 
-    // A chain that ends on a struct of mixed members fails with the struct and a hint to go on into a field.
+    // Mixed has an int and a float, so its boxed value gives each member in its own type.
     [Test]
-    public void CreateWatcher_ChainEndsOnStruct_FailsWithContinueMessage()
+    public void CreateWatcher_PathEndsOnMixedStruct_GivesEachMemberInItsOwnType()
     {
         var watcher = Watch("Mixed");
-        watcher.FailAction = FailAction.Throw;
 
-        Assert.That(
-            () => watcher.Current,
-            Throws.InvalidOperationException.With.Message.StartsWith(
-                "Couldn't read GWorld.GameMode.Data.Mixed. Can't read GWorld.GameMode.Data.Mixed. "
-                + "Mixed is the struct FixtureMixed. Continue the path into 1 of its fields."));
+        Assert.That(watcher.Current, Is.EqualTo(new StructValue("FixtureMixed", ["A", "B"], [1, 2f])));
     }
 
     // A kind the library doesn't read fails with the property and its class.
@@ -189,29 +183,23 @@ public sealed class UnrealGameChainTests(
             Throws.InvalidOperationException.With.Message.Contains("TextValue is TextProperty, which the library doesn't read."));
     }
 
-    // A misspelled member doesn't throw on the script line. It fails when the watcher reads, with the class and the name.
+    // The path of the global alone reads the address of the world, 0 while the slot is 0.
     [Test]
-    public void CreateWatcher_MisspelledMember_FailsWhenTheWatcherReads()
+    public void CreateWatcher_PathOfTheRootAlone_ReadsTheAddressOfTheObject()
     {
-        var watcher = Watch("Hpp");
-        watcher.FailAction = FailAction.Throw;
+        ManualTicks ticks = new();
+        var watcher = _game.GWorld.Path.CreateWatcher(ticks);
 
-        Assert.That(
-            () => watcher.Current,
-            Throws.InvalidOperationException.With.Message.StartsWith(
-                "Couldn't read GWorld.GameMode.Data.Hpp. "
-                + "Can't read GWorld.GameMode.Data.Hpp. Class FixtureData doesn't have a property Hpp."));
-    }
+        object? world = watcher.Current;
+        _fakeGame.Memory.WritePointer(_fakeGame.GWorldSlot, Address.Zero);
+        ticks.Value++;
 
-    // CreateWatcher throws for the chain of the global alone, because it doesn't end on a member.
-    [Test]
-    public void CreateWatcher_ChainOfTheGlobalAlone_Throws()
-    {
-        IWatcherSource world = _game.GWorldChain;
-
-        Assert.That(
-            () => world.CreateWatcher(new ManualTicks()),
-            Throws.InvalidOperationException.With.Message.EqualTo("Can't watch GWorld: it isn't a property."));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(world, Is.EqualTo(_fakeGame.World));
+            Assert.That(watcher.Current, Is.EqualTo(Address.Zero));
+            Assert.That(watcher.Changed, Is.True);
+        }
     }
 
     // A tick of an unchanged value returns the box of the tick before, so a kind doesn't allocate after the 1st read.
@@ -266,65 +254,56 @@ public sealed class UnrealGameChainTests(
         yield return new KindCase("IntSet", (HashSet<int>)[11, 22, 33]);
         yield return new KindCase("IntDict", new Dictionary<int, int> { [4] = 40, [5] = 50, [6] = 60 });
         yield return new KindCase("NameDict", new Dictionary<string, int> { [FakeGame.NameText] = 7, ["Hp_4"] = 8 });
-        yield return new KindCase("Position", (float[])[1f, 2f, 3f]);
+        yield return new KindCase("Position", new StructValue("FixtureVector", ["X", "Y", "Z"], [1f, 2f, 3f]));
+        yield return new KindCase("Mixed", new StructValue("FixtureMixed", ["A", "B"], [1, 2f]));
     }
 
-    // An index hop goes into an array element, a key into a map value or a set entry and Count reads the number of elements.
+    // An index step goes into an array element, a key into a map value or a set entry and Count reads the number of elements.
     [Test]
-    public void GWorldChain_IndexAndKeyHops_WatchElements()
+    public void Item_IndexAndKeySteps_WatchElements()
     {
-        dynamic data = _game.GWorldChain.GameMode.Data;
-        object hp = data.Items[1].Hp;
-        object two = data.Dict["two"];
-        object hasKey = data.IntSet[22];
-        object count = data.Items.Count;
+        var hp = Data.Member("Items").Item(1).Member("Hp").Unwrap();
+        var two = Data.Member("Dict").Item("two").Unwrap();
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(Read(hp), Is.EqualTo(500));
-            Assert.That(Read(two), Is.EqualTo(2));
-            Assert.That(Read(hasKey), Is.True);
-            Assert.That(Read(count), Is.EqualTo(2));
+            Assert.That(hp.CreateWatcher(new ManualTicks()).Current, Is.EqualTo(500));
+            Assert.That(two.CreateWatcher(new ManualTicks()).Current, Is.EqualTo(2));
+            Assert.That(Data.Member("IntSet").Item(22).Unwrap().CreateWatcher(new ManualTicks()).Current, Is.True);
+            Assert.That(Data.Member("Items").Count().Unwrap().CreateWatcher(new ManualTicks()).Current, Is.EqualTo(2));
             Assert.That(hp.ToString(), Is.EqualTo("GWorld.GameMode.Data.Items[1].Hp"));
             Assert.That(two.ToString(), Is.EqualTo("GWorld.GameMode.Data.Dict[\"two\"]"));
         }
     }
 
-    // A double can't be an index or a key, so the script line throws instead of a watcher that always fails.
+    // A long index, a string key and a bool key find their items. A missing key and an index past the count still fail the read.
     [Test]
-    public void GWorldChain_UnsupportedIndexType_ThrowsOnTheScriptLine()
+    public void Item_KeyKinds_FindArrayMapAndSetItems()
     {
-        dynamic data = _game.GWorldChain.GameMode.Data;
+        var missingKey = Data.Member("Dict").Item("four").Unwrap().CreateWatcher(new ManualTicks());
+        var pastCount = Data.Member("IntArray").Item(3).Unwrap().CreateWatcher(new ManualTicks());
 
-        Assert.That(
-            () => { object _ = data.Items[1.5]; },
-            Throws.InvalidOperationException.With.Message.EqualTo("Can't index Items with a Double. Use an integer, a bool or a string."));
-    }
-
-    private static object? Read(object chain)
-    {
-        return ((IWatcherSource)chain).CreateWatcher(new ManualTicks()) is Watcher<object?> watcher ? watcher.Current : null;
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Data.Member("IntArray").Item(2L).Unwrap().CreateWatcher(new ManualTicks()).Current, Is.EqualTo(300));
+            Assert.That(Data.Member("IntDict").Item(5).Unwrap().CreateWatcher(new ManualTicks()).Current, Is.EqualTo(50));
+            Assert.That(missingKey.Current, Is.Null);
+            Assert.That(missingKey.Error?.Message, Does.EndWith("Dict doesn't have the key \"four\"."));
+            Assert.That(pastCount.Current, Is.Null);
+            Assert.That(pastCount.Error?.Message, Does.EndWith("IntArray doesn't have index 3. It has 3 elements."));
+        }
     }
 
     // Get each member after GWorld.GameMode.Data like a script line does, with Coord.X for a member of a struct.
     private Watcher<object?> Watch(string member, ManualTicks? ticks = null)
     {
-        object chain = _game.GWorldChain.GameMode.Data;
+        var path = Data;
 
         foreach (string name in member.Split('.'))
         {
-            _ = ((DynamicObject)chain).TryGetMember(new NameBinder(name), out chain!);
+            path = path.Member(name);
         }
 
-        return (Watcher<object?>)((IWatcherSource)chain).CreateWatcher(ticks ?? new ManualTicks());
-    }
-}
-
-file sealed class NameBinder(
-    string name) : GetMemberBinder(name, ignoreCase: false)
-{
-    public override DynamicMetaObject FallbackGetMember(DynamicMetaObject target, DynamicMetaObject? errorSuggestion)
-    {
-        throw new NotSupportedException();
+        return path.Unwrap().CreateWatcher(ticks ?? new ManualTicks());
     }
 }

@@ -59,6 +59,8 @@ file sealed class WeakObjectAccess(
 
     private ValueError? _serialNumbersError;
 
+    public override bool StepReadsMemory => true;
+
     public override Result<Address> Read(IMemoryReader memory, Address container, Address last)
     {
         var address = container + Property.Offset;

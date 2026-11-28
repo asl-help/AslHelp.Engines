@@ -12,9 +12,9 @@ namespace AslHelp.Engines.Unreal.Paths;
 ///     read by the real class of each object on the way.
 /// </summary>
 /// <remarks>
-///     A path is immutable. Its segments are the root, then 1 per member or index hop.
+///     A path is immutable. Its segments are the root, then 1 per member, index or count hop.
 ///     Each hop reads an object pointer or adds the offset of a struct, picked by the kind of its property.
-///     After an array, a set or a map, an index hop finds 1 element and the member <c>Count</c> reads the number of elements.
+///     After an array, a set or a map, an index hop finds 1 element and a count hop reads the number of elements.
 ///     A read that succeeds doesn't allocate once each hop resolved the class of its object.
 ///     A class name with a number, like <c>BP_Player_C_1</c>, still allocates the name on each read of that hop.
 ///     Isn't thread-safe.
@@ -36,6 +36,8 @@ internal sealed class MemberPath
     // Keep the last failure of each segment with its cause, because a hop returns the same not-found error on every tick.
     private readonly (ResultError Cause, PathError Error)?[] _segmentErrors;
 
+    // Keep the failure of a typed read of the root alone, because a watcher reads as the same type on every tick.
+    private (Type Type, PathError Error)? _rootTypeError;
     private string? _text;
 
     /// <summary>
@@ -43,7 +45,7 @@ internal sealed class MemberPath
     /// </summary>
     /// <param name="classReader">The reader of the game to read from.</param>
     /// <param name="root">The object the path starts at.</param>
-    /// <param name="hops">The hop of the root, then 1 per member or index.</param>
+    /// <param name="hops">The hop of the root, then 1 per member, index or count.</param>
     public MemberPath(ClassReader classReader, PathRoot root, MemberHop[] hops)
     {
         _classReader = classReader;
@@ -60,7 +62,7 @@ internal sealed class MemberPath
     public IMemoryReader Memory => _classReader.Memory;
 
     /// <summary>
-    ///     Gets the number of segments, the root and 1 per member or index hop.
+    ///     Gets the number of segments, the root and 1 per member, index or count hop.
     /// </summary>
     public int SegmentCount => _hops.Length;
 
@@ -79,7 +81,7 @@ internal sealed class MemberPath
     /// <summary>
     ///     Creates a path with <paramref name="hop"/> after the last segment of this path.
     /// </summary>
-    /// <param name="hop">The member or index hop.</param>
+    /// <param name="hop">The member, index or count hop.</param>
     /// <returns>
     ///     The longer path, which shares the hops of this path.
     /// </returns>
@@ -89,10 +91,65 @@ internal sealed class MemberPath
     }
 
     /// <summary>
+    ///     Checks whether the last segment fits the classes and kinds of the path as the game has them now.
+    /// </summary>
+    /// <remarks>
+    ///     Reads the path up to its last segment once. A failure that comes from memory, like a null object, the root or a failed read,
+    ///     doesn't fail the check, because the path can read later.
+    /// </remarks>
+    /// <returns>
+    ///     A success or a failure when the path doesn't fit, like a member that the class doesn't have,
+    ///     a member after a collection, an index or Count after a member that isn't a collection or a member after a value.
+    /// </returns>
+    public Result Check()
+    {
+        int end = _hops.Length - 1;
+
+        if (Follow(end).TryUnwrap(out var container, out var error) && AccessAt(end, container).TryUnwrap(out _, out error))
+        {
+            return Result.Ok();
+        }
+
+        return error is PathError { IsMismatch: true } ? error : Result.Ok();
+    }
+
+    /// <summary>
+    ///     Checks whether the value at the end of the path reads as <typeparamref name="T"/> with the classes of the path as the game has them now.
+    /// </summary>
+    /// <remarks>
+    ///     Reads the path once. A failure that comes from memory doesn't fail the check, like in <see cref="Check"/>.
+    /// </remarks>
+    /// <typeparam name="T">The type of the value.</typeparam>
+    /// <returns>
+    ///     A success or a failure when the kind at the end doesn't read as <typeparamref name="T"/>.
+    /// </returns>
+    public Result CheckValue<T>()
+    {
+        int end = _hops.Length - 1;
+
+        if (end == 0)
+        {
+            return typeof(T) == typeof(Address) ? Result.Ok() : RootTypeError(typeof(T));
+        }
+
+        if (!Follow(end).TryUnwrap(out var container, out var error) || !AccessAt(end, container).TryUnwrap(out var target, out error))
+        {
+            return error is PathError { IsMismatch: true } ? error : Result.Ok();
+        }
+
+        if (target.Access is ValueAccess<T> || (typeof(T) == typeof(StructValue) && target.Access.IsStruct))
+        {
+            return Result.Ok();
+        }
+
+        return SegmentFailed(end, target.Access.NotValueOf(typeof(T)), isMismatch: true);
+    }
+
+    /// <summary>
     ///     Reads the value at the end of the path as the type of the kind of its property.
     /// </summary>
     /// <remarks>
-    ///     Needs a path with a member after the root.
+    ///     The root alone reads as the <see cref="Address"/> of its object.
     ///     Returns <paramref name="last"/> itself when the value equals it, so a value that doesn't change doesn't allocate a box.
     /// </remarks>
     /// <param name="last">The value of the last read in its own type or <see langword="null"/>.</param>
@@ -103,6 +160,16 @@ internal sealed class MemberPath
     {
         int end = _hops.Length - 1;
 
+        if (end == 0)
+        {
+            if (!Follow(1).TryUnwrap(out var root, out var rootError))
+            {
+                return rootError;
+            }
+
+            return last is Address kept && kept == root.Address ? Result.Ok<object?>(last) : Result.Ok<object?>(root.Address);
+        }
+
         if (!Follow(end).TryUnwrap(out var container, out var error) || !AccessAt(end, container).TryUnwrap(out var target, out error))
         {
             return error;
@@ -110,7 +177,7 @@ internal sealed class MemberPath
 
         return target.Access.ReadBoxed(Memory, target.Address, last).TryUnwrap(out object? value, out error)
             ? Result.Ok(value)
-            : SegmentFailed(end, error);
+            : SegmentFailed(end, error, target.Access.AlwaysFails);
     }
 
     /// <summary>
@@ -129,7 +196,7 @@ internal sealed class MemberPath
     ///     Reads the value of type <typeparamref name="T"/> at the end of the path.
     /// </summary>
     /// <remarks>
-    ///     Needs a path with a member after the root.
+    ///     The root alone reads as the <see cref="Address"/> of its object. A struct reads as a <see cref="StructValue"/>.
     /// </remarks>
     /// <typeparam name="T">The type of the value.</typeparam>
     /// <param name="last">The value of the last read or the default value. A string read returns it when the text is equal.</param>
@@ -140,16 +207,29 @@ internal sealed class MemberPath
     {
         int end = _hops.Length - 1;
 
+        if (end == 0)
+        {
+            if (typeof(T) != typeof(Address))
+            {
+                return RootTypeError(typeof(T));
+            }
+
+            return Follow(1).TryUnwrap(out var root, out var rootError) ? (T)(object)root.Address : rootError;
+        }
+
         if (!Follow(end).TryUnwrap(out var container, out var error) || !AccessAt(end, container).TryUnwrap(out var target, out error))
         {
             return error;
         }
 
-        var value = target.Access is ValueAccess<T> valueAccess
-            ? valueAccess.Read(Memory, target.Address, last)
-            : target.Access.NotValueOf(typeof(T));
+        var value = target.Access switch
+        {
+            ValueAccess<T> valueAccess => valueAccess.Read(Memory, target.Address, last),
+            var access when typeof(T) == typeof(StructValue) => ReadStruct(access, target.Address, last),
+            var access => access.NotValueOf(typeof(T)),
+        };
 
-        return value.TryUnwrapErr(out error) ? SegmentFailed(end, error) : value;
+        return value.TryUnwrapErr(out error) ? SegmentFailed(end, error, target.Access.AlwaysFails) : value;
     }
 
     /// <summary>
@@ -201,7 +281,7 @@ internal sealed class MemberPath
 
             if (!target.Access.Step(Memory, target.Address).TryUnwrap(out container, out error))
             {
-                return SegmentFailed(segment, error);
+                return SegmentFailed(segment, error, isMismatch: !target.Access.StepReadsMemory);
             }
         }
 
@@ -220,27 +300,34 @@ internal sealed class MemberPath
             {
                 if (!collection.FindElement(Memory, container.Address, key).TryUnwrap(out var element, out var findError))
                 {
-                    return SegmentFailed(segment, findError);
+                    return SegmentFailed(segment, findError, isMismatch: findError is CollectionError { IsKeyTypeMismatch: true });
                 }
 
                 return Result.Ok((collection.Element, element));
             }
 
-            if (string.Equals(hop.Name, CollectionAccess.CountMember, StringComparison.Ordinal))
+            if (hop.IsCount)
             {
                 return Result.Ok<(PropertyAccess, Address)>((collection.Count, container.Address));
             }
 
             _collectionErrors[segment] ??= CollectionError.MemberAfterCollection(collection.Property.Name, hop.Name);
 
-            return SegmentFailed(segment, _collectionErrors[segment]!);
+            return SegmentFailed(segment, _collectionErrors[segment]!, isMismatch: true);
+        }
+
+        if (hop.IsCount)
+        {
+            _collectionErrors[segment] ??= CollectionError.CountNotCollection(_hops[segment - 1].Name);
+
+            return SegmentFailed(segment, _collectionErrors[segment]!, isMismatch: true);
         }
 
         if (hop.Key is { } index)
         {
             _collectionErrors[segment] ??= CollectionError.NotCollection(_hops[segment - 1].Name, index.Text);
 
-            return SegmentFailed(segment, _collectionErrors[segment]!);
+            return SegmentFailed(segment, _collectionErrors[segment]!, isMismatch: true);
         }
 
         if (container.StructType is not { } type)
@@ -256,7 +343,12 @@ internal sealed class MemberPath
             }
         }
 
-        if (!hop.Resolve(type).TryUnwrap(out var property, out var error) || !property.Bind().TryUnwrap(out var access, out error))
+        if (!hop.Resolve(type, out bool missing).TryUnwrap(out var property, out var error))
+        {
+            return SegmentFailed(segment, error, isMismatch: missing);
+        }
+
+        if (!property.Bind().TryUnwrap(out var access, out error))
         {
             return SegmentFailed(segment, error);
         }
@@ -264,15 +356,33 @@ internal sealed class MemberPath
         return Result.Ok((access, container.Address));
     }
 
+    private Result<T> ReadStruct<T>(PropertyAccess access, Address container, T? last)
+    {
+        return access.ReadStruct(Memory, container, last as StructValue).TryUnwrap(out var value, out var error) ? (T)(object)value : error;
+    }
+
+    private PathError RootTypeError(Type type)
+    {
+        if (_rootTypeError is { } kept && kept.Type == type)
+        {
+            return kept.Error;
+        }
+
+        var error = PathError.RootWrongType(this, type.Name);
+        _rootTypeError = (type, error);
+
+        return error;
+    }
+
     // Return the kept failure of a segment when the cause is the same instance, otherwise keep a new one.
-    private PathError SegmentFailed(int segment, ResultError cause)
+    private PathError SegmentFailed(int segment, ResultError cause, bool isMismatch = false)
     {
         if (_segmentErrors[segment] is { } kept && ReferenceEquals(kept.Cause, cause))
         {
             return kept.Error;
         }
 
-        var error = PathError.SegmentFailed(this, segment, cause);
+        var error = PathError.SegmentFailed(this, segment, cause, isMismatch);
         _segmentErrors[segment] = (cause, error);
 
         return error;

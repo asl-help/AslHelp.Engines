@@ -91,7 +91,7 @@ public sealed class UnrealGameTests(
     {
         var game = Attach(MemoryWithGame(), Document("uproperty", "indirect", "flat"));
 
-        var world = game.GWorld.Read().Unwrap();
+        var world = game.GWorld.Path.Read().Unwrap();
 
         using (Assert.EnterMultipleScope())
         {
@@ -146,7 +146,7 @@ public sealed class UnrealGameTests(
         var memory = MemoryWithGame();
         memory.WritePointer(_gWorld, Address.Zero);
 
-        Assert.That(Attach(memory, Document("uproperty", "indirect", "flat")).GWorld.Read().Unwrap(), Is.EqualTo(Address.Zero));
+        Assert.That(Attach(memory, Document("uproperty", "indirect", "flat")).GWorld.Path.Read().Unwrap(), Is.EqualTo(Address.Zero));
     }
 
     // The slot reads on each access without another search, so a world set after attach shows up.
@@ -162,7 +162,7 @@ public sealed class UnrealGameTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(game.GWorld.Read().Unwrap(), Is.EqualTo(_world));
+            Assert.That(game.GWorld.Path.Read().Unwrap(), Is.EqualTo(_world));
             Assert.That(memory.ReadsAt(_module), Is.EqualTo(searches));
         }
     }
@@ -234,7 +234,7 @@ public sealed class UnrealGameTests(
             ? Attach(MemoryWithChunkedData(), Document(field, "chunked", "chunked"))
             : Attach(MemoryWithData(), Document(field, "indirect", "flat"));
 
-        var world = game.GWorld.Read().Unwrap();
+        var world = game.GWorld.Path.Read().Unwrap();
         var data = game.Read<Address>(world, game.ClassOf(world).Unwrap().FindProperty("Data").Unwrap()).Unwrap();
 
         using (Assert.EnterMultipleScope())

@@ -48,7 +48,7 @@ public sealed class UnrealGameUdkEdgeTests
 
         var game = UnrealGame.Attach(_fakeGame.Memory, _fakeGame.Module, UnrealProfile.Parse(json).Unwrap()).Unwrap();
 
-        var intValue = game.GWorld.Member("Game").Member("FixtureData").Member<int>("IntValue");
+        var intValue = game.GWorld.Path.Member("Game").Member("FixtureData").Member("IntValue").Value<int>();
 
         Assert.That(intValue.Read().Unwrap(), Is.EqualTo(IntValue));
     }

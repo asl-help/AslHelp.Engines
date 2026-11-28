@@ -34,7 +34,7 @@ public sealed class UnrealPathTests(
     public void Read_GWorld_ReadsTheWorld()
     {
         int reads = _fakeGame.Memory.Reads;
-        var gWorld = _game.GWorld;
+        var gWorld = _game.GWorld.Path;
         int readsAfterGet = _fakeGame.Memory.Reads;
 
         using (Assert.EnterMultipleScope())
@@ -50,21 +50,21 @@ public sealed class UnrealPathTests(
     {
         _fakeGame.Memory.WritePointer(_fakeGame.GWorldSlot, Address.Zero);
 
-        Assert.That(_game.GWorld.Read().Unwrap(), Is.EqualTo(Address.Zero));
+        Assert.That(_game.GWorld.Path.Read().Unwrap(), Is.EqualTo(Address.Zero));
     }
 
     // GameMode is read from the world and Data from the game mode.
     [Test]
     public void Read_TwoObjectHops_ReadsTheDataObject()
     {
-        Assert.That(_game.GWorld.Member("GameMode").Member("Data").Read().Unwrap(), Is.EqualTo(_fakeGame.Data));
+        Assert.That(_game.GWorld.Path.Member("GameMode").Member("Data").Read().Unwrap(), Is.EqualTo(_fakeGame.Data));
     }
 
     // Data is a property of FixtureGameMode and not of GameModeBase, so the hop reads the class of the object and not a declared class.
     [Test]
     public void Read_MemberOfTheRealClassOnly_ResolvesByTheClassOfTheObject()
     {
-        var data = _game.GWorld.Member("GameMode").Member("Data");
+        var data = _game.GWorld.Path.Member("GameMode").Member("Data");
 
         var fromFixtureGameMode = data.Read();
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.BaseGameMode);
@@ -83,7 +83,7 @@ public sealed class UnrealPathTests(
     [Test]
     public void Read_ClassOfTheObjectChanges_UsesTheOffsetOfTheNewClass()
     {
-        var data = _game.GWorld.Member("GameMode").Member("Data");
+        var data = _game.GWorld.Path.Member("GameMode").Member("Data");
 
         var first = data.Read();
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.OtherGameMode);
@@ -108,7 +108,7 @@ public sealed class UnrealPathTests(
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
 
         Assert.That(
-            _game.GWorld.Member("GameMode").Member("Data").Read().UnwrapErr().Message,
+            _game.GWorld.Path.Member("GameMode").Member("Data").Read().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data: GWorld.GameMode is null."));
     }
 
@@ -118,14 +118,14 @@ public sealed class UnrealPathTests(
     {
         _fakeGame.Memory.WritePointer(_fakeGame.GWorldSlot, Address.Zero);
 
-        Assert.That(_game.GWorld.Member("GameMode").Read().UnwrapErr().Message, Is.EqualTo("Can't read GWorld.GameMode: GWorld is null."));
+        Assert.That(_game.GWorld.Path.Member("GameMode").Read().UnwrapErr().Message, Is.EqualTo("Can't read GWorld.GameMode: GWorld is null."));
     }
 
     // A path returns the same error for a null object on each read, because a loading game fails that way on every tick.
     [Test]
     public void Read_NullObjectTwice_ReturnsTheSameError()
     {
-        var data = _game.GWorld.Member("GameMode").Member("Data");
+        var data = _game.GWorld.Path.Member("GameMode").Member("Data");
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
 
         var first = data.Read().UnwrapErr();
@@ -138,7 +138,7 @@ public sealed class UnrealPathTests(
     [Test]
     public void Read_MemberNotOnTheClassTwice_ReturnsTheSameError()
     {
-        var data = _game.GWorld.Member("GameMode").Member("Data");
+        var data = _game.GWorld.Path.Member("GameMode").Member("Data");
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.BaseGameMode);
 
         var first = data.Read().UnwrapErr();
@@ -156,7 +156,7 @@ public sealed class UnrealPathTests(
     [Test]
     public void Read_NullThenObject_ReadsOnceTheObjectIsThere()
     {
-        var data = _game.GWorld.Member("GameMode").Member("Data");
+        var data = _game.GWorld.Path.Member("GameMode").Member("Data");
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
 
         var failure = data.Read();
@@ -176,25 +176,44 @@ public sealed class UnrealPathTests(
         _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.UnreadableAddress);
 
         Assert.That(
-            _game.GWorld.Member("GameMode").Member("Data").Read().UnwrapErr().Message,
+            _game.GWorld.Path.Member("GameMode").Member("Data").Read().UnwrapErr().Message,
             Does.StartWith($"Can't read GWorld.GameMode.Data. Can't read the class of the object at {_fakeGame.UnreadableAddress}: "));
     }
 
-    // A member that the class of the object doesn't have fails with the class and the member.
+    // A member that the class of the live object doesn't have fails on the step with the class and the member.
     [Test]
-    public void Read_MemberNotFound_FailsWithTheClassAndTheMember()
+    public void Member_MisspelledNameOnALiveObject_FailsOnTheStepWithClassAndName()
     {
         Assert.That(
-            _game.GWorld.Member("Mana").Read().UnwrapErr().Message,
+            _game.GWorld.Path.Member("Mana").UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.Mana. Class World doesn't have a property Mana."));
+    }
+
+    // A step after a null game mode can't check the name, so the read fails with the class once the game mode is there.
+    [Test]
+    public void Member_MisspelledNameAfterANullObject_FailsWhenTheWatcherReads()
+    {
+        _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, Address.Zero);
+        var mana = _game.GWorld.Path.Member("GameMode").Member("Mana");
+
+        string nullObject = mana.Read().UnwrapErr().Message;
+        _fakeGame.Memory.WritePointer(_fakeGame.World + FakeGame.GameModeOffset, _fakeGame.GameMode);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(nullObject, Is.EqualTo("Can't read GWorld.GameMode.Mana: GWorld.GameMode is null."));
+            Assert.That(
+                mana.Read().UnwrapErr().Message,
+                Is.EqualTo("Can't read GWorld.GameMode.Mana. Class FixtureGameMode doesn't have a property Mana."));
+        }
     }
 
     // A hop doesn't keep a failed lookup, so the path reads once the properties of the class read.
     [Test]
     public void Read_PropertiesReadableAfterAFailure_ReadsTheMember()
     {
-        var data = _game.GWorld.Member("GameMode").Member("Data");
         _fakeGame.Memory.WritePointer(_fakeGame.FixtureGameModeClass + FakeGame.SuperStructOffset, _fakeGame.UnreadableAddress);
+        var data = _game.GWorld.Path.Member("GameMode").Member("Data");
 
         var failure = data.Read();
         _fakeGame.Memory.WritePointer(_fakeGame.FixtureGameModeClass + FakeGame.SuperStructOffset, _fakeGame.GameModeBaseClass);
@@ -211,7 +230,7 @@ public sealed class UnrealPathTests(
     public void Read_IntMemberAsObjectHop_FailsWithWrongKind()
     {
         Assert.That(
-            _game.GWorld.Member("GameMode").Member("Data").Member("Hp").Read().UnwrapErr().Message,
+            _game.GWorld.Path.Member("GameMode").Member("Data").Member("Hp").Read().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.Hp. Hp is IntProperty, which doesn't have members."));
     }
 
@@ -219,28 +238,28 @@ public sealed class UnrealPathTests(
     [Test]
     public void Member_NullName_Throws()
     {
-        Assert.That(() => _game.GWorld.Member(null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("name"));
+        Assert.That(() => _game.GWorld.Path.Member(null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("name"));
     }
 
     // Member<int> throws on a null name.
     [Test]
     public void MemberOfInt_NullName_Throws()
     {
-        Assert.That(() => _game.GWorld.Member<int>(null!), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("name"));
+        Assert.That(() => _game.GWorld.Path.Member(null!).Value<int>(), Throws.ArgumentNullException.With.Property("ParamName").EqualTo("name"));
     }
 
     // A path prints its global and members joined by periods and a longer path doesn't change the path it starts from.
     [Test]
     public void ToString_TwoHops_PrintsTheGlobalAndTheMembers()
     {
-        var gameMode = _game.GWorld.Member("GameMode");
+        var gameMode = _game.GWorld.Path.Member("GameMode");
         var data = gameMode.Member("Data");
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(data.ToString(), Is.EqualTo("GWorld.GameMode.Data"));
-            Assert.That(gameMode.ToString(), Is.EqualTo("GWorld.GameMode"));
-            Assert.That(_game.GWorld.ToString(), Is.EqualTo("GWorld"));
+            Assert.That(data.Unwrap().ToString(), Is.EqualTo("GWorld.GameMode.Data"));
+            Assert.That(gameMode.Unwrap().ToString(), Is.EqualTo("GWorld.GameMode"));
+            Assert.That(_game.GWorld.Path.ToString(), Is.EqualTo("GWorld"));
         }
     }
 }

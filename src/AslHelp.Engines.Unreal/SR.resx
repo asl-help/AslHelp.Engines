@@ -33,6 +33,9 @@
   <data name="CollectionCountNegative" xml:space="preserve">
     <value>{0} has the count {1}, which is below 0.</value>
   </data>
+  <data name="CollectionCountNotCollection" xml:space="preserve">
+    <value>{0} isn't a collection, so it doesn't have a Count.</value>
+  </data>
   <data name="CollectionDataNull" xml:space="preserve">
     <value>{0} has {1} elements, but its data pointer is 0.</value>
   </data>
@@ -58,7 +61,7 @@
     <value>The keys of {0} are {1}, which the key {2} can't match.</value>
   </data>
   <data name="CollectionMemberAfterCollection" xml:space="preserve">
-    <value>{0} is a collection, so it takes an index or Count, not {1}.</value>
+    <value>{0} is a collection, so it takes an index or Count, not the member {1}.</value>
   </data>
   <data name="CollectionMemberNull" xml:space="preserve">
     <value>The {1} pointer of {0} at {2} is 0. Check {1} in the profile (0x{3}).</value>
@@ -216,14 +219,11 @@
   <data name="PathFailed" xml:space="preserve">
     <value>Can't read {0}. {1}</value>
   </data>
-  <data name="PathIndexTypeUnsupported" xml:space="preserve">
-    <value>Can't index {0} with a {1}. Use an integer, a bool or a string.</value>
-  </data>
   <data name="PathNullObject" xml:space="preserve">
     <value>Can't read {0}: {1} is null.</value>
   </data>
-  <data name="PathRootUnwatchable" xml:space="preserve">
-    <value>Can't watch {0}: it isn't a property.</value>
+  <data name="PathRootWrongType" xml:space="preserve">
+    <value>Can't read {0} as {1}. An object reads as Address.</value>
   </data>
   <data name="PathSegmentFailed" xml:space="preserve">
     <value>Can't read {0} at {1}. {2}</value>
@@ -350,9 +350,6 @@
   </data>
   <data name="ValueStringTooLong" xml:space="preserve">
     <value>{0} has {1} characters, past the limit of {2}.</value>
-  </data>
-  <data name="ValueStructEnd" xml:space="preserve">
-    <value>{0} is the struct {1}. Continue the path into 1 of its fields.</value>
   </data>
   <data name="ValueStructTypeNull" xml:space="preserve">
     <value>The struct pointer of {0} at {1} is 0. Check Struct of StructProperty in the profile (0x{2}).</value>

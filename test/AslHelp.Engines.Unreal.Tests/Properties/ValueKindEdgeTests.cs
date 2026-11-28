@@ -23,7 +23,7 @@ public sealed class ValueKindEdgeTests(
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;
 
-    private UnrealPath Data => _game.GWorld.Member("GameMode").Member("Data");
+    private Result<IMemberPath> Data => _game.GWorld.Path.Member("GameMode").Member("Data");
 
     [SetUp]
     public void SetUp()
@@ -40,7 +40,7 @@ public sealed class ValueKindEdgeTests(
         _fakeGame.Memory.WritePointer(kind + FakeGame.StructTypeOffset, kind);
 
         Assert.That(
-            Data.Member<byte>("Kind").Read().UnwrapErr().Message,
+            Data.Member("Kind").Value<byte>().Read().UnwrapErr().Message,
             Is.EqualTo(
                 "Can't read GWorld.GameMode.Data.Kind. The underlying property of Kind is EnumProperty, which isn't a number. "
                 + "Check UnderlyingProp of EnumProperty in the profile (0x70)."));
@@ -54,7 +54,7 @@ public sealed class ValueKindEdgeTests(
         _fakeGame.Memory.WritePointer(kind + FakeGame.StructTypeOffset, _fakeGame.PropertyAddress("StringValue"));
 
         Assert.That(
-            Data.Member<byte>("Kind").Read().UnwrapErr().Message,
+            Data.Member("Kind").Value<byte>().Read().UnwrapErr().Message,
             Is.EqualTo(
                 "Can't read GWorld.GameMode.Data.Kind. The underlying property of Kind is StrProperty, which isn't a number. "
                 + "Check UnderlyingProp of EnumProperty in the profile (0x70)."));
@@ -65,8 +65,8 @@ public sealed class ValueKindEdgeTests(
     public void Read_EnumUnderlyingUnreadable_ReadsAgainNextTime()
     {
         var pointer = _fakeGame.PropertyAddress("Kind") + FakeGame.StructTypeOffset;
-        var kind = Data.Member<byte>("Kind");
         _fakeGame.Memory.WritePointer(pointer, _fakeGame.UnreadableAddress);
+        var kind = Data.Member("Kind").Value<byte>();
 
         var failed = kind.Read();
         _fakeGame.Memory.WritePointer(pointer, _fakeGame.PropertyAddress("KindUnderlying"));
@@ -83,9 +83,9 @@ public sealed class ValueKindEdgeTests(
     public void Read_StructTypeUnreadable_ReadsAgainNextTime()
     {
         var pointer = _fakeGame.PropertyAddress("Coord") + FakeGame.StructTypeOffset;
-        var x = Data.Member("Coord").Member<int>("X");
         var coordType = _fakeGame.Memory.ReadPointer(pointer).Unwrap();
         _fakeGame.Memory.WritePointer(pointer, _fakeGame.UnreadableAddress);
+        var x = Data.Member("Coord").Member("X").Value<int>();
 
         var failed = x.Read();
         _fakeGame.Memory.WritePointer(pointer, coordType);
@@ -105,7 +105,7 @@ public sealed class ValueKindEdgeTests(
         _fakeGame.Memory.WriteInt32(name + 4, -1);
 
         Assert.That(
-            Data.Member<string>("NameValue").Read().UnwrapErr().Message,
+            Data.Member("NameValue").Value<string>().Read().UnwrapErr().Message,
             Is.EqualTo($"Can't read GWorld.GameMode.Data.NameValue. The name at {name} has the number -1, which is below 0."));
     }
 
@@ -113,7 +113,7 @@ public sealed class ValueKindEdgeTests(
     [Test]
     public void Read_NameIdPastTableThenNone_FailsThenReadsNone()
     {
-        var nameValue = Data.Member<string>("NameValue");
+        var nameValue = Data.Member("NameValue").Value<string>();
         _ = nameValue.Read().Unwrap();
         _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.NameValueOffset, 100_000);
 
@@ -136,7 +136,7 @@ public sealed class ValueKindEdgeTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(
-                Data.Member<string>("StringValue").Read().UnwrapErr().Message,
+                Data.Member("StringValue").Value<string>().Read().UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.StringValue. StringValue has 2147483646 characters, past the limit of 512."));
             Assert.That(_fakeGame.Memory.ReadsAt(_fakeGame.Data + FakeGame.StringValueOffset), Is.Zero);
         }
@@ -148,7 +148,7 @@ public sealed class ValueKindEdgeTests(
     {
         _fakeGame.WriteString("ab\0cd");
 
-        Assert.That(Data.Member<string>("StringValue").Read().Unwrap(), Is.EqualTo("ab\0cd"));
+        Assert.That(Data.Member("StringValue").Value<string>().Read().Unwrap(), Is.EqualTo("ab\0cd"));
     }
 
     // A surrogate pair is 2 UTF-16 units in the count, so it comes back whole.
@@ -157,7 +157,7 @@ public sealed class ValueKindEdgeTests(
     {
         _fakeGame.WriteString("x😀y");
 
-        Assert.That(Data.Member<string>("StringValue").Read().Unwrap(), Is.EqualTo("x😀y"));
+        Assert.That(Data.Member("StringValue").Value<string>().Read().Unwrap(), Is.EqualTo("x😀y"));
     }
 
     // A short text after a long one reuses the buffer and doesn't keep characters of the long one.
@@ -165,7 +165,7 @@ public sealed class ValueKindEdgeTests(
     public void CreateWatcher_ShortStringAfterLongOne_ReadsOnlyTheShortOne()
     {
         ManualTicks ticks = new();
-        var watcher = Data.Member<string>("StringValue").CreateWatcher(ticks);
+        var watcher = Data.Member("StringValue").Value<string>().Unwrap().CreateWatcher(ticks);
         _fakeGame.WriteString(new string('x', 512));
         ticks.Value++;
         _ = watcher.Current;
@@ -189,37 +189,29 @@ public sealed class ValueKindEdgeTests(
         _fakeGame.Memory.WritePointer(_fakeGame.Data + FakeGame.StringValueOffset, data);
 
         Assert.That(
-            Data.Member<string>("StringValue").Read().UnwrapErr().Message,
+            Data.Member("StringValue").Value<string>().Read().UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read GWorld.GameMode.Data.StringValue. Can't read StringValue of the object at {_fakeGame.Data}: "
                 + $"reading {data} failed. No block contains {data}."));
     }
 
-    // A kind with a profile part still fails a read of another type with both types and before a read of the value.
+    // A kind with a profile part still fails a typed step of another type with both types.
     [TestCase("BoolValue", "BoolProperty", "Boolean")]
     [TestCase("NameValue", "NameProperty", "String")]
     [TestCase("StringValue", "StrProperty", "String")]
-    public void Read_LayoutKindAsInt64_FailsWithBothTypes(string name, string className, string readType)
+    public void Value_LayoutKindAsInt64_FailsOnTheStepWithBothTypes(string name, string className, string readType)
     {
-        var path = Data.Member<long>(name);
-        _ = path.Read();
-        int reads = _fakeGame.Memory.Reads;
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(
-                path.Read().UnwrapErr().Message,
-                Is.EqualTo($"Can't read GWorld.GameMode.Data.{name}. {name} is {className}, which reads as {readType}, not Int64."));
-            Assert.That(_fakeGame.Memory.Reads - reads, Is.EqualTo(1 + (2 * 3) + 2));
-        }
+        Assert.That(
+            Data.Member(name).Value<long>().UnwrapErr().Message,
+            Is.EqualTo($"Can't read GWorld.GameMode.Data.{name}. {name} is {className}, which reads as {readType}, not Int64."));
     }
 
-    // A chain watcher that fails with Clear doesn't keep a value, so the next good read fills Current and Changed stays false.
+    // A boxed watcher that fails with Clear doesn't keep a value, so the next good read fills Current and Changed stays false.
     [Test]
-    public void CreateWatcher_ChainClearedThenGood_FillsWithoutChange()
+    public void CreateWatcher_BoxedClearedThenGood_FillsWithoutChange()
     {
         ManualTicks ticks = new();
-        var watcher = (Watcher<object?>)((IWatcherSource)_game.GWorldChain.GameMode.Data.Speed).CreateWatcher(ticks);
+        var watcher = _game.GWorld.Path.Member("GameMode").Member("Data").Member("Speed").Unwrap().CreateWatcher(ticks);
         watcher.FailAction = FailAction.Clear;
         _ = watcher.Current;
 

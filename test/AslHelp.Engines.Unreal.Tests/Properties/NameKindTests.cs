@@ -90,8 +90,8 @@ public sealed class NameKindTests(
                 + "offsets.FName.ComparisonIndex, offsets.FName.Number."));
     }
 
-    private static UnrealValuePath<string> NameValue(UnrealGame game)
+    private static Result<IWatcherSource<string>> NameValue(UnrealGame game)
     {
-        return game.GWorld.Member("GameMode").Member("Data").Member<string>("NameValue");
+        return game.GWorld.Path.Member("GameMode").Member("Data").Member("NameValue").Value<string>();
     }
 }

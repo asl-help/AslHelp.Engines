@@ -53,7 +53,7 @@ public sealed class UnrealGameUdkLookupTests
     {
         var data = _game.FindClass("FixtureData").Unwrap().GetInstances().Unwrap().Single(static instance => instance.Name == "FixtureData_0");
 
-        Assert.That(data.Path.Member<int>("IntValue").Read().Unwrap(), Is.EqualTo(FakeUdkGame.IntValue));
+        Assert.That(data.Path.Member("IntValue").Value<int>().Read().Unwrap(), Is.EqualTo(FakeUdkGame.IntValue));
     }
 
     // Engine has GameEngine below it and Object has the property classes 2 levels below it. Neither list has the class itself.

@@ -20,9 +20,7 @@ namespace AslHelp.Engines.Unreal;
 public sealed class UnrealGame
 {
     private readonly ClassReader _classReader;
-    private readonly UnrealRoot _engine;
     private readonly bool _hasSubsystems;
-    private readonly UnrealRoot _world;
 
     private UnrealGame(
         IMemoryReader memory,
@@ -39,53 +37,28 @@ public sealed class UnrealGame
         PropertyReader = propertyReader;
         ObjectArray = objectArray;
         _classReader = classReader;
-        _world = new UnrealRoot(classReader, PathRoot.Global(gWorldSlot), UnrealProfile.WorldGlobal);
-        _engine = new UnrealRoot(classReader, PathRoot.Global(gEngineSlot), UnrealProfile.EngineGlobal);
+        GWorld = new UnrealRoot(classReader, PathRoot.Global(gWorldSlot), UnrealProfile.WorldGlobal);
+        GEngine = new UnrealRoot(classReader, PathRoot.Global(gEngineSlot), UnrealProfile.EngineGlobal);
         _hasSubsystems = hasSubsystems;
     }
 
     /// <summary>
-    ///     Gets the path that starts at the <c>GEngine</c> global, the engine object of the game.
+    ///     Gets the root at the <c>GEngine</c> global.
     /// </summary>
     /// <remarks>
-    ///     Getting the path doesn't read memory.
-    ///     Each read of a longer path reads the pointer in the slot again, so an engine that the game creates later shows up.
+    ///     Each read of a path from the root reads the pointer in the slot again, so an engine that the game creates later shows up.
     /// </remarks>
-    public UnrealPath GEngine => _engine.Path;
+    public UnrealRoot GEngine { get; }
 
     /// <summary>
-    ///     Gets the member chain that starts at the <c>GEngine</c> global, like <c>GEngineChain.GameViewport.World</c>.
+    ///     Gets the root at the <c>GWorld</c> global, like <c>GWorld.Path.Member("AuthorityGameMode")</c>.
     /// </summary>
     /// <remarks>
-    ///     <see cref="GWorldChain"/> lists what a chain takes.
-    /// </remarks>
-    public dynamic GEngineChain => _engine.Chain;
-
-    /// <summary>
-    ///     Gets the path that starts at the <c>GWorld</c> global.
-    /// </summary>
-    /// <remarks>
-    ///     Getting the path doesn't read memory.
-    ///     Each read of a longer path reads the pointer in the slot again, so a world that the game loads later shows up.
+    ///     Each read of a path from the root reads the pointer in the slot again, so a world that the game loads later shows up.
     ///     On Unreal Engine 3 the class <c>World</c> doesn't have any reflected properties, so start at <see cref="GEngine"/>
     ///     or at an object of <see cref="UnrealClass.GetInstances"/>.
     /// </remarks>
-    public UnrealPath GWorld => _world.Path;
-
-    /// <summary>
-    ///     Gets the member chain that starts at the <c>GWorld</c> global, for a script that writes members through <see langword="dynamic"/>.
-    /// </summary>
-    /// <remarks>
-    ///     Every chain is an <see cref="IWatcherSource"/>, like <c>GWorldChain.AuthorityGameMode.FixtureData.Hp</c>.
-    ///     Its watcher is a <see cref="Memory.Watching.Watcher{T}"/> of <see cref="object"/> whose value has the type of the kind at the end,
-    ///     like an <see cref="int"/> for an <c>IntProperty</c> or a <see cref="string"/> for a <c>StrProperty</c>.
-    ///     A hop goes through an object property and into a struct property the same way, like <c>FixtureData.Coord.X</c>.
-    ///     An index goes into an array, a set or a map, like <c>FixtureData.Items[1].Count</c> or <c>FixtureData.Dict["two"]</c>.
-    ///     <c>Count</c> after a collection reads its number of elements.
-    ///     A misspelled member or a kind without a value fails when the watcher reads and not on the script line,
-    ///     because a read finds the class of the object. An index of another type than an integer, a bool or a string throws on the script line.
-    /// </remarks>
-    public dynamic GWorldChain => _world.Chain;
+    public UnrealRoot GWorld { get; }
 
     /// <summary>
     ///     Gets the memory of the game.
@@ -286,8 +259,9 @@ public sealed class UnrealGame
     ///     the type of the underlying property for <c>EnumProperty</c>, <see cref="string"/> for <c>NameProperty</c> and <c>StrProperty</c>,
     ///     <see cref="Address"/> for the object properties and <c>WeakObjectProperty</c>, an array of the element type for <c>ArrayProperty</c>,
     ///     a <see cref="HashSet{T}"/> for <c>SetProperty</c>,
-    ///     a <see cref="Dictionary{TKey, TValue}"/> for <c>MapProperty</c>
-    ///     and an array of the number type for a <c>StructProperty</c> whose members are numbers of 1 class.
+    ///     a <see cref="Dictionary{TKey, TValue}"/> for <c>MapProperty</c>,
+    ///     <see cref="StructValue"/> for <c>StructProperty</c>
+    ///     and also an array of the number type for a <c>StructProperty</c> whose members are numbers of 1 class.
     /// </typeparam>
     /// <param name="obj">The address of the object.</param>
     /// <param name="property">The property.</param>

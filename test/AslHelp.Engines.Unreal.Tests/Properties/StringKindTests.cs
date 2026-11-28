@@ -23,7 +23,7 @@ public sealed class StringKindTests(
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;
 
-    private UnrealValuePath<string> StringValue => _game.GWorld.Member("GameMode").Member("Data").Member<string>("StringValue");
+    private Result<IWatcherSource<string>> StringValue => _game.GWorld.Path.Member("GameMode").Member("Data").Member("StringValue").Value<string>();
 
     [SetUp]
     public void SetUp()
@@ -112,7 +112,7 @@ public sealed class StringKindTests(
     public void CreateWatcher_SameCharactersInNewBuffer_KeepsTheText()
     {
         ManualTicks ticks = new();
-        var watcher = StringValue.CreateWatcher(ticks);
+        var watcher = StringValue.Unwrap().CreateWatcher(ticks);
         string? first = watcher.Current;
         var otherBuffer = _fakeGame.StringData + 0x800;
 
@@ -134,7 +134,7 @@ public sealed class StringKindTests(
         var game = _fakeGame.Attach(Remove(FakeGame.Document(shape, "indirect", "flat"), "offsets", "FScriptArray"));
 
         Assert.That(
-            game.GWorld.Member("GameMode").Member("Data").Member<string>("StringValue").Read().UnwrapErr().Message,
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("StringValue").Value<string>().Read().UnwrapErr().Message,
             Is.EqualTo(
                 "Can't read GWorld.GameMode.Data.StringValue. Can't read StrProperty: the profile doesn't have "
                 + "offsets.FScriptArray.Data, offsets.FScriptArray.ArrayNum."));

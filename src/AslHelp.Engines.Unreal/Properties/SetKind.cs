@@ -95,9 +95,13 @@ file sealed class SetElements<T>(
 
     public override Result<Address> FindElement(IMemoryReader memory, Address container, ElementKey key)
     {
-        return key.As<T>(this, Property.Name).TryUnwrap(out var value, out var error)
-            ? lookup.Find(memory, container, value, key)
-            : error;
+        if (key.As<T>(this, Property.Name).TryUnwrap(out var value, out var error))
+        {
+            return lookup.Find(memory, container, value, key);
+        }
+
+        // Return 0 for a number that doesn't fit the element type, because the set can't have it.
+        return error is CollectionError { IsKeyTypeMismatch: true } ? error : Address.Zero;
     }
 }
 

@@ -20,6 +20,22 @@ internal abstract class PropertyAccess(
     private ValueError? _notContainerError;
 
     /// <summary>
+    ///     Gets a value indicating whether every read fails the same way whatever the memory has,
+    ///     like on a kind the library doesn't read.
+    /// </summary>
+    public virtual bool AlwaysFails => false;
+
+    /// <summary>
+    ///     Gets a value indicating whether the value is a struct that <see cref="ReadStruct"/> reads.
+    /// </summary>
+    public virtual bool IsStruct => false;
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="Step"/> reads memory, so a failed step can come from a read and not from the kind.
+    /// </summary>
+    public virtual bool StepReadsMemory => false;
+
+    /// <summary>
     ///     Gets the property that this access reads.
     /// </summary>
     protected UnrealProperty Property { get; } = property;
@@ -59,6 +75,23 @@ internal abstract class PropertyAccess(
     ///     The value or a failure.
     /// </returns>
     public abstract Result<object?> ReadBoxed(IMemoryReader memory, Address container, object? last);
+
+    /// <summary>
+    ///     Reads the struct of this property in <paramref name="container"/> with each member by name.
+    /// </summary>
+    /// <remarks>
+    ///     Returns <paramref name="last"/> itself when every member equals it, so a struct that doesn't change doesn't allocate.
+    /// </remarks>
+    /// <param name="memory">The memory to read from.</param>
+    /// <param name="container">The address of the object or struct with the struct.</param>
+    /// <param name="last">The value of the last read or <see langword="null"/>.</param>
+    /// <returns>
+    ///     The value or a failure when the kind isn't a struct, a member doesn't read or a read fails.
+    /// </returns>
+    public virtual Result<StructValue> ReadStruct(IMemoryReader memory, Address container, StructValue? last)
+    {
+        return NotValueOf(typeof(StructValue));
+    }
 
     /// <summary>
     ///     Moves a path from <paramref name="container"/> into the value of this property.

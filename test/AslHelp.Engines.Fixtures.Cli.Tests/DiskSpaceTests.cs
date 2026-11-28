@@ -4,22 +4,26 @@ using System.IO;
 
 namespace AslHelp.Engines.Fixtures.Cli.Tests;
 
-public sealed class EngineSpaceTests
+public sealed class DiskSpaceTests
 {
     // Equals the size of a finished engine of this file, which is only its marker.
     private const int EngineBytes = 40;
     private const long Gib = 1L << 30;
     private const string Sha1 = "0000000000000000000000000000000000000001";
 
+    private string _downloads = null!;
     private string _engines = null!;
     private TestFolder _folder = null!;
     private StringWriter _output = null!;
+    private string _root = null!;
 
     [SetUp]
     public void SetUp()
     {
         _folder = new TestFolder();
-        _engines = _folder.NewFolder();
+        _root = _folder.NewFolder();
+        _engines = Directory.CreateDirectory(Path.Combine(_root, DiskSpace.EnginesFolder)).FullName;
+        _downloads = Path.Combine(_root, DiskSpace.DownloadsFolder);
         _output = new StringWriter();
     }
 
@@ -37,7 +41,7 @@ public sealed class EngineSpaceTests
         string other = NewFinishedEngine("other", ageInDays: 9);
         string wanted = Path.Combine(_engines, "wanted");
 
-        EngineSpace.MakeRoom(_engines, wanted, 10 * Gib, [], _ => EngineSpace.ScratchBytes + (10 * Gib), _output);
+        DiskSpace.MakeRoom(_root, Space(10 * Gib, [wanted], []), _ => DiskSpace.MarginBytes + (10 * Gib), _output);
 
         using (Assert.EnterMultipleScope())
         {
@@ -54,9 +58,9 @@ public sealed class EngineSpaceTests
         string oldest = NewFinishedEngine("b", ageInDays: 3);
         string middle = NewFinishedEngine("c", ageInDays: 2);
         string wanted = Path.Combine(_engines, "wanted");
-        long start = EngineSpace.ScratchBytes - EngineBytes - 1;
+        long start = DiskSpace.MarginBytes - EngineBytes - 1;
 
-        EngineSpace.MakeRoom(_engines, wanted, 0, [], _ => start + (EngineBytes * DeletedOf(3)), _output);
+        DiskSpace.MakeRoom(_root, Space(0, [wanted], []), _ => start + (EngineBytes * DeletedOf(3)), _output);
 
         string[] lines = _output.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
 
@@ -78,12 +82,10 @@ public sealed class EngineSpaceTests
         TestFolder.WriteBytes(scratch, "out.bin", new byte[EngineBytes]);
         string wanted = Path.Combine(_engines, "wanted");
 
-        EngineSpace.MakeRoom(
-            _engines,
-            wanted,
-            0,
-            [scratch, Path.Combine(_folder.Root, "missing")],
-            _ => EngineSpace.ScratchBytes - (Directory.Exists(scratch) ? 1 : 0),
+        DiskSpace.MakeRoom(
+            _root,
+            Space(0, [wanted], [scratch, Path.Combine(_folder.Root, "missing")]),
+            _ => DiskSpace.MarginBytes - (Directory.Exists(scratch) ? 1 : 0),
             _output);
 
         using (Assert.EnterMultipleScope())
@@ -101,7 +103,7 @@ public sealed class EngineSpaceTests
         string wanted = NewFinishedEngine("wanted", ageInDays: 9);
         string other = NewFinishedEngine("other", ageInDays: 1);
 
-        EngineSpace.MakeRoom(_engines, wanted, 0, [], _ => EngineSpace.ScratchBytes - 1 + DeletedOf(2), _output);
+        DiskSpace.MakeRoom(_root, Space(0, [wanted], []), _ => DiskSpace.MarginBytes - 1 + DeletedOf(2), _output);
 
         using (Assert.EnterMultipleScope())
         {
@@ -117,7 +119,7 @@ public sealed class EngineSpaceTests
         string wanted = NewFinishedEngine("wanted", ageInDays: 9);
 
         Assert.That(
-            () => EngineSpace.MakeRoom(_engines, wanted.ToUpperInvariant(), 0, [], _ => 0, _output),
+            () => DiskSpace.MakeRoom(_root, Space(0, [wanted.ToUpperInvariant()], []), _ => 0, _output),
             Throws.InstanceOf<IOException>());
         Assert.That(wanted, Does.Exist);
     }
@@ -131,7 +133,7 @@ public sealed class EngineSpaceTests
         string wanted = Path.Combine(_engines, "wanted");
 
         Assert.That(
-            () => EngineSpace.MakeRoom(_engines, wanted, 0, [], _ => 0, _output),
+            () => DiskSpace.MakeRoom(_root, Space(0, [wanted], []), _ => 0, _output),
             Throws.InstanceOf<IOException>());
         Assert.That(unfinished, Does.Exist);
     }
@@ -144,7 +146,7 @@ public sealed class EngineSpaceTests
         File.WriteAllText(file, "text");
 
         Assert.That(
-            () => EngineSpace.MakeRoom(_engines, Path.Combine(_engines, "wanted"), 0, [], _ => 0, _output),
+            () => DiskSpace.MakeRoom(_root, Space(0, [Path.Combine(_engines, "wanted")], []), _ => 0, _output),
             Throws.InstanceOf<IOException>());
         Assert.That(file, Does.Exist);
     }
@@ -164,7 +166,7 @@ public sealed class EngineSpaceTests
         File.SetAttributes(hiddenFile, FileAttributes.ReadOnly | FileAttributes.Hidden);
         File.SetAttributes(readOnlyFolder, FileAttributes.Directory | FileAttributes.ReadOnly);
 
-        EngineSpace.MakeRoom(_engines, Path.Combine(_engines, "wanted"), 0, [], _ => EngineSpace.ScratchBytes - 1 + DeletedOf(1), _output);
+        DiskSpace.MakeRoom(_root, Space(0, [Path.Combine(_engines, "wanted")], []), _ => DiskSpace.MarginBytes - 1 + DeletedOf(1), _output);
 
         Assert.That(other, Does.Not.Exist);
     }
@@ -178,7 +180,7 @@ public sealed class EngineSpaceTests
 
         using (File.Open(file, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            Assert.That(() => EngineSpace.Delete(other), Throws.InstanceOf<IOException>().Or.InstanceOf<UnauthorizedAccessException>());
+            Assert.That(() => DiskSpace.Delete(other), Throws.InstanceOf<IOException>().Or.InstanceOf<UnauthorizedAccessException>());
         }
 
         Assert.That(EngineMarker.Read(other), Is.Null);
@@ -194,11 +196,11 @@ public sealed class EngineSpaceTests
         string drive = Path.GetPathRoot(_engines)!;
 
         Assert.That(
-            () => EngineSpace.MakeRoom(_engines, wanted, (10 * Gib) + 1, [], _ => free, _output),
+            () => DiskSpace.MakeRoom(_root, Space((10 * Gib) + 1, [wanted], []), _ => free, _output),
             Throws.InstanceOf<IOException>()
                 .With.Message.Contains(drive)
                 .And.Message.Contains("5 GiB")
-                .And.Message.Contains("51 GiB"));
+                .And.Message.Contains("31 GiB"));
 
         using (Assert.EnterMultipleScope())
         {
@@ -217,7 +219,7 @@ public sealed class EngineSpaceTests
         string wanted = Path.Combine(_engines, "wanted");
 
         Assert.That(
-            () => EngineSpace.MakeRoom(_engines, wanted, 10 * Gib, [scratch], _ => 0, _output),
+            () => DiskSpace.MakeRoom(_root, Space(10 * Gib, [wanted], [scratch]), _ => 0, _output),
             Throws.InstanceOf<IOException>());
 
         using (Assert.EnterMultipleScope())
@@ -234,9 +236,9 @@ public sealed class EngineSpaceTests
     {
         string first = NewFinishedEngine("first", ageInDays: 2);
         string second = NewFinishedEngine("second", ageInDays: 1);
-        long start = EngineSpace.ScratchBytes - (2 * EngineBytes);
+        long start = DiskSpace.MarginBytes - (2 * EngineBytes);
 
-        EngineSpace.MakeRoom(_engines, Path.Combine(_engines, "wanted"), 0, [], _ => start + (EngineBytes * DeletedOf(2)), _output);
+        DiskSpace.MakeRoom(_root, Space(0, [Path.Combine(_engines, "wanted")], []), _ => start + (EngineBytes * DeletedOf(2)), _output);
 
         using (Assert.EnterMultipleScope())
         {
@@ -251,10 +253,10 @@ public sealed class EngineSpaceTests
     {
         string first = NewFinishedEngine("first", ageInDays: 2);
         string second = NewFinishedEngine("second", ageInDays: 1);
-        long start = EngineSpace.ScratchBytes - (2 * EngineBytes) - 1;
+        long start = DiskSpace.MarginBytes - (2 * EngineBytes) - 1;
 
         Assert.That(
-            () => EngineSpace.MakeRoom(_engines, Path.Combine(_engines, "wanted"), 0, [], _ => start + (EngineBytes * DeletedOf(2)), _output),
+            () => DiskSpace.MakeRoom(_root, Space(0, [Path.Combine(_engines, "wanted")], []), _ => start + (EngineBytes * DeletedOf(2)), _output),
             Throws.InstanceOf<IOException>());
 
         using (Assert.EnterMultipleScope())
@@ -276,14 +278,14 @@ public sealed class EngineSpaceTests
         File.WriteAllText(hiddenFile, "text");
         File.SetAttributes(hiddenFile, FileAttributes.Hidden);
 
-        Assert.That(EngineSpace.SizeOf(engine), Is.EqualTo(EngineBytes + 8));
+        Assert.That(DiskSpace.SizeOf(engine), Is.EqualTo(EngineBytes + 8));
     }
 
     // A folder that doesn't exist yet has 0 bytes, so a 1st install needs its whole size.
     [Test]
     public void SizeOf_MissingFolder_ReturnsZero()
     {
-        Assert.That(EngineSpace.SizeOf(Path.Combine(_engines, "missing")), Is.Zero);
+        Assert.That(DiskSpace.SizeOf(Path.Combine(_engines, "missing")), Is.Zero);
     }
 
     // An engine that goes takes its manifest along and the manifest of another engine stays, so an evicted engine doesn't leave a file behind.
@@ -292,41 +294,128 @@ public sealed class EngineSpaceTests
     {
         string oldest = NewFinishedEngine("oldest", ageInDays: 2);
         string newest = NewFinishedEngine("newest", ageInDays: 1);
-        File.WriteAllText(EngineSpace.ManifestPath(oldest), "text");
-        File.WriteAllText(EngineSpace.ManifestPath(newest), "text");
+        File.WriteAllText(DiskSpace.ManifestPath(oldest), "text");
+        File.WriteAllText(DiskSpace.ManifestPath(newest), "text");
 
-        EngineSpace.MakeRoom(_engines, Path.Combine(_engines, "wanted"), 0, [], _ => EngineSpace.ScratchBytes - 1 + DeletedOf(2), _output);
+        DiskSpace.MakeRoom(_root, Space(0, [Path.Combine(_engines, "wanted")], []), _ => DiskSpace.MarginBytes - 1 + DeletedOf(2), _output);
 
         using (Assert.EnterMultipleScope())
         {
             Assert.That(oldest, Does.Not.Exist);
-            Assert.That(EngineSpace.ManifestPath(oldest), Does.Not.Exist);
-            Assert.That(EngineSpace.ManifestPath(newest), Does.Exist);
+            Assert.That(DiskSpace.ManifestPath(oldest), Does.Not.Exist);
+            Assert.That(DiskSpace.ManifestPath(newest), Does.Exist);
         }
     }
 
-    // An installed engine needs exactly the scratch, 40 GiB.
-    [TestCase(40 * Gib, false)]
-    [TestCase((40 * Gib) - 1, true)]
-    public void MakeRoom_InstalledEngine_NeedsOnlyTheScratch(long free, bool deleted)
+    // An installed engine with nothing to build needs exactly the margin, 20 GiB.
+    [TestCase(20 * Gib, false)]
+    [TestCase((20 * Gib) - 1, true)]
+    public void MakeRoom_NothingMissing_NeedsOnlyTheMargin(long free, bool deleted)
     {
         string other = NewFinishedEngine("other", ageInDays: 1);
 
-        EngineSpace.MakeRoom(_engines, Path.Combine(_engines, "wanted"), 0, [], _ => free + DeletedOf(1), _output);
+        DiskSpace.MakeRoom(_root, Space(0, [Path.Combine(_engines, "wanted")], []), _ => free + DeletedOf(1), _output);
 
         Assert.That(!Directory.Exists(other), Is.EqualTo(deleted));
+    }
+
+    // The build bytes count on top of the install and the margin, so a cook that needs scratch gets it.
+    [TestCase((25 * Gib) + 3, false)]
+    [TestCase((25 * Gib) + 2, true)]
+    public void MakeRoom_BuildBytes_CountOnTopOfTheInstall(long free, bool deleted)
+    {
+        string other = NewFinishedEngine("other", ageInDays: 1);
+        InstallSpace space = new(3, 5 * Gib, [Path.Combine(_engines, "wanted")], []);
+
+        DiskSpace.MakeRoom(_root, space, _ => free + DeletedOf(1), _output);
+
+        Assert.That(!Directory.Exists(other), Is.EqualTo(deleted));
+    }
+
+    // Installers go before engines and the oldest installer goes first, because an engine is the biggest download to get back.
+    [Test]
+    public void MakeRoom_InstallersAndEngines_DeletesOldestInstallerThenEngines()
+    {
+        string engine = NewFinishedEngine("engine", ageInDays: 9);
+        string newer = NewInstaller("newer.exe", ageInDays: 1);
+        string older = NewInstaller("older.exe", ageInDays: 2);
+        long start = DiskSpace.MarginBytes - (2 * EngineBytes);
+
+        DiskSpace.MakeRoom(_root, Space(0, [], []), _ => start + (EngineBytes * (2 - Directory.GetFiles(_downloads).Length)), _output);
+
+        string[] lines = _output.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(lines, Is.EqualTo([$"Removed {older}", $"Removed {newer}"]));
+            Assert.That(engine, Does.Exist);
+        }
+    }
+
+    // The installer and the partial download of the install stay, because the install needs them right after.
+    [Test]
+    public void MakeRoom_KeptInstaller_StaysAndOtherDownloadsGo()
+    {
+        string kept = NewInstaller("kept.exe", ageInDays: 9);
+        string keptPartial = NewInstaller("kept.exe.partial", ageInDays: 9);
+        string other = NewInstaller("other.exe.partial", ageInDays: 1);
+
+        DiskSpace.MakeRoom(_root, Space(0, [kept, keptPartial], []), _ => DiskSpace.MarginBytes - (File.Exists(other) ? 1 : 0), _output);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(kept, Does.Exist);
+            Assert.That(keptPartial, Does.Exist);
+            Assert.That(other, Does.Not.Exist);
+        }
+    }
+
+    // A leftover file goes like a leftover folder, also when it is read-only.
+    [Test]
+    public void MakeRoom_ReadOnlyLeftoverFile_IsDeleted()
+    {
+        string leftover = Path.Combine(_root, "left.partial");
+        File.WriteAllText(leftover, "text");
+        File.SetAttributes(leftover, FileAttributes.ReadOnly);
+
+        DiskSpace.MakeRoom(_root, Space(0, [], [leftover]), _ => DiskSpace.MarginBytes - (File.Exists(leftover) ? 1 : 0), _output);
+
+        Assert.That(leftover, Does.Not.Exist);
+    }
+
+    // An output folder without downloads and engines fails with the numbers, because there is nothing to remove.
+    [Test]
+    public void MakeRoom_NoDownloadsOrEnginesFolder_ThrowsWithTheNumbers()
+    {
+        Directory.Delete(_engines);
+
+        Assert.That(
+            () => DiskSpace.MakeRoom(_root, Space(0, [], []), _ => 0, _output),
+            Throws.InstanceOf<IOException>().With.Message.Contains("has 0 GiB free").And.Message.Contains("needs 20 GiB"));
+    }
+
+    // A file counts with its own size, so an installer measures like a folder.
+    [Test]
+    public void SizeOf_File_ReturnsItsLength()
+    {
+        Assert.That(DiskSpace.SizeOf(NewInstaller("file.exe", ageInDays: 1)), Is.EqualTo(EngineBytes));
     }
 
     // The free space comes from the drive, so a folder that doesn't exist yet reads too.
     [Test]
     public void FreeBytes_MissingFolder_ReadsItsDrive()
     {
-        Assert.That(EngineSpace.FreeBytes(Path.Combine(_engines, "missing")), Is.Positive);
+        Assert.That(DiskSpace.FreeBytes(Path.Combine(_engines, "missing")), Is.Positive);
     }
 
     private int DeletedOf(int engines)
     {
         return engines - Directory.GetDirectories(_engines).Length;
+    }
+
+    private static InstallSpace Space(long missingBytes, string[] keepPaths, string[] leftovers)
+    {
+        return new InstallSpace(missingBytes, 0, keepPaths, leftovers);
     }
 
     private string NewFinishedEngine(string name, int ageInDays)
@@ -337,5 +426,14 @@ public sealed class EngineSpaceTests
         File.SetLastWriteTimeUtc(Path.Combine(engine, EngineMarker.FileName), DateTime.UtcNow.AddDays(-ageInDays));
 
         return engine;
+    }
+
+    private string NewInstaller(string name, int ageInDays)
+    {
+        string installer = Path.Combine(_downloads, name);
+        TestFolder.WriteBytes(_downloads, name, new byte[EngineBytes]);
+        File.SetLastWriteTimeUtc(installer, DateTime.UtcNow.AddDays(-ageInDays));
+
+        return installer;
     }
 }

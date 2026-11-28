@@ -2,6 +2,7 @@ using AslHelp.Engines.Fixtures.Cli.Hosting;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -22,9 +23,9 @@ internal sealed class UnrealEngine(
     TextWriter output)
 {
     /// <summary>
-    ///     Represents the folder of the engines under the output folder.
+    ///     Represents the cook scratch that a build writes next to the engine: 20 GiB.
     /// </summary>
-    public const string EnginesFolder = "engines";
+    public const long CookBytes = 20L << 30;
 
     /// <summary>
     ///     Represents the pinned version of legendary. <c>justfile</c> and <c>readme.md</c> repeat it and a test keeps them equal.
@@ -41,14 +42,11 @@ internal sealed class UnrealEngine(
     private const int ExitNotLoggedIn = 10;
     private const int ExitNotPinned = 11;
     private const int FileNotFoundError = 2;
+    private const string InstallBytesPrefix = "install bytes: ";
     private const string LegendaryPackage = $"legendary-gl=={LegendaryVersion}";
+    private const string MeasureSwitch = "--measure";
     private const string ScriptFileName = "install_engine.py";
     private const string ScriptResource = "Unreal4/install_engine.py";
-
-    /// <summary>
-    ///     Gets the source of the free space, given a folder on the drive. The default is <see cref="EngineSpace.FreeBytes"/>.
-    /// </summary>
-    public Func<string, long> FreeBytes { get; init; } = EngineSpace.FreeBytes;
 
     /// <summary>
     ///     Gets the path of uv. The default is <c>uv</c> from PATH.
@@ -60,47 +58,51 @@ internal sealed class UnrealEngine(
     /// </summary>
     /// <remarks>
     ///     The engine goes to <c>engines/&lt;app&gt;</c> under <paramref name="outputDirectory"/> and its manifest to
-    ///     <c>engines/&lt;app&gt;.manifest</c>. A marker with the pinned sha1 doesn't start the script. A marker with another sha1
-    ///     deletes the folder first. A folder without a marker resumes and only its missing bytes count as needed space. Finished
-    ///     engines of the folder make room as <see cref="EngineSpace.MakeRoom"/> does.
+    ///     <c>engines/&lt;app&gt;.manifest</c>. A marker with the pinned sha1 doesn't start the script and only makes room for
+    ///     <see cref="CookBytes"/>. A marker with another sha1 deletes the folder first. A folder without a marker resumes. Before
+    ///     the download, the script measures the pinned manifest and <paramref name="room"/> makes room for the files that the
+    ///     folder doesn't have yet and for <see cref="CookBytes"/>. The engine folder stays and the scratch folders of other
+    ///     versions may go.
     /// </remarks>
     /// <param name="release">The release to install.</param>
     /// <param name="outputDirectory">The folder with the <c>engines</c> folder.</param>
+    /// <param name="room">The room maker of the drive of <paramref name="outputDirectory"/>.</param>
     /// <param name="cancellationToken">The token that stops the install.</param>
     /// <returns>
     ///     The full path of the engine folder.
     /// </returns>
     /// <exception cref="ArgumentNullException">
-    ///     <paramref name="release"/> or <paramref name="outputDirectory"/> is <see langword="null"/>.
+    ///     <paramref name="release"/>, <paramref name="outputDirectory"/> or <paramref name="room"/> is <see langword="null"/>.
     /// </exception>
     /// <exception cref="FileNotFoundException">uv is not installed.</exception>
-    /// <exception cref="IOException">
-    ///     The drive doesn't have room for the install plus the scratch. Or the output folder doesn't start with a drive letter.
+    /// <exception cref="InvalidDataException">
+    ///     The manifest doesn't match its pin, the measure doesn't print the size or a file fails the hash check.
     /// </exception>
-    /// <exception cref="InvalidDataException">The manifest doesn't match its pin or a file fails the hash check.</exception>
+    /// <exception cref="IOException">The drive doesn't have room for the engine and the cook scratch.</exception>
     /// <exception cref="InvalidOperationException">
     ///     Legendary isn't logged in, lists the app as installed or the script exits with another code.
     /// </exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was canceled.</exception>
-    public async Task<string> InstallAsync(UnrealRelease release, string outputDirectory, CancellationToken cancellationToken)
+    public async Task<string> InstallAsync(UnrealRelease release, string outputDirectory, DriveRoom room, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(release);
         ArgumentNullException.ThrowIfNull(outputDirectory);
+        ArgumentNullException.ThrowIfNull(room);
 
         // Check the token before any delete, because a canceled call must leave every engine in place.
         cancellationToken.ThrowIfCancellationRequested();
 
-        string engines = Path.Combine(Path.GetFullPath(outputDirectory), EnginesFolder);
+        string root = Path.GetFullPath(outputDirectory);
+        string engines = Path.Combine(root, DiskSpace.EnginesFolder);
         string engine = Path.Combine(engines, release.App);
         _ = Directory.CreateDirectory(engines);
 
         string? marker = EngineMarker.Read(engine);
 
-        string[] scratches = StaleScratches(Path.GetFullPath(outputDirectory), release);
-
+        // Make room for the cook scratch of an installed engine too, so a build never starts on a full drive.
         if (marker == release.Sha1)
         {
-            EngineSpace.MakeRoom(engines, engine, 0, scratches, FreeBytes, output);
+            room.MakeFor(new InstallSpace(0, CookBytes, [engine], StaleScratches(root, release)));
 
             return engine;
         }
@@ -108,14 +110,15 @@ internal sealed class UnrealEngine(
         // Delete an install of another pin, because a file only that build has would stay in the new install.
         if (marker is not null)
         {
-            EngineSpace.Delete(engine);
+            DiskSpace.Delete(engine);
         }
 
-        // Subtract what an interrupted run left, so a resume doesn't remove a finished engine for bytes that are already there.
-        long missingBytes = Math.Max(release.InstallBytes - EngineSpace.SizeOf(engine), 0);
+        long installBytes = await MeasureAsync(release, engines, cancellationToken).ConfigureAwait(false);
+        room.MakeFor(new InstallSpace(Math.Max(installBytes - DiskSpace.SizeOf(engine), 0), CookBytes, [engine], StaleScratches(root, release)));
 
-        EngineSpace.MakeRoom(engines, engine, missingBytes, scratches, FreeBytes, output);
-        await RunScriptAsync(release, engines, cancellationToken).ConfigureAwait(false);
+        string installTags = release.InstallTags ? "1" : "0";
+        string[] arguments = [release.App, release.Build, release.Sha1, engines, installTags, ManifestOf(engines, release)];
+        await RunScriptAsync(release, arguments, static _ => { }, cancellationToken).ConfigureAwait(false);
         EngineMarker.Write(engine, release.Sha1);
 
         return engine;
@@ -169,15 +172,61 @@ internal sealed class UnrealEngine(
     }
 
     /// <summary>
+    ///     Gets the path of the manifest of the engine of <paramref name="release"/>.
+    /// </summary>
+    /// <param name="engines">The full path of the <c>engines</c> folder.</param>
+    /// <param name="release">The release.</param>
+    /// <returns>
+    ///     The path of <c>engines/&lt;app&gt;.manifest</c>.
+    /// </returns>
+    private static string ManifestOf(string engines, UnrealRelease release)
+    {
+        return DiskSpace.ManifestPath(Path.Combine(engines, release.App));
+    }
+
+    /// <summary>
+    ///     Runs the script with <c>--measure</c> and reads the bytes of the files that the pinned manifest installs.
+    /// </summary>
+    /// <param name="release">The release to measure.</param>
+    /// <param name="engines">The full path of the <c>engines</c> folder.</param>
+    /// <param name="cancellationToken">The token that stops the script.</param>
+    /// <returns>
+    ///     The bytes of the install.
+    /// </returns>
+    /// <exception cref="InvalidDataException">The manifest doesn't match its pin or the script doesn't print the size.</exception>
+    private async Task<long> MeasureAsync(UnrealRelease release, string engines, CancellationToken cancellationToken)
+    {
+        string installTags = release.InstallTags ? "1" : "0";
+        string[] arguments = [MeasureSwitch, release.App, release.Build, release.Sha1, installTags, ManifestOf(engines, release)];
+        long? installBytes = null;
+
+        await RunScriptAsync(
+            release,
+            arguments,
+            line =>
+            {
+                if (line.StartsWith(InstallBytesPrefix, StringComparison.Ordinal)
+                    && long.TryParse(line.AsSpan(InstallBytesPrefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out long bytes))
+                {
+                    installBytes = bytes;
+                }
+            },
+            cancellationToken).ConfigureAwait(false);
+
+        return installBytes ?? throw new InvalidDataException(UnrealSR.FormatEngineSizeMissing(release.App));
+    }
+
+    /// <summary>
     ///     Runs the install script from a new temp folder and deletes that folder afterward.
     /// </summary>
-    /// <param name="release">The release to install.</param>
-    /// <param name="engines">The full path of the <c>engines</c> folder.</param>
+    /// <param name="release">The release that the script installs or measures.</param>
+    /// <param name="scriptArguments">The arguments of the script.</param>
+    /// <param name="onLine">The receiver of each line, after the line goes to the output.</param>
     /// <param name="cancellationToken">The token that stops the script and every process it started.</param>
     /// <returns>
     ///     A task that completes once the script exits with code 0.
     /// </returns>
-    private async Task RunScriptAsync(UnrealRelease release, string engines, CancellationToken cancellationToken)
+    private async Task RunScriptAsync(UnrealRelease release, string[] scriptArguments, Action<string> onLine, CancellationToken cancellationToken)
     {
         string folder = Directory.CreateTempSubdirectory("fixtures-engine-").FullName;
 
@@ -186,10 +235,7 @@ internal sealed class UnrealEngine(
             string script = Path.Combine(folder, ScriptFileName);
             WriteScript(script);
 
-            string manifest = EngineSpace.ManifestPath(Path.Combine(engines, release.App));
-            string installTags = release.InstallTags ? "1" : "0";
-            string[] arguments = UvArguments(script, release.App, release.Build, release.Sha1, engines, installTags, manifest);
-            var info = ProcessRunner.NewStartInfo(UvPath, arguments);
+            var info = ProcessRunner.NewStartInfo(UvPath, UvArguments(script, scriptArguments));
 
             // Decode UTF-8, because the script sets its streams to it and uv prints it.
             info.StandardOutputEncoding = Encoding.UTF8;
@@ -206,6 +252,7 @@ internal sealed class UnrealEngine(
                 {
                     output.WriteLine(line);
                     ProcessRunner.AddToTail(tail, line);
+                    onLine(line);
                 },
                 cancellationToken).ConfigureAwait(false);
 

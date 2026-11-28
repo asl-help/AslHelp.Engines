@@ -165,15 +165,6 @@
   <data name="DurationSeconds" xml:space="preserve">
     <value>{0} s</value>
   </data>
-  <data name="EngineNotOnDrive" xml:space="preserve">
-    <value>'{0}' doesn't start with a drive letter. Pass an --output folder on a local drive.</value>
-  </data>
-  <data name="EngineRemoved" xml:space="preserve">
-    <value>Removed {0}</value>
-  </data>
-  <data name="EngineSpaceLow" xml:space="preserve">
-    <value>Drive {0} has {1} GiB free and the install needs {2} GiB. Free space on it or pass another --output folder.</value>
-  </data>
   <data name="ExtractDestinationExists" xml:space="preserve">
     <value>The destination '{0}' exists. Delete it or pick another folder to extract into.</value>
   </data>
@@ -194,6 +185,9 @@
   </data>
   <data name="OutputInUse" xml:space="preserve">
     <value>The folder {0} is in use by another fixtures run.</value>
+  </data>
+  <data name="OutputNotOnDrive" xml:space="preserve">
+    <value>'{0}' doesn't start with a drive letter. Pass an --output folder on a local drive.</value>
   </data>
   <data name="PackFolderIsLink" xml:space="preserve">
     <value>The folder '{0}' is a link. Replace it with a real folder before packing.</value>
@@ -248,6 +242,12 @@
   </data>
   <data name="SeekOriginInvalid" xml:space="preserve">
     <value>Pass Begin, Current or End.</value>
+  </data>
+  <data name="SpaceLow" xml:space="preserve">
+    <value>Drive {0} has {1} GiB free and the install needs {2} GiB. Free space on it or pass another --output folder.</value>
+  </data>
+  <data name="SpaceRemoved" xml:space="preserve">
+    <value>Removed {0}</value>
   </data>
   <data name="StorePathInvalid" xml:space="preserve">
     <value>The path '{0}' is not a relative '/' separated path. Pass a path like 'players/abc.tar.zst' with no empty, '.' or '..' segment.</value>

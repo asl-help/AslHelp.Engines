@@ -52,6 +52,15 @@ public sealed class UnrealTests
         Assert.That(unreal.ListPlayers(version, Parse(unreal)), Is.EqualTo(expected));
     }
 
+    // The short forms -a and -c narrow the list like --arch and --config.
+    [Test]
+    public void ListPlayers_ShortArchAndConfig_NarrowTheList()
+    {
+        var unreal = NewUnreal();
+
+        Assert.That(unreal.ListPlayers("4.19", Parse(unreal, ["-a", "x86", "-c", "shipping"])), Is.EqualTo(["4.19.2-win-x86-shipping"]));
+    }
+
     // --arch and --config leave out the players that don't fit, also down to none, which the command line then refuses.
     [TestCase("4.19", "x86", "shipping", new[] { "4.19.2-win-x86-shipping" })]
     [TestCase("4.19", "x64", null, new[] { "4.19.2-win-x64-shipping", "4.19.2-win-x64-development" })]
@@ -188,7 +197,7 @@ public sealed class UnrealTests
         FakeUv uv = new(_folder.NewFolder(), 99);
         string engine = WriteEngine("UE_4.19");
 
-        string installed = await NewUnreal(uv: uv).InstallAsync("4.19.2-win-x64-shipping", _outputPath, null, CancellationToken.None);
+        string installed = await NewUnreal(uv: uv).InstallAsync("4.19.2-win-x64-shipping", _outputPath, Room(), null, CancellationToken.None);
 
         using (Assert.EnterMultipleScope())
         {
@@ -453,7 +462,8 @@ public sealed class UnrealTests
                 opened = true;
                 return null;
             },
-            Path.Combine(AppContext.BaseDirectory, "projects"));
+            Path.Combine(AppContext.BaseDirectory, "projects"),
+            _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -470,7 +480,7 @@ public sealed class UnrealTests
     {
         using StringWriter error = new();
 
-        _ = await CommandLine.RunAsync(["build", "unreal4", "--help"], _output, error, [NewUnreal()], _ => null, _projectDirectory);
+        _ = await CommandLine.RunAsync(["build", "unreal4", "--help"], _output, error, [NewUnreal()], _ => null, _projectDirectory, _ => long.MaxValue);
 
         Assert.That(_output.ToString(), Does.Contain("--arch").And.Contains("x64").And.Contains("x86")
             .And.Contains("--config").And.Contains("shipping").And.Contains("development"));
@@ -495,7 +505,8 @@ public sealed class UnrealTests
             error,
             [unreal],
             _ => null,
-            Path.Combine(AppContext.BaseDirectory, "projects"));
+            Path.Combine(AppContext.BaseDirectory, "projects"),
+            _ => long.MaxValue);
 
         string[] folders = [.. _output.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).TakeLast(expected)];
 
@@ -592,7 +603,7 @@ public sealed class UnrealTests
 
     private Task<IReadOnlyList<string>> BuildAsync(FakeBuildHost buildHost, string app, params string[] players)
     {
-        string engine = Path.Combine(_outputPath, UnrealEngine.EnginesFolder, app);
+        string engine = Path.Combine(_outputPath, DiskSpace.EnginesFolder, app);
 
         if (!Directory.Exists(engine))
         {
@@ -617,7 +628,7 @@ public sealed class UnrealTests
     // Write an engine with the pinned marker and the runtime DLL in AppLocalDependencies of both platforms.
     private string WriteEngine(string app)
     {
-        string engine = Path.Combine(_outputPath, UnrealEngine.EnginesFolder, app);
+        string engine = Path.Combine(_outputPath, DiskSpace.EnginesFolder, app);
         var release = EmbeddedReleases<UnrealRelease>.Find(app);
         _ = Directory.CreateDirectory(engine);
         EngineMarker.Write(engine, release.Sha1);
@@ -630,12 +641,17 @@ public sealed class UnrealTests
         return engine;
     }
 
+    // Make room on a drive with the given free space, which by default always has room.
+    private DriveRoom Room(long freeBytes = long.MaxValue)
+    {
+        return new DriveRoom(_outputPath, _ => freeBytes, _output);
+    }
+
     private Unreal NewUnreal(FakeBuildHost? buildHost = null, FakeUv? uv = null, string? buildDirectory = null)
     {
         UnrealEngine engine = new(_output)
         {
             UvPath = uv?.FilePath ?? Path.Combine(_folder.Root, "missing.exe"),
-            FreeBytes = _ => long.MaxValue,
         };
 
         return new Unreal(engine, new LocalPlayerHost(), buildHost ?? new FakeBuildHost(RunFakeStep), buildDirectory ?? _buildDirectory);

@@ -71,7 +71,6 @@ public sealed class UnrealReleaseEdgeCaseTests
     [TestCase("app")]
     [TestCase("build")]
     [TestCase("sha1")]
-    [TestCase("installBytes")]
     [TestCase("installTags")]
     [TestCase("players")]
     [TestCase("editorFlags")]
@@ -90,10 +89,6 @@ public sealed class UnrealReleaseEdgeCaseTests
     [TestCase("\"app\": \"APP_1.2\"", "\"app\": null")]
     [TestCase("\"build\": \"1.2.3-4\"", "\"build\": null")]
     [TestCase("\"sha1\": \"0000000000000000000000000000000000000001\"", "\"sha1\": null")]
-    [TestCase("\"installBytes\": 5", "\"installBytes\": null")]
-    [TestCase("\"installBytes\": 5", "\"installBytes\": \"5\"")]
-    [TestCase("\"installBytes\": 5", "\"installBytes\": 1.5")]
-    [TestCase("\"installBytes\": 5", "\"installBytes\": 9223372036854775808")]
     [TestCase("\"installTags\": true", "\"installTags\": 1")]
     [TestCase("\"installTags\": true", "\"installTags\": null")]
     [TestCase("\"players\": [\"win-x64-shipping\"]", "\"players\": null")]
@@ -162,7 +157,6 @@ public sealed class UnrealReleaseEdgeCaseTests
             "\"app\": \"APP_1.2\"",
             "\"build\": \"1.2.3-4\"",
             "\"sha1\": \"0000000000000000000000000000000000000001\"",
-            "\"installBytes\": 5",
             "\"installTags\": true",
             "\"players\": [\"win-x64-shipping\"]",
             "\"editorFlags\": []",

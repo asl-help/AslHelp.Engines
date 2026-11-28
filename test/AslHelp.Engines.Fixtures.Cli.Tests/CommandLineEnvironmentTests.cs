@@ -144,6 +144,7 @@ public sealed class CommandLineEnvironmentTests
             error,
             [toolchain],
             DavStore.FromEnvironmentIfSet,
-            _projects);
+            _projects,
+            _ => long.MaxValue);
     }
 }

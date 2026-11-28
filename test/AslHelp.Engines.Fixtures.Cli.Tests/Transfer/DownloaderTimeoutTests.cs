@@ -154,6 +154,54 @@ public sealed class DownloaderTimeoutTests
         }
     }
 
+    // The response idles while the drive gets room, so after a slow step the download asks for the file again and reads that response.
+    [Test]
+    public async Task DownloadAsync_MakeRoomTakesLongerThanItsLimit_SendsTheRequestAgain()
+    {
+        byte[] abc = "abc"u8.ToArray();
+        FakeHttpHandler handler = new(_ => FakeHttpHandler.Ok(abc));
+        var downloader = NewDownloader(handler);
+        int calls = 0;
+
+        await downloader.DownloadAsync(
+            new Uri(Url),
+            _destination,
+            PinnedHash.Sha1(AbcSha1),
+            _ =>
+            {
+                calls++;
+                _clock.Advance(Downloader.MakeRoomLimit + TimeSpan.FromSeconds(1));
+            },
+            null,
+            CancellationToken.None);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(handler.Requests, Has.Count.EqualTo(2));
+            Assert.That(calls, Is.EqualTo(1));
+            Assert.That(await File.ReadAllBytesAsync(_destination), Is.EqualTo(abc));
+        }
+    }
+
+    // A step that makes room in time keeps the response, so the file comes from 1 request.
+    [Test]
+    public async Task DownloadAsync_MakeRoomWithinItsLimit_SendsOneRequest()
+    {
+        byte[] abc = "abc"u8.ToArray();
+        FakeHttpHandler handler = new(_ => FakeHttpHandler.Ok(abc));
+        var downloader = NewDownloader(handler);
+
+        await downloader.DownloadAsync(
+            new Uri(Url),
+            _destination,
+            PinnedHash.Sha1(AbcSha1),
+            _ => _clock.Advance(Downloader.MakeRoomLimit),
+            null,
+            CancellationToken.None);
+
+        Assert.That(handler.Requests, Has.Count.EqualTo(1));
+    }
+
     // The default handler follows redirects, because file hosts redirect a download to a mirror.
     [Test]
     public void CreateHandler_Always_FollowsRedirects()

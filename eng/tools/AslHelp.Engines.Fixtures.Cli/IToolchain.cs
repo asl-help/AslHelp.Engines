@@ -67,24 +67,32 @@ internal interface IToolchain
     ///     unless it is there.
     /// </summary>
     /// <remarks>
-    ///     A build calls this once with its 1st missing player, so every player of a version maps to 1 install.
+    ///     A build calls this once with its 1st missing player, so every player of a version maps to 1 install. Before each step that
+    ///     writes, like a download or an extraction, the toolchain makes room for that step with <paramref name="room"/>, once the
+    ///     step knows its size.
     /// </remarks>
     /// <param name="player">A player id from <see cref="ListPlayers"/>.</param>
     /// <param name="outputDirectory">The folder for the downloads and the install.</param>
+    /// <param name="room">The room maker of the drive of <paramref name="outputDirectory"/>.</param>
     /// <param name="progress">The receiver of the download progress or <see langword="null"/> for no reports.</param>
     /// <param name="cancellationToken">The token that stops the install.</param>
     /// <returns>
     ///     The full path of the install.
     /// </returns>
     /// <exception cref="ArgumentNullException">
-    ///     <paramref name="player"/> or <paramref name="outputDirectory"/> is <see langword="null"/>.
+    ///     <paramref name="player"/>, <paramref name="outputDirectory"/> or <paramref name="room"/> is <see langword="null"/>.
     /// </exception>
     /// <exception cref="System.Net.Http.HttpRequestException">The download fails.</exception>
-    /// <exception cref="IOException">The install folder cannot be written.</exception>
+    /// <exception cref="IOException">The install folder cannot be written or the drive doesn't have room for a step.</exception>
     /// <exception cref="InvalidDataException">The download is damaged.</exception>
     /// <exception cref="InvalidOperationException">There is no release of <paramref name="player"/>.</exception>
     /// <exception cref="TimeoutException">The download did not connect, got no response headers or moved no bytes within a time limit.</exception>
-    Task<string> InstallAsync(string player, string outputDirectory, IProgress<TransferProgress>? progress, CancellationToken cancellationToken);
+    Task<string> InstallAsync(
+        string player,
+        string outputDirectory,
+        DriveRoom room,
+        IProgress<TransferProgress>? progress,
+        CancellationToken cancellationToken);
 
     /// <summary>
     ///     Builds every player of <paramref name="players"/> from the player project <paramref name="projectDirectory"/>

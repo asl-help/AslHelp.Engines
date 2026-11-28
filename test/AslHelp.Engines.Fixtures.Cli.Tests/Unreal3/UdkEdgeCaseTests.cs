@@ -178,7 +178,8 @@ public sealed class UdkEdgeCaseTests
                 opened = true;
                 return null;
             },
-            _projects);
+            _projects,
+            _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -208,7 +209,8 @@ public sealed class UdkEdgeCaseTests
                 opened = true;
                 return null;
             },
-            _projects);
+            _projects,
+            _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -243,7 +245,7 @@ public sealed class UdkEdgeCaseTests
     {
         string[] arguments = ["build", udk.Name, version, "--output", _output];
 
-        return CommandLine.RunAsync(arguments, output, error, [udk], _ => store, _projects);
+        return CommandLine.RunAsync(arguments, output, error, [udk], _ => store, _projects, _ => long.MaxValue);
     }
 
     // Write the files every build step reads at the install folder that InstallAsync finds, so nothing gets downloaded.

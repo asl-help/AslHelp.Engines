@@ -19,6 +19,11 @@ internal sealed class Downloader : IDisposable
     /// </summary>
     private const int CopyBufferSize = 81920;
 
+    /// <summary>
+    ///     Limits the time a response waits for the step that makes room to 10 seconds. After a longer step the request is sent again.
+    /// </summary>
+    internal static readonly TimeSpan MakeRoomLimit = TimeSpan.FromSeconds(10);
+
     private readonly HttpClient _client;
     private readonly TimeProvider _timeProvider;
 
@@ -104,10 +109,59 @@ internal sealed class Downloader : IDisposable
     ///     <see cref="TransferTimer.StallLimit"/> or a body read moved no bytes for <see cref="TransferTimer.StallLimit"/>.
     ///     The partial file is kept for the next run.
     /// </exception>
+    public Task DownloadAsync(
+        Uri url,
+        string destinationFile,
+        PinnedHash hash,
+        IProgress<TransferProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        return DownloadAsync(url, destinationFile, hash, null, progress, cancellationToken);
+    }
+
+    /// <summary>
+    ///     Downloads <paramref name="url"/> like <see cref="DownloadAsync(Uri, string, PinnedHash, IProgress{TransferProgress}?, CancellationToken)"/>
+    ///     and calls <paramref name="makeRoom"/> before the 1st byte of the body is written.
+    /// </summary>
+    /// <remarks>
+    ///     <paramref name="makeRoom"/> gets the bytes the response still sends from its <c>Content-Length</c>, which is 0
+    ///     when the response doesn't have one. A file that is there or a partial file with the pinned hash sends no request and doesn't call it.
+    ///     A call that takes longer than <see cref="MakeRoomLimit"/> sends the request once more.
+    /// </remarks>
+    /// <param name="url">The absolute URL of the file.</param>
+    /// <param name="destinationFile">The file to write. A missing folder is created.</param>
+    /// <param name="hash">The hash the file must have.</param>
+    /// <param name="makeRoom">The step that frees the drive for the bytes still to come or <see langword="null"/> for none.</param>
+    /// <param name="progress">
+    ///     The receiver of the bytes on disk (a resumed prefix included) and the length of the file after each chunk
+    ///     or <see langword="null"/> for no reports.
+    /// </param>
+    /// <param name="cancellationToken">The token that stops the download. The partial file is kept for the next run.</param>
+    /// <returns>
+    ///     A task that completes once <paramref name="destinationFile"/> has the pinned hash.
+    /// </returns>
+    /// <exception cref="ArgumentException"><paramref name="url"/> is relative or <paramref name="destinationFile"/> is empty.</exception>
+    /// <exception cref="ArgumentNullException">
+    ///     <paramref name="url"/>, <paramref name="destinationFile"/> or <paramref name="hash"/> is <see langword="null"/>.
+    /// </exception>
+    /// <exception cref="HttpRequestException">
+    ///     The server returned a status other than 200, a 206 that starts at the partial length or a 416 to a resume.
+    /// </exception>
+    /// <exception cref="IOException">
+    ///     The connection dropped, the file cannot be written, <paramref name="makeRoom"/> fails or the complete partial file cannot
+    ///     replace <paramref name="destinationFile"/>. The partial file is kept for the next run.
+    /// </exception>
+    /// <exception cref="InvalidDataException">The file does not have the pinned hash. The partial file is deleted.</exception>
+    /// <exception cref="TimeoutException">
+    ///     Connecting took longer than <see cref="HttpHandlers.ConnectLimit"/>, the response headers took longer than
+    ///     <see cref="TransferTimer.StallLimit"/> or a body read moved no bytes for <see cref="TransferTimer.StallLimit"/>.
+    ///     The partial file is kept for the next run.
+    /// </exception>
     public async Task DownloadAsync(
         Uri url,
         string destinationFile,
         PinnedHash hash,
+        Action<long>? makeRoom,
         IProgress<TransferProgress>? progress,
         CancellationToken cancellationToken)
     {
@@ -140,12 +194,12 @@ internal sealed class Downloader : IDisposable
 
             await using (partial.ConfigureAwait(false))
             {
-                actualHex = await ReceiveAsync(url, partialFile, partial, hash, hasher, progress, buffer, cancellationToken).ConfigureAwait(false);
+                actualHex = await ReceiveAsync(url, partialFile, partial, hash, hasher, makeRoom, progress, buffer, cancellationToken).ConfigureAwait(false);
             }
         }
         else
         {
-            actualHex = await ReceiveAsync(url, partialFile, null, hash, hasher, progress, buffer, cancellationToken).ConfigureAwait(false);
+            actualHex = await ReceiveAsync(url, partialFile, null, hash, hasher, makeRoom, progress, buffer, cancellationToken).ConfigureAwait(false);
         }
 
         Complete(partialFile, destinationFile, url, hash, actualHex);
@@ -167,6 +221,7 @@ internal sealed class Downloader : IDisposable
     /// <param name="partial">The open partial file from an earlier run or <see langword="null"/> when there is none.</param>
     /// <param name="hash">The pinned hash, which the partial file may have already.</param>
     /// <param name="hasher">The empty hash of the pinned algorithm.</param>
+    /// <param name="makeRoom">The step that frees the drive for the bytes still to come or <see langword="null"/> for none.</param>
     /// <param name="progress">
     ///     The receiver of the bytes on disk and the length of the file after each chunk or <see langword="null"/> for no reports.
     /// </param>
@@ -185,6 +240,7 @@ internal sealed class Downloader : IDisposable
         FileStream? partial,
         PinnedHash hash,
         IncrementalHash hasher,
+        Action<long>? makeRoom,
         IProgress<TransferProgress>? progress,
         byte[] buffer,
         CancellationToken cancellationToken)
@@ -207,19 +263,11 @@ internal sealed class Downloader : IDisposable
             }
         }
 
-        using HttpRequestMessage request = new(HttpMethod.Get, url);
-
-        if (offset > 0)
-        {
-            request.Headers.Range = new RangeHeaderValue(offset, null);
-        }
-
         using TransferTimer timer = new(_timeProvider, cancellationToken);
 
         try
         {
-            // Read only the headers, so the body is streamed to disk and not buffered in memory.
-            using var response = await timer.SendAsync(_client, request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+            using var response = await GetWithRoomAsync(url, offset, makeRoom, timer).ConfigureAwait(false);
 
             switch (response.StatusCode)
             {
@@ -266,6 +314,59 @@ internal sealed class Downloader : IDisposable
         {
             throw timer.TimedOut(exception, HttpMethod.Get, url.ToString(), RetryFix(partialFile));
         }
+    }
+
+    // Send the GET and call makeRoom for a response whose body goes to the partial file. Send the GET once more after a call
+    // that took longer than MakeRoomLimit, because a server can close a response that idles while the drive gets room.
+    private async Task<HttpResponseMessage> GetWithRoomAsync(Uri url, long offset, Action<long>? makeRoom, TransferTimer timer)
+    {
+        var response = await GetAsync(url, offset, timer).ConfigureAwait(false);
+
+        if (makeRoom is null || !HasBodyToWrite(response, offset))
+        {
+            return response;
+        }
+
+        long started = _timeProvider.GetTimestamp();
+
+        try
+        {
+            makeRoom(response.Content.Headers.ContentLength ?? 0);
+        }
+        catch
+        {
+            response.Dispose();
+
+            throw;
+        }
+
+        if (_timeProvider.GetElapsedTime(started) <= MakeRoomLimit)
+        {
+            return response;
+        }
+
+        response.Dispose();
+
+        return await GetAsync(url, offset, timer).ConfigureAwait(false);
+    }
+
+    private async Task<HttpResponseMessage> GetAsync(Uri url, long offset, TransferTimer timer)
+    {
+        using HttpRequestMessage request = new(HttpMethod.Get, url);
+
+        if (offset > 0)
+        {
+            request.Headers.Range = new RangeHeaderValue(offset, null);
+        }
+
+        // Read only the headers, so the body is streamed to disk and not buffered in memory.
+        return await timer.SendAsync(_client, request, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+    }
+
+    private static bool HasBodyToWrite(HttpResponseMessage response, long offset)
+    {
+        return response.StatusCode == HttpStatusCode.OK
+            || (response.StatusCode == HttpStatusCode.PartialContent && offset > 0 && IsRestOfFile(response.Content.Headers.ContentRange, offset));
     }
 
     /// <summary>

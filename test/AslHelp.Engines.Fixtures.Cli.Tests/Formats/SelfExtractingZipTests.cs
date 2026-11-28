@@ -43,6 +43,15 @@ public sealed class SelfExtractingZipTests
         }
     }
 
+    // The extracted sizes add up from the central directory after the stub, so the room for an extraction is known before it starts.
+    [Test]
+    public void UnpackedBytes_ZipAfterStub_AddsUpTheEntrySizes()
+    {
+        string path = WriteSelfExtractingZip(Stub(4096), ("player.exe", new byte[300]), ("data/file.bin", new byte[25]));
+
+        Assert.That(SelfExtractingZip.UnpackedBytes(path), Is.EqualTo(325));
+    }
+
     // A plain zip has a stub of 0 bytes.
     [Test]
     public void Extract_ZipWithoutStub_WritesEveryFile()

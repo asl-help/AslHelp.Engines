@@ -203,7 +203,7 @@ public sealed class CommandLineTests
         };
 
         int code = await CommandLine.RunAsync(
-            ["engine", _folder.Root, "--output", _report, "-j", "1"],
+            ["engine", _folder.Root, "-o", _report, "-j", "1"],
             _output,
             _error,
             [measurer],
@@ -495,7 +495,7 @@ public sealed class CommandLineTests
         FakeMeasurer measurer = new();
 
         int code = await CommandLine.RunAsync(
-            ["engine", _folder.Root, "--output", _report, "--targets", targets],
+            ["engine", _folder.Root, "--output", _report, "-t", targets],
             _output,
             _error,
             [measurer],

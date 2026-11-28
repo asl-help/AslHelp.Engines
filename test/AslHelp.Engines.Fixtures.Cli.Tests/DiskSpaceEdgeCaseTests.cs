@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace AslHelp.Engines.Fixtures.Cli.Tests;
 
-public sealed class EngineSpaceEdgeCaseTests
+public sealed class DiskSpaceEdgeCaseTests
 {
     private const string Sha1 = "0000000000000000000000000000000000000001";
 
@@ -16,12 +16,14 @@ public sealed class EngineSpaceEdgeCaseTests
     private string _engines = null!;
     private TestFolder _folder = null!;
     private StringWriter _output = null!;
+    private string _root = null!;
 
     [SetUp]
     public void SetUp()
     {
         _folder = new TestFolder();
-        _engines = _folder.NewFolder();
+        _root = _folder.NewFolder();
+        _engines = Directory.CreateDirectory(Path.Combine(_root, DiskSpace.EnginesFolder)).FullName;
         _output = new StringWriter();
     }
 
@@ -39,7 +41,7 @@ public sealed class EngineSpaceEdgeCaseTests
         string engine = NewFinishedEngine("engine", ageInDays: 1);
         File.SetAttributes(Path.Combine(engine, EngineMarker.FileName), FileAttributes.ReadOnly);
 
-        EngineSpace.Delete(engine);
+        DiskSpace.Delete(engine);
 
         Assert.That(engine, Does.Not.Exist);
     }
@@ -51,7 +53,7 @@ public sealed class EngineSpaceEdgeCaseTests
         string engine = NewFinishedEngine("engine", ageInDays: 1);
         File.SetAttributes(engine, FileAttributes.Directory | FileAttributes.ReadOnly);
 
-        EngineSpace.Delete(engine);
+        DiskSpace.Delete(engine);
 
         Assert.That(engine, Does.Not.Exist);
     }
@@ -69,7 +71,7 @@ public sealed class EngineSpaceEdgeCaseTests
         var info = ProcessRunner.NewStartInfo(_cmdPath, "/c", "mklink", "/J", Path.Combine(engine, "link"), target);
         await ProcessRunner.RunAsync(info, CancellationToken.None);
 
-        EngineSpace.Delete(engine);
+        DiskSpace.Delete(engine);
 
         using (Assert.EnterMultipleScope())
         {
@@ -98,7 +100,7 @@ public sealed class EngineSpaceEdgeCaseTests
         File.WriteAllText(file, "text");
         File.SetAttributes(file, FileAttributes.ReadOnly);
 
-        EngineSpace.Delete(engine);
+        DiskSpace.Delete(engine);
 
         Assert.That(engine, Does.Not.Exist);
     }
@@ -113,7 +115,7 @@ public sealed class EngineSpaceEdgeCaseTests
         string wanted = NewFinishedEngine("wanted", ageInDays: 9);
 
         Assert.That(
-            () => EngineSpace.MakeRoom(_engines, wanted + pathEnd, 0, [], _ => 0, _output),
+            () => DiskSpace.MakeRoom(_root, Space(0, [wanted + pathEnd], []), _ => 0, _output),
             Throws.InstanceOf<IOException>());
         Assert.That(wanted, Does.Exist);
     }
@@ -124,11 +126,11 @@ public sealed class EngineSpaceEdgeCaseTests
     {
         string first = NewFinishedEngine("a", ageInDays: 1);
         string second = NewFinishedEngine("b", ageInDays: 2);
-        long start = EngineSpace.ScratchBytes - Sha1.Length;
+        long start = DiskSpace.MarginBytes - Sha1.Length;
 
         Assert.That(
-            () => EngineSpace.MakeRoom(_engines, Path.Combine(_engines, "wanted"), 0, [], _ => start + DeletedOf(2), _output),
-            Throws.InstanceOf<IOException>().With.Message.Contains("has 39 GiB free").And.Message.Contains("needs 40 GiB"));
+            () => DiskSpace.MakeRoom(_root, Space(0, [Path.Combine(_engines, "wanted")], []), _ => start + DeletedOf(2), _output),
+            Throws.InstanceOf<IOException>().With.Message.Contains("has 19 GiB free").And.Message.Contains("needs 20 GiB"));
 
         using (Assert.EnterMultipleScope())
         {
@@ -147,7 +149,7 @@ public sealed class EngineSpaceEdgeCaseTests
         using (File.Open(Path.Combine(oldest, "file.bin"), FileMode.Create, FileAccess.Write, FileShare.None))
         {
             Assert.That(
-                () => EngineSpace.MakeRoom(_engines, Path.Combine(_engines, "wanted"), 0, [], _ => EngineSpace.ScratchBytes - 1, _output),
+                () => DiskSpace.MakeRoom(_root, Space(0, [Path.Combine(_engines, "wanted")], []), _ => DiskSpace.MarginBytes - 1, _output),
                 Throws.InstanceOf<IOException>().Or.InstanceOf<UnauthorizedAccessException>());
         }
 
@@ -167,7 +169,7 @@ public sealed class EngineSpaceEdgeCaseTests
     {
         string engine = NewFinishedEngine(name, ageInDays: 1);
 
-        EngineSpace.MakeRoom(_engines, Path.Combine(_engines, "wanted"), 0, [], _ => EngineSpace.ScratchBytes - 1 + DeletedOf(1), _output);
+        DiskSpace.MakeRoom(_root, Space(0, [Path.Combine(_engines, "wanted")], []), _ => DiskSpace.MarginBytes - 1 + DeletedOf(1), _output);
 
         using (Assert.EnterMultipleScope())
         {
@@ -186,7 +188,7 @@ public sealed class EngineSpaceEdgeCaseTests
         EngineMarker.Write(subfolder, Sha1);
 
         Assert.That(
-            () => EngineSpace.MakeRoom(_engines, Path.Combine(_engines, "wanted"), 0, [], _ => 0, _output),
+            () => DiskSpace.MakeRoom(_root, Space(0, [Path.Combine(_engines, "wanted")], []), _ => 0, _output),
             Throws.InstanceOf<IOException>());
         Assert.That(unfinished, Does.Exist);
     }
@@ -198,13 +200,18 @@ public sealed class EngineSpaceEdgeCaseTests
     public void FreeBytes_RootStartingWithTwoBackslashes_ThrowsWithThePath(string directory)
     {
         Assert.That(
-            () => EngineSpace.FreeBytes(directory),
+            () => DiskSpace.FreeBytes(directory),
             Throws.InstanceOf<IOException>().With.Message.Contains(directory).And.Message.Contains("--output"));
     }
 
     private int DeletedOf(int engines)
     {
         return engines - Directory.GetDirectories(_engines).Length;
+    }
+
+    private static InstallSpace Space(long missingBytes, string[] keepPaths, string[] leftovers)
+    {
+        return new InstallSpace(missingBytes, 0, keepPaths, leftovers);
     }
 
     private string NewFinishedEngine(string name, int ageInDays)

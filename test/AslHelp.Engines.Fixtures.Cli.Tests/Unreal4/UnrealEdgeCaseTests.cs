@@ -197,7 +197,7 @@ public sealed class UnrealEdgeCaseTests
         using (Assert.EnterMultipleScope())
         {
             Assert.That(Directory.Exists(Path.Combine(_outputPath, "unreal4-4.19.2-build")), Is.True);
-            Assert.That(Directory.Exists(Path.Combine(_outputPath, UnrealEngine.EnginesFolder, "unreal4-4.19.2-build")), Is.False);
+            Assert.That(Directory.Exists(Path.Combine(_outputPath, DiskSpace.EnginesFolder, "unreal4-4.19.2-build")), Is.False);
         }
     }
 
@@ -346,7 +346,8 @@ public sealed class UnrealEdgeCaseTests
                 opened = true;
                 return null;
             },
-            Path.Combine(AppContext.BaseDirectory, "projects"));
+            Path.Combine(AppContext.BaseDirectory, "projects"),
+            _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -374,7 +375,8 @@ public sealed class UnrealEdgeCaseTests
                 opened = true;
                 return null;
             },
-            Path.Combine(AppContext.BaseDirectory, "projects"));
+            Path.Combine(AppContext.BaseDirectory, "projects"),
+            _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -487,7 +489,7 @@ public sealed class UnrealEdgeCaseTests
 
     private string EnginePath(string app)
     {
-        return Path.Combine(_outputPath, UnrealEngine.EnginesFolder, app);
+        return Path.Combine(_outputPath, DiskSpace.EnginesFolder, app);
     }
 
     // Write an engine with the pinned marker and a runtime DLL with other bytes in AppLocalDependencies of each platform.
@@ -509,7 +511,6 @@ public sealed class UnrealEdgeCaseTests
         UnrealEngine engine = new(_output)
         {
             UvPath = Path.Combine(_folder.Root, "missing.exe"),
-            FreeBytes = _ => long.MaxValue,
         };
 
         buildHost ??= new FakeBuildHost(step => RunFakeStep(step));

@@ -168,11 +168,13 @@ just fixtures build <toolchain> <version> --output <folder>
 |---|---|
 | `<toolchain>` | The toolchain that builds the players, `unreal3` or `unreal4`. |
 | `<version>` | The toolchain version, written the way its release lists it. |
-| `--output` | The folder for the downloads, the install and the players. Required. |
+| `--output`, `-o` | The folder for the downloads, the install and the players. Required. |
 
 `just fixtures` runs from your current folder, so a relative `--output` path starts there. If you don't use `just`, run `dotnet run --project eng/tools/AslHelp.Engines.Fixtures.Cli -- <arguments>` from the repo root.
 
 1 version can have several players. The `build` command installs the toolchain once, builds all the players in 1 pass and checks that each one starts. Each player ends up in `<output>/<toolchain>-<version>-<hash>` and the command prints those folders at the end, 1 per line. A download that stops picks up where it left off on the next run.
+
+Before each download and each extraction of an install, the `build` command makes sure the drive has room for that step, the build and 20 GiB on top. It reads each size when the step starts: a download from the server's response, an extraction from the file list of the installer and an engine from its manifest. When the drive doesn't have the room, the command removes what failed runs left behind, then the oldest installers in `<output>/downloads` and then the oldest finished engines in `<output>/engines`, until it fits. Player folders always stay. If removing all of that still wouldn't be enough, nothing gets removed and the command fails with the free and the needed space.
 
 ### Cache
 
@@ -216,7 +218,7 @@ Every pinned version from 2010-06-BETA on builds. The build refuses 2009-11-BETA
 just fixtures build unreal4 <version> --output <folder> [--arch x64|x86] [--config shipping|development]
 ```
 
-Pass the version as `4.19`, `4.19.2` or `UE_4.19`. If you leave out `--arch` and `--config`, it builds every player of the version (see the table below).
+Pass the version as `4.19`, `4.19.2` or `UE_4.19`. If you leave out `--arch` and `--config`, it builds every player of the version (see the table below). Their short forms are `-a` and `-c`.
 
 We get the engines from Epic with [legendary](https://github.com/legendary-gl/legendary), pinned to 1 hotfix per minor version from 4.0 to 5.8. `eng/fixtures/unreal4/releases.json` lists them.
 
@@ -232,7 +234,7 @@ docker build -t asl-help/unreal4-build:<tag> "<repo>\artifacts\bin\AslHelp.Engin
 
 The image needs Docker with Windows containers and about 40 GiB free under the Docker data root. Its tag is a hash of the image folder, so you need a new image whenever a file there changes.
 
-Engines get installed to `<output>/engines/UE_<minor>`. All 37 engines take 563 GiB together and the biggest one is 5.3 at 35 GiB. A build needs the engine's size plus 40 GiB of free scratch space. When the drive runs low, the tool removes the scratch folders of failed builds and then the oldest finished engines. If long paths are off in Windows, keep `--output` at 28 characters or less.
+Engines get installed to `<output>/engines/UE_<minor>`. All 37 engines take 563 GiB together and the biggest one is 5.3 at 35 GiB. A build needs the engine's size plus 20 GiB of cook scratch, on top of the 20 GiB every build keeps free. The scratch folders of failed builds of other versions count as leftovers. If long paths are off in Windows, keep `--output` at 28 characters or less.
 
 The build runs the scripts in `eng/fixtures/unreal4/build` in containers of the image and writes each step's log to `<output>/unreal4-<version>-build/logs`. When a build fails it keeps that folder. The top of each script shows the `docker run` line for running the step by hand.
 
@@ -264,7 +266,7 @@ Each version's row in `releases.json` declares what's different for that version
 
 #### Adding an Unreal Engine version
 
-1. Add a row to `eng/fixtures/unreal4/releases.json` with `version`, `app` (like `UE_4.19`), `build`, the `sha1` of the manifest, `installBytes`, `installTags`, `players`, `editorFlags`, `packageFlags`, `pathPrepend` (or `null`) and `runtimes`. Add it to the table above too.
+1. Add a row to `eng/fixtures/unreal4/releases.json` with `version`, `app` (like `UE_4.19`), `build`, the `sha1` of the manifest, `installTags`, `players`, `editorFlags`, `packageFlags`, `pathPrepend` (or `null`) and `runtimes`. Add it to the table above too.
 2. Run the build command for it.
 
 ## Measuring
@@ -277,11 +279,11 @@ just measure <engine> <players> --output <file> [--profiles <folder>] [--targets
 |---|---|
 | `<engine>` | The engine's subcommand, `unreal3` or `unreal4`. `just measure <engine> --help` lists its options. |
 | `<players>` | The folder with the players from `just fixtures build`. |
-| `--output` | The file to write the JSON report to. |
-| `--profiles` | The folder to write 1 profile document per group to. Leave it out to skip them. |
+| `--output`, `-o` | The file to write the JSON report to. |
+| `--profiles`, `-p` | The folder to write 1 profile document per group to. Leave it out to skip them. |
 | `--jobs`, `-j` | How many players to measure at once. The default is the engine's limit, which is 4 for `unreal4` and 1 for `unreal3`. Lower it if you run short on memory. |
-| `--min-literals` | The fewest bytes a route keeps unmasked, 6 by default. A search at run time also reads the writable memory of the game, where a shorter pattern can match random data. |
-| `--targets` | The file with the values to find. It replaces the built-in list, so you can change it without a rebuild. |
+| `--min-literals`, `-m` | The fewest bytes a route keeps unmasked, 6 by default. A search at run time also reads the writable memory of the game, where a shorter pattern can match random data. |
+| `--targets`, `-t` | The file with the values to find. It replaces the built-in list, so you can change it without a rebuild. |
 
 `unreal3` starts each player on your machine and reads its memory. `unreal4` only reads the PDB and the executable of each player, so it takes a few seconds per player. It also takes `--arch x64|x86` and `--config shipping|development`, which both default to every player.
 

@@ -275,6 +275,22 @@ public sealed class InstallEngineScriptEdgeCaseTests
         }
     }
 
+    // Each line has the mean speed since the line before, so a second without a finished chunk doesn't print 0.
+    [Test]
+    [Platform("Win")]
+    public async Task Install_DownloadInBursts_PrintsTheMeanSpeedSinceTheLastLine()
+    {
+        var (exitCode, lines) = await RunCaseAsync("download-bursts");
+
+        string[] expected = ["download: 0%, 0.0 MiB/s", "download: 5%, 2.7 MiB/s", "download: 10%, 4.0 MiB/s"];
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exitCode, Is.Zero);
+            Assert.That(lines.FindAll(line => line.StartsWith("download: ", StringComparison.Ordinal)), Is.EqualTo(expected));
+        }
+    }
+
     // A download without a finished chunk for too long kills the manager and its tree and exits 1, so a retry loop never hangs the build.
     [Test]
     [Platform("Win")]
@@ -302,6 +318,80 @@ public sealed class InstallEngineScriptEdgeCaseTests
             Assert.That(exitCode, Is.EqualTo(13));
             Assert.That(lines, Does.Contain("Café/日本語.bin"));
             Assert.That(lines, Has.Some.EndsWith(":Ünï/ключ.bin").And.StartsWith("resume: "));
+        }
+    }
+
+    // The manifest of an earlier run with the pinned sha1 gives the size without a login or a request. The tag filter leaves the tagged file out.
+    [Test]
+    [Platform("Win")]
+    public async Task Measure_PinnedManifestOnDisk_PrintsTheUntaggedBytesWithoutARequest()
+    {
+        var (exitCode, lines) = await RunCaseAsync("measure-local");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exitCode, Is.Zero);
+            Assert.That(lines, Does.Contain("install bytes: 5"));
+            Assert.That(lines, Does.Contain("manifest requests: 0"));
+        }
+    }
+
+    // Without a manifest on disk the size comes from the pinned manifest of 1 request, which the measure doesn't write.
+    [Test]
+    [Platform("Win")]
+    public async Task Measure_NoManifestOnDisk_RequestsThePinnedManifest()
+    {
+        var (exitCode, lines) = await RunCaseAsync("measure-remote");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exitCode, Is.Zero);
+            Assert.That(lines, Does.Contain("install bytes: 5"));
+            Assert.That(lines, Does.Contain("manifest requests: 1"));
+            Assert.That(lines, Does.Contain("manifest file: False"));
+        }
+    }
+
+    // A manifest on disk of another pin doesn't count, so the size comes from a request.
+    [Test]
+    [Platform("Win")]
+    public async Task Measure_ManifestOnDiskOfOtherPin_RequestsThePinnedManifest()
+    {
+        var (exitCode, lines) = await RunCaseAsync("measure-stale-local");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exitCode, Is.Zero);
+            Assert.That(lines, Does.Contain("install bytes: 5"));
+            Assert.That(lines, Does.Contain("manifest requests: 1"));
+        }
+    }
+
+    // Without a manifest on disk a failed login exits 10 before any request.
+    [Test]
+    [Platform("Win")]
+    public async Task Measure_NoManifestOnDiskAndLoginFails_Exits10()
+    {
+        var (exitCode, lines) = await RunCaseAsync("measure-login-false");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exitCode, Is.EqualTo(10));
+            Assert.That(lines, Does.Contain("manifest requests: 0"));
+        }
+    }
+
+    // A manifest on disk with the pinned sha1 and another build exits 11 with both values.
+    [Test]
+    [Platform("Win")]
+    public async Task Measure_ManifestOnDiskOfOtherBuild_Exits11WithBothValues()
+    {
+        var (exitCode, lines) = await RunCaseAsync("measure-local-other-build");
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(exitCode, Is.EqualTo(11));
+            Assert.That(lines, Does.Contain("build: pinned 1.2.3-4 got 1.2.3-5"));
         }
     }
 

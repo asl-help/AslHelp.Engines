@@ -114,13 +114,23 @@ internal sealed class FakeToolchain(
         return pinned;
     }
 
+    /// <summary>
+    ///     Gets the space that <see cref="InstallAsync"/> makes room for before it installs. The default needs nothing.
+    /// </summary>
+    public InstallSpace Space { get; init; } = new(0, 0, [], []);
+
     /// <inheritdoc/>
+    /// <remarks>
+    ///     The call makes room for <see cref="Space"/> before it goes into <see cref="Calls"/>, so a drive without room fails before the install.
+    /// </remarks>
     public Task<string> InstallAsync(
         string player,
         string outputDirectory,
+        DriveRoom room,
         IProgress<TransferProgress>? progress,
         CancellationToken cancellationToken)
     {
+        room.MakeFor(Space);
         Record($"{nameof(InstallAsync)} {player} {outputDirectory}");
 
         if (Progress is { } value)

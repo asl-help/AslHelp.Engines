@@ -43,7 +43,7 @@ public sealed class CommandLineTests
         {
             opened = true;
             return null;
-        }, _projects);
+        }, _projects, _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -67,7 +67,7 @@ public sealed class CommandLineTests
         {
             opened = true;
             return null;
-        }, _projects);
+        }, _projects, _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -93,7 +93,7 @@ public sealed class CommandLineTests
         {
             opened = true;
             return null;
-        }, _projects);
+        }, _projects, _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -114,7 +114,7 @@ public sealed class CommandLineTests
         bool opened = false;
 
         int code = await CommandLine.RunAsync(
-            ["build", "third", "1.0", "--output", _output],
+            ["build", "third", "1.0", "-o", _output],
             output,
             error,
             [first, second],
@@ -123,7 +123,8 @@ public sealed class CommandLineTests
                 opened = true;
                 return null;
             },
-            _projects);
+            _projects,
+            _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -149,7 +150,7 @@ public sealed class CommandLineTests
 
         string[] arguments = ["build", "player", "1.0", "--output", _output];
 
-        int code = await CommandLine.RunAsync(arguments, output, error, [other, toolchain], _ => null, _projects);
+        int code = await CommandLine.RunAsync(arguments, output, error, [other, toolchain], _ => null, _projects, _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -160,6 +161,90 @@ public sealed class CommandLineTests
             Assert.That(other.Calls, Is.Empty);
             Assert.That(LastLine(output), Is.EqualTo(PlayerPath(toolchain)));
             Assert.That(error.ToString(), Is.Empty);
+        }
+    }
+
+    // A drive short for what the toolchain measures fails before the install of any toolchain, with the needed space in the message.
+    [Test]
+    public async Task RunAsync_DriveShortForTheMeasuredInstall_FailsBeforeTheInstall()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        FakeToolchain toolchain = new("player") { Space = new InstallSpace(10L << 30, 0, [], []) };
+
+        string[] arguments = ["build", "player", "1.0", "--output", _output];
+
+        int code = await CommandLine.RunAsync(arguments, output, error, [toolchain], _ => null, _projects, _ => 0);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.EqualTo(1));
+            Assert.That(toolchain.Calls, Is.Empty);
+            Assert.That(error.ToString(), Does.Contain("needs 30 GiB"));
+        }
+    }
+
+    // The leftovers that the toolchain lists go before the install, so every toolchain frees the drive the same way.
+    [Test]
+    public async Task RunAsync_ShortDriveWithLeftover_RemovesItAndInstalls()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        string leftover = _folder.NewFolder();
+        TestFolder.WriteBytes(leftover, "file.bin", [1]);
+        FakeToolchain toolchain = new("player") { Space = new InstallSpace(0, 0, [], [leftover]) };
+
+        string[] arguments = ["build", "player", "1.0", "--output", _output];
+
+        int code = await CommandLine.RunAsync(
+            arguments,
+            output,
+            error,
+            [toolchain],
+            _ => null,
+            _projects,
+            _ => Directory.Exists(leftover) ? 0 : long.MaxValue);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, error.ToString());
+            Assert.That(leftover, Does.Not.Exist);
+            Assert.That(output.ToString(), Does.Contain($"Removed {leftover}"));
+            Assert.That(toolchain.Calls[0], Is.EqualTo($"InstallAsync 1.0 {_output}"));
+        }
+    }
+
+    // A download the toolchain keeps stays while an older one goes, also when the toolchain spells the kept path another way.
+    [Test]
+    public async Task RunAsync_ShortDriveWithKeptDownload_RemovesOnlyTheOther()
+    {
+        using StringWriter output = new();
+        using StringWriter error = new();
+        string downloads = Path.Combine(_output, "downloads");
+        TestFolder.WriteBytes(downloads, "kept.exe", [1]);
+        TestFolder.WriteBytes(downloads, "other.exe", [1]);
+        string kept = Path.Combine(downloads, "kept.exe");
+        string other = Path.Combine(downloads, "other.exe");
+        File.SetLastWriteTimeUtc(kept, DateTime.UtcNow.AddDays(-9));
+        string spelling = Path.Combine(_output, "downloads", ".", "KEPT.EXE");
+        FakeToolchain toolchain = new("player") { Space = new InstallSpace(0, 0, [spelling], []) };
+
+        string[] arguments = ["build", "player", "1.0", "--output", _output];
+
+        int code = await CommandLine.RunAsync(
+            arguments,
+            output,
+            error,
+            [toolchain],
+            _ => null,
+            _projects,
+            _ => DiskSpace.MarginBytes - (File.Exists(other) ? 1 : 0));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(code, Is.Zero, error.ToString());
+            Assert.That(kept, Does.Exist);
+            Assert.That(other, Does.Not.Exist);
         }
     }
 
@@ -334,7 +419,7 @@ public sealed class CommandLineTests
 
         string[] arguments = ["build", "player", "1.0-beta", "--output", _output];
 
-        int code = await CommandLine.RunAsync(arguments, output, error, [toolchain], _ => null, _projects);
+        int code = await CommandLine.RunAsync(arguments, output, error, [toolchain], _ => null, _projects, _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -439,7 +524,8 @@ public sealed class CommandLineTests
                 writer.WriteLine("no store");
                 return null;
             },
-            _projects);
+            _projects,
+            _ => long.MaxValue);
 
         string[] lines = output.ToString().Split(Environment.NewLine);
 
@@ -615,7 +701,8 @@ public sealed class CommandLineTests
                 opened = true;
                 return null;
             },
-            _projects);
+            _projects,
+            _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -639,7 +726,7 @@ public sealed class CommandLineTests
         {
             opened = true;
             return null;
-        }, _projects);
+        }, _projects, _ => long.MaxValue);
 
         using (Assert.EnterMultipleScope())
         {
@@ -680,7 +767,7 @@ public sealed class CommandLineTests
     {
         string[] arguments = ["build", toolchain.Name, "1.0", "--output", _output, .. options];
 
-        return CommandLine.RunAsync(arguments, output, error, [toolchain], _ => store, _projects);
+        return CommandLine.RunAsync(arguments, output, error, [toolchain], _ => store, _projects, _ => long.MaxValue);
     }
 
     private string BuiltPath(string player)

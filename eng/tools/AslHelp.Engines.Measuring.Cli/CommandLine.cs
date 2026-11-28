@@ -66,11 +66,11 @@ internal static class CommandLine
         CancellationToken cancellationToken = default)
     {
         Argument<string> playersArgument = new("players") { Description = SR.PlayersDescription };
-        Option<string> outputOption = new("--output") { Description = SR.OutputDescription, Required = true };
-        Option<string?> profilesOption = new("--profiles") { Description = SR.ProfilesDescription };
-        Option<string?> targetsOption = new("--targets") { Description = SR.TargetsDescription };
+        Option<string> outputOption = new("--output", "-o") { Description = SR.OutputDescription, Required = true };
+        Option<string?> profilesOption = new("--profiles", "-p") { Description = SR.ProfilesDescription };
+        Option<string?> targetsOption = new("--targets", "-t") { Description = SR.TargetsDescription };
         Option<int?> jobsOption = new("--jobs", "-j") { Description = SR.JobsDescription };
-        Option<int> minLiteralsOption = new("--min-literals")
+        Option<int> minLiteralsOption = new("--min-literals", "-m")
         {
             Description = SR.MinLiteralsDescription,
             DefaultValueFactory = static _ => RouteCandidates.DefaultLeastLiterals,

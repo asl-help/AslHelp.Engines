@@ -288,7 +288,7 @@ internal sealed class MemberPath
 
         var value = target.Access is ValueAccess<T> valueAccess
             ? valueAccess.Read(Memory, target.Address, last)
-            : ReadStruct(target.Access, target.Address, last);
+            : target.Access.ReadAs(Memory, target.Address, last);
 
         return value.TryUnwrapErr(out var readError) ? SegmentFailed(SegmentCount - 1, readError, target.Access.AlwaysFails) : value;
     }
@@ -719,12 +719,7 @@ internal sealed class MemberPath
 
     private static bool Fits<T>(PropertyAccess access)
     {
-        return access is ValueAccess<T> || (typeof(T) == typeof(StructValue) && access.IsStruct);
-    }
-
-    private Result<T> ReadStruct<T>(PropertyAccess access, Address container, T? last)
-    {
-        return access.ReadStruct(Memory, container, last as StructValue).TryUnwrap(out var value, out var error) ? (T)(object)value : error;
+        return access is ValueAccess<T> || access.AlsoReadsAs<T>();
     }
 
     private PathError RootTypeError(Type type)

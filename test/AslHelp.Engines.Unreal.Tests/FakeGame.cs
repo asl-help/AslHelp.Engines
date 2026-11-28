@@ -363,8 +363,8 @@ internal sealed class FakeGame
         "Position",
         "DoublePosition",
         "Mixed",
-        "FixtureVector",
-        "FixtureVector3d",
+        "Vector",
+        "Rotator",
         "FixtureMixed",
         "Z",
         "A",
@@ -388,6 +388,9 @@ internal sealed class FakeGame
         "ObjectKeyDict",
         "FIXTUREDATA",
         "HP",
+        "Pitch",
+        "Yaw",
+        "Roll",
     ];
 
     private readonly Address _subsystemPairs;
@@ -1041,8 +1044,8 @@ internal sealed class FakeGame
         AddClass(SubsystemClass, "FixtureSubsystem", Address.Zero, _fixturePackage);
         AddClass(GameInstanceClass, "GameInstance", Address.Zero, _enginePackage);
         AddStruct(_coordType, "FixtureCoord");
-        AddStruct(_vectorType, "FixtureVector");
-        AddStruct(_doubleVectorType, "FixtureVector3d");
+        AddStruct(_vectorType, "Vector");
+        AddStruct(_doubleVectorType, "Rotator");
         AddStruct(_mixedType, "FixtureMixed");
         AddPropertyClasses(propertyClass);
 
@@ -1069,9 +1072,9 @@ internal sealed class FakeGame
             AddProperty(_vectorType, "VectorZ", "Z", "FloatProperty", 0x8, sizeof(float)));
         LinkProperties(
             _doubleVectorType,
-            AddProperty(_doubleVectorType, "DoubleX", "X", "DoubleProperty", 0x0, sizeof(double)),
-            AddProperty(_doubleVectorType, "DoubleY", "Y", "DoubleProperty", 0x8, sizeof(double)),
-            AddProperty(_doubleVectorType, "DoubleZ", "Z", "DoubleProperty", 0x10, sizeof(double)));
+            AddProperty(_doubleVectorType, "Pitch", "DoubleProperty", 0x0, sizeof(double)),
+            AddProperty(_doubleVectorType, "Yaw", "DoubleProperty", 0x8, sizeof(double)),
+            AddProperty(_doubleVectorType, "Roll", "DoubleProperty", 0x10, sizeof(double)));
         LinkProperties(
             _mixedType,
             AddProperty(_mixedType, "A", "IntProperty", 0x0, sizeof(int)),

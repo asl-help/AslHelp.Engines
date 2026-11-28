@@ -374,7 +374,8 @@ public sealed class UnrealGame
     ///     a <see cref="HashSet{T}"/> for <c>SetProperty</c>,
     ///     a <see cref="Dictionary{TKey, TValue}"/> for <c>MapProperty</c>,
     ///     <see cref="StructValue"/> for <c>StructProperty</c>
-    ///     and also an array of the number type for a <c>StructProperty</c> whose members are numbers of 1 class.
+    ///     and also an array of the number type for a <c>StructProperty</c> whose members are numbers of 1 class,
+    ///     and <see cref="Vector"/> or <see cref="Rotator"/> for an <c>FVector</c> or <c>FRotator</c>, with doubles on every version.
     /// </typeparam>
     /// <param name="obj">The address of the object.</param>
     /// <param name="property">The property.</param>

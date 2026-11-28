@@ -323,6 +323,22 @@ public sealed class UnrealGameLiveTests(
         });
     }
 
+    // Position and Rotation read as Vector and Rotator on every version, with the floats before 5.0 widened to doubles.
+    [Test]
+    public void Read_RealPlayer_ReadsVectorAndRotator()
+    {
+        WithAttachedPlayer(game =>
+        {
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(data.Member("Position").Read<Vector>().Unwrap(), Is.EqualTo(new Vector(1, 2, 3)));
+                Assert.That(data.Member("Rotation").Read<Rotator>().Unwrap(), Is.EqualTo(new Rotator(10, 20, 30)));
+            }
+        });
+    }
+
     // Position and the items of VecArray step into X, Y and Z by name and read as struct values with member names.
     [Test]
     public void Read_RealPlayer_StepsIntoVectorByName()

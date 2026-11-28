@@ -73,6 +73,7 @@ In the 1st example:
 | `WeakObjectProperty` | `Address` or 0 when the object is gone. A path goes on through it. Before 4.11 the serial numbers come from `GSerialNumberBlocksForDebugVisualizersRoot` |
 | `StructProperty` | `StructValue` with each member by name, like `pos["X"]`. A path also goes on into it, like `Member("X")` |
 | `StructProperty` with only numbers of 1 class, like `FVector` | `StructValue` too. `Value<float[]>()` reads it as an array of that number (`double[]` on 5.x) |
+| `FVector` and `FRotator` | `Value<Vector>()` and `Value<Rotator>()` read them with doubles on every version, like `pos.X` |
 | `ArrayProperty` | an array of the element type, like `int[]`. An array of number structs reads as `float[][]` or `double[][]`, but 1 item reads as a `StructValue` |
 | `SetProperty` | `HashSet<T>` of the element type |
 | `MapProperty` | `Dictionary<TKey, TValue>` |

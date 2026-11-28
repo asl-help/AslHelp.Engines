@@ -14,6 +14,7 @@ namespace AslHelp.Engines.Unreal.Properties;
 ///     A struct reads as a <see cref="StructValue"/> with its members by name in offset order, each in the type of its kind.
 ///     A struct whose members are all single numbers of 1 class right after each other also reads as an array of that number.
 ///     <c>FVector</c> reads as <see cref="float"/>[] or <see cref="double"/>[], depending on the class of its members.
+///     <c>FVector</c> and <c>FRotator</c> also read as <see cref="Vector"/> and <see cref="Rotator"/> with doubles on every version.
 /// </remarks>
 internal sealed class StructKind : LayoutKind<int>
 {
@@ -224,10 +225,39 @@ file sealed class NumberStructAccess<T>(
     IReadOnlyList<UnrealProperty> members) : ValueAccess<T[]>(property)
 {
     private readonly ElementBuffer<T> _buffer = new();
+    private readonly StructLift _lift = FindLift(structType.Name, members);
+    private readonly T[] _parts = new T[3];
 
     private StructMembers? _members;
 
     public override bool IsStruct => true;
+
+    public override bool AlsoReadsAs<TValue>()
+    {
+        return base.AlsoReadsAs<TValue>()
+            || (typeof(TValue) == typeof(Vector) && _lift == StructLift.Vector)
+            || (typeof(TValue) == typeof(Rotator) && _lift == StructLift.Rotator);
+    }
+
+    public override Result<TValue> ReadAs<TValue>(IMemoryReader memory, Address container, TValue? last)
+        where TValue : default
+    {
+        if (typeof(TValue) == typeof(Vector) && _lift == StructLift.Vector)
+        {
+            return ReadParts(memory, container).TryUnwrap(out var parts, out var error)
+                ? (TValue)(object)new Vector(parts.First, parts.Second, parts.Third)
+                : error;
+        }
+
+        if (typeof(TValue) == typeof(Rotator) && _lift == StructLift.Rotator)
+        {
+            return ReadParts(memory, container).TryUnwrap(out var parts, out var error)
+                ? (TValue)(object)new Rotator(parts.First, parts.Second, parts.Third)
+                : error;
+        }
+
+        return base.ReadAs(memory, container, last);
+    }
 
     public override Result<T[]> Read(IMemoryReader memory, Address container, T[]? last)
     {
@@ -253,6 +283,50 @@ file sealed class NumberStructAccess<T>(
     {
         return new Container(container + Property.Offset, structType);
     }
+
+    // Lift only Vector and Rotator with float or double members in their order, because only those are FVector and FRotator of the engine.
+    private static StructLift FindLift(string name, IReadOnlyList<UnrealProperty> members)
+    {
+        if (members.Count != 3 || (typeof(T) != typeof(float) && typeof(T) != typeof(double)))
+        {
+            return StructLift.None;
+        }
+
+        return name switch
+        {
+            "Vector" when HasNames(members, "X", "Y", "Z") => StructLift.Vector,
+            "Rotator" when HasNames(members, "Pitch", "Yaw", "Roll") => StructLift.Rotator,
+            _ => StructLift.None,
+        };
+    }
+
+    private static bool HasNames(IReadOnlyList<UnrealProperty> members, string first, string second, string third)
+    {
+        return members[0].Name == first && members[1].Name == second && members[2].Name == third;
+    }
+
+    private static double ToDouble(T part)
+    {
+        return typeof(T) == typeof(float) ? (float)(object)part! : (double)(object)part!;
+    }
+
+    // Read the 3 members in 1 read into a kept buffer, so a lifted read doesn't allocate and doesn't mix 2 frames of the game.
+    private Result<(double First, double Second, double Third)> ReadParts(IMemoryReader memory, Address container)
+    {
+        if (element.ReadMany(memory, container + Property.Offset, members[0].ElementSize, _parts, default).TryUnwrapErr(out var error))
+        {
+            return error;
+        }
+
+        return (ToDouble(_parts[0]), ToDouble(_parts[1]), ToDouble(_parts[2]));
+    }
+}
+
+file enum StructLift
+{
+    None,
+    Vector,
+    Rotator,
 }
 
 // Read the members of 1 struct type boxed, with the names shared by every value it reads.

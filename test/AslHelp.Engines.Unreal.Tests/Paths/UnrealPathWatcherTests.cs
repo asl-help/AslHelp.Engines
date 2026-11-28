@@ -265,7 +265,7 @@ public sealed class UnrealPathWatcherTests(
         yield return new KindCase("IntSet", (HashSet<int>)[11, 22, 33]);
         yield return new KindCase("IntDict", new Dictionary<int, int> { [4] = 40, [5] = 50, [6] = 60 });
         yield return new KindCase("NameDict", new Dictionary<string, int> { [FakeGame.NameText] = 7, ["Hp_4"] = 8 });
-        yield return new KindCase("Position", new StructValue("FixtureVector", ["X", "Y", "Z"], [1f, 2f, 3f]));
+        yield return new KindCase("Position", new StructValue("Vector", ["X", "Y", "Z"], [1f, 2f, 3f]));
         yield return new KindCase("Mixed", new StructValue("FixtureMixed", ["A", "B"], [1, 2f]));
     }
 

@@ -170,7 +170,7 @@ public sealed class UnrealPathReadEdgeTests(
     [Test]
     public void Read_CountOfAnObjectSet_ReturnsTheUsedSlots()
     {
-        Assert.That(Data.Member("ObjectSet").Count().Read().Unwrap(), Is.EqualTo(2));
+        Assert.That(Data.Member("ObjectSet").Count.Read().Unwrap(), Is.EqualTo(2));
     }
 
     // The 2nd used slot of ObjectSet points at OtherData, so a read after the free slot reads its Hp of 500.

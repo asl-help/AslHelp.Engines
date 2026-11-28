@@ -25,12 +25,6 @@ internal sealed record UdkRelease(
     /// <inheritdoc/>
     public static string DisplayName => UdkSR.DisplayName;
 
-    /// <inheritdoc/>
-    public static string ReleasesPath => "eng/fixtures/unreal3/releases.json";
-
-    /// <inheritdoc/>
-    public static string ReleasesResource => "Unreal3/releases.json";
-
     /// <summary>
     ///     Gets the installer <c>UDKInstall-&lt;version&gt;.exe</c> of the <c>udkinstaller</c> item, pinned to <see cref="Sha1"/>.
     /// </summary>
@@ -51,6 +45,12 @@ internal sealed record UdkRelease(
     /// </remarks>
     [JsonIgnore]
     public string Pin => Version;
+
+    /// <inheritdoc/>
+    public static string ReleasesPath => "eng/fixtures/unreal3/releases.json";
+
+    /// <inheritdoc/>
+    public static string ReleasesResource => "Unreal3/releases.json";
 
     /// <inheritdoc/>
     /// <remarks>

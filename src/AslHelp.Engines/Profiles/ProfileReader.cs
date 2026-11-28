@@ -45,6 +45,12 @@ public sealed class ProfileReader
     public string Engine { get; private set; } = "";
 
     /// <summary>
+    ///     Gets the 1st bad value or the missing parts so far or <see langword="null"/> when every part read so far is there and
+    ///     reads.
+    /// </summary>
+    public ResultError? Failure => _invalid ?? (_missing.Count > 0 ? ProfileDocumentError.Missing(_missing) : null);
+
+    /// <summary>
     ///     Gets the value of <c>key</c> or <see langword="null"/> when it's missing or isn't a string.
     /// </summary>
     public string? Key { get; private set; }
@@ -60,7 +66,7 @@ public sealed class ProfileReader
     /// <remarks>
     ///     Reads <c>engine</c>, <c>key</c> and <c>versions</c> first. A document without <c>engine</c> fails before the mapper.
     ///     Otherwise <paramref name="mapper"/> gets the reader, checks <see cref="Engine"/> and returns its own error for an engine it doesn't read.
-    ///     A missing part or a bad value fails the document after a successful map too, so a mapper doesn't have to call <see cref="GetFailure"/>.
+    ///     A missing part or a bad value fails the document after a successful map too, so a mapper doesn't have to check <see cref="Failure"/>.
     ///     Then a key at the root that neither the reader nor the mapper read fails the document.
     ///     So does a member that nobody read in a type under <c>offsets</c> where <see cref="ReadOffsetOrNull"/> missed a member.
     /// </remarks>
@@ -88,30 +94,6 @@ public sealed class ProfileReader
     }
 
     /// <summary>
-    ///     Reads a profile document with the mapper of an engine into a catalog entry.
-    /// </summary>
-    /// <typeparam name="TProfile">The profile type of the engine.</typeparam>
-    /// <param name="source">The file path, the resource name or the name passed with the text or stream of the document.</param>
-    /// <param name="parse">The parse of the text or the stream of the document.</param>
-    /// <param name="mapper">The mapper of the engine.</param>
-    /// <param name="versionParser">The version parser of the engine.</param>
-    /// <returns>
-    ///     The entry or the failure of <see cref="Read{TProfile}"/>.
-    /// </returns>
-    internal static Result<ProfileEntry<TProfile>> ReadEntry<TProfile>(
-        string source,
-        Func<JsonDocument> parse,
-        Func<ProfileReader, Result<TProfile>> mapper,
-        Func<string, ProfileVersion?> versionParser)
-    {
-        return ReadDocument(
-            parse,
-            mapper,
-            versionParser,
-            (reader, profile) => new ProfileEntry<TProfile>(reader.Engine, reader.Key, reader.Versions, profile, source));
-    }
-
-    /// <summary>
     ///     Adds the path of a missing part that a mapper reads itself.
     /// </summary>
     /// <param name="path">The path, like <c>shapes.Thing</c>.</param>
@@ -121,23 +103,12 @@ public sealed class ProfileReader
     }
 
     /// <summary>
-    ///     Returns the 1st bad value or the missing parts so far.
-    /// </summary>
-    /// <returns>
-    ///     The failure or <see langword="null"/> when every part read so far is there and reads.
-    /// </returns>
-    public ResultError? GetFailure()
-    {
-        return _invalid ?? (_missing.Count > 0 ? ProfileDocumentError.Missing(_missing) : null);
-    }
-
-    /// <summary>
     ///     Reads the routes of the global with the key <paramref name="name"/> under <c>globals</c>.
     /// </summary>
     /// <param name="name">The key of the global.</param>
     /// <returns>
     ///     The locator or <see langword="null"/> when the global is missing or isn't a locator.
-    ///     <see cref="GetFailure"/> returns that failure. A document without <c>globals</c> lists only <c>globals</c> as missing.
+    ///     <see cref="Failure"/> has that failure. A document without <c>globals</c> lists only <c>globals</c> as missing.
     /// </returns>
     public MemoryLocator? ReadGlobal(string name)
     {
@@ -167,12 +138,43 @@ public sealed class ProfileReader
     }
 
     /// <summary>
+    ///     Reads the routes of the global with the key <paramref name="name"/> under <c>globals</c> when the document has it.
+    /// </summary>
+    /// <param name="name">The key of the global.</param>
+    /// <returns>
+    ///     The locator or <see langword="null"/> when the global is missing, which doesn't fail the document.
+    ///     <see cref="Failure"/> has the failure for a global that isn't a locator and for a document without <c>globals</c>.
+    /// </returns>
+    public MemoryLocator? ReadGlobalOrNull(string name)
+    {
+        _globals ??= FindSection("globals");
+
+        if (_globals is not { ValueKind: JsonValueKind.Object } globals
+            || !globals.TryGetProperty(name, out var value)
+            || value.ValueKind == JsonValueKind.Null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<MemoryLocator>(value);
+        }
+        catch (JsonException ex)
+        {
+            // Catch here, because the locator converter only throws.
+            _invalid ??= ProfileDocumentError.GlobalUnreadable(name, ex.Message);
+            return null;
+        }
+    }
+
+    /// <summary>
     ///     Reads the object with the key <paramref name="name"/> at the root.
     /// </summary>
     /// <param name="name">The key.</param>
     /// <returns>
     ///     A copy of the object or <see langword="null"/> when it's missing or isn't an object. The copy stays usable after the read.
-    ///     <see cref="GetFailure"/> returns that failure. The key doesn't count as unknown after this call.
+    ///     <see cref="Failure"/> has that failure. The key doesn't count as unknown after this call.
     /// </returns>
     public JsonElement? ReadObject(string name)
     {
@@ -194,7 +196,7 @@ public sealed class ProfileReader
     /// <param name="member">The member, like <c>Speed</c>.</param>
     /// <returns>
     ///     The offset or 0 when it's missing.
-    ///     <see cref="GetFailure"/> returns the failure for a missing offset or an offset below 0.
+    ///     <see cref="Failure"/> has the failure for a missing offset or an offset below 0.
     ///     A document without <c>offsets</c> lists only <c>offsets</c> as missing.
     /// </returns>
     /// <exception cref="JsonException">The offset doesn't read.</exception>
@@ -217,7 +219,7 @@ public sealed class ProfileReader
     /// <param name="type">The type, like <c>Thing</c>.</param>
     /// <param name="member">The member, like <c>Speed</c>.</param>
     /// <returns>
-    ///     The offset or <see langword="null"/> when it's missing. <see cref="GetFailure"/> returns the failure for an offset below 0
+    ///     The offset or <see langword="null"/> when it's missing. <see cref="Failure"/> has the failure for an offset below 0
     ///     and for a document without <c>offsets</c>.
     /// </returns>
     /// <exception cref="JsonException">The offset doesn't read.</exception>
@@ -230,6 +232,30 @@ public sealed class ProfileReader
 
         _ = _typesWithOptionalMiss.Add(type);
         return null;
+    }
+
+    /// <summary>
+    ///     Reads a profile document with the mapper of an engine into a catalog entry.
+    /// </summary>
+    /// <typeparam name="TProfile">The profile type of the engine.</typeparam>
+    /// <param name="source">The file path, the resource name or the name passed with the text or stream of the document.</param>
+    /// <param name="parse">The parse of the text or the stream of the document.</param>
+    /// <param name="mapper">The mapper of the engine.</param>
+    /// <param name="versionParser">The version parser of the engine.</param>
+    /// <returns>
+    ///     The entry or the failure of <see cref="Read{TProfile}"/>.
+    /// </returns>
+    internal static Result<ProfileEntry<TProfile>> ReadEntry<TProfile>(
+        string source,
+        Func<JsonDocument> parse,
+        Func<ProfileReader, Result<TProfile>> mapper,
+        Func<string, ProfileVersion?> versionParser)
+    {
+        return ReadDocument(
+            parse,
+            mapper,
+            versionParser,
+            (reader, profile) => new ProfileEntry<TProfile>(reader.Engine, reader.Key, reader.Versions, profile, source));
     }
 
     // Build the result inside the scope of the document, because the reader points into it.
@@ -255,8 +281,8 @@ public sealed class ProfileReader
                 return error;
             }
 
-            // Check again after the map, so a mapper that skips GetFailure doesn't add a document with missing parts.
-            if (reader.GetFailure() is { } mapFailure)
+            // Check again after the map, so a mapper that skips Failure doesn't add a document with missing parts.
+            if (reader.Failure is { } mapFailure)
             {
                 return mapFailure;
             }

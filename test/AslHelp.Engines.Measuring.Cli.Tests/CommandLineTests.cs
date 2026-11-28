@@ -1458,13 +1458,13 @@ file sealed class SlowStopMeasurer(CancellationTokenSource run, string canceling
     private int _ended;
     private int _started;
 
-    public string Name => "engine";
-
-    public IReadOnlyList<Option> Options => [];
+    public int Ended => Volatile.Read(ref _ended);
 
     public int MaxDegreeOfParallelism => 2;
 
-    public int Ended => Volatile.Read(ref _ended);
+    public string Name => "engine";
+
+    public IReadOnlyList<Option> Options => [];
 
     public int Started => Volatile.Read(ref _started);
 

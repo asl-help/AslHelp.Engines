@@ -20,16 +20,16 @@ namespace AslHelp.Engines.Measuring.Cli.Unreal3;
 internal sealed class UdkMeasurer : IEngineMeasurer
 {
     /// <inheritdoc/>
-    public string Name => "unreal3";
-
-    /// <inheritdoc/>
-    public IReadOnlyList<Option> Options => [];
-
-    /// <inheritdoc/>
     /// <remarks>
     ///     Measures 1 player at a time, because each player runs a server under the machine-wide lock.
     /// </remarks>
     public int MaxDegreeOfParallelism => 1;
+
+    /// <inheritdoc/>
+    public string Name => "unreal3";
+
+    /// <inheritdoc/>
+    public IReadOnlyList<Option> Options => [];
 
     /// <summary>
     ///     Gets the globals to find, which <see cref="LoadTargets"/> sets.

@@ -52,8 +52,8 @@ internal sealed class FakeImage
     private static readonly Address _stringData = new(0x0400_0000);
     private static readonly Address _unreadable = new(0x0700_0000);
 
-    private readonly byte[] _arrays = new byte[2 * PageSize];
     private readonly Dictionary<string, Address> _arrayInners = [];
+    private readonly byte[] _arrays = new byte[2 * PageSize];
     private readonly Dictionary<string, Address> _classes = [];
     private readonly List<Address> _entries = [];
     private readonly Address _fixtureDefault;
@@ -147,21 +147,6 @@ internal sealed class FakeImage
     public static Address Base { get; } = new(0x0040_0000);
 
     /// <summary>
-    ///     Gets the RVA of the name array.
-    /// </summary>
-    public static uint NameArrayRva => ArraysRva + NameArrayAt;
-
-    /// <summary>
-    ///     Gets the RVA of the object array.
-    /// </summary>
-    public static uint ObjectArrayRva => ArraysRva + ObjectArrayAt;
-
-    /// <summary>
-    ///     Gets the RVA of the extra array header that <see cref="AliasNameArray"/> and <see cref="DuplicateNameArray"/> add.
-    /// </summary>
-    public static uint ExtraHeaderRva => ArraysRva + ExtraHeaderAt;
-
-    /// <summary>
     ///     Gets the package called <c>Core</c>.
     /// </summary>
     public Address Core { get; }
@@ -177,6 +162,11 @@ internal sealed class FakeImage
     public uint EngineSlotRva { get; }
 
     /// <summary>
+    ///     Gets the RVA of the extra array header that <see cref="AliasNameArray"/> and <see cref="DuplicateNameArray"/> add.
+    /// </summary>
+    public static uint ExtraHeaderRva => ArraysRva + ExtraHeaderAt;
+
+    /// <summary>
     ///     Gets the spawned object of the fixture class.
     /// </summary>
     public Address FixtureInstance { get; }
@@ -185,6 +175,16 @@ internal sealed class FakeImage
     ///     Gets the memory with the graph.
     /// </summary>
     public FakeMemory Memory { get; } = new();
+
+    /// <summary>
+    ///     Gets the RVA of the name array.
+    /// </summary>
+    public static uint NameArrayRva => ArraysRva + NameArrayAt;
+
+    /// <summary>
+    ///     Gets the RVA of the object array.
+    /// </summary>
+    public static uint ObjectArrayRva => ArraysRva + ObjectArrayAt;
 
     /// <summary>
     ///     Gets the sections without code, whose bytes are the blocks of <see cref="Memory"/>.

@@ -8,18 +8,6 @@ namespace AslHelp.Engines.Unreal.Errors;
 internal abstract record RootError : ResultError
 {
     /// <summary>
-    ///     Creates the error for a class without a live object.
-    /// </summary>
-    /// <param name="className">The name of the class.</param>
-    /// <returns>
-    ///     The error.
-    /// </returns>
-    public static RootError NoLiveObject(string className)
-    {
-        return new NoLiveObjectError(className);
-    }
-
-    /// <summary>
     ///     Creates the error for an object that left its slot of the object array or whose address now has an object of another class.
     /// </summary>
     /// <param name="className">The name of the class of the object.</param>
@@ -30,6 +18,18 @@ internal abstract record RootError : ResultError
     public static RootError ObjectGone(string className, Address obj)
     {
         return new ObjectGoneError(className, obj);
+    }
+
+    /// <summary>
+    ///     Creates the error for a game instance that isn't there yet or doesn't have a subsystem of the class.
+    /// </summary>
+    /// <param name="className">The name of the class of the subsystem.</param>
+    /// <returns>
+    ///     The error.
+    /// </returns>
+    public static RootError SubsystemNotFound(string className)
+    {
+        return new SubsystemNotFoundError(className);
     }
 
     /// <summary>
@@ -44,17 +44,17 @@ internal abstract record RootError : ResultError
     }
 }
 
-file sealed record NoLiveObjectError(
-    string ClassName) : RootError
-{
-    public override string Message => SR.FormatRootNoLiveObject(ClassName);
-}
-
 file sealed record ObjectGoneError(
     string ClassName,
     Address Object) : RootError
 {
     public override string Message => SR.FormatRootObjectGone(ClassName, Object);
+}
+
+file sealed record SubsystemNotFoundError(
+    string ClassName) : RootError
+{
+    public override string Message => SR.FormatRootSubsystemNotFound(ClassName);
 }
 
 file sealed record SubsystemsUnavailableError : RootError

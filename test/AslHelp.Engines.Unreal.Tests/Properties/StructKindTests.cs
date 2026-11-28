@@ -13,6 +13,9 @@ public sealed class StructKindTests(
     Address start,
     string shape)
 {
+    // Read the class of a property in the ffield shape at this offset, because FField keeps it in front of its name.
+    private const int FieldClassOffset = 0x8;
+
     // Starts every address above the signed 4-byte range on x86 and above 4 GB on x64, so a 4-byte or sign-extended pointer read fails.
     private static readonly TestFixtureData[] _fixtures =
     [
@@ -21,9 +24,6 @@ public sealed class StructKindTests(
         new(MemoryLayout.X64, new Address(0x7FF6_0000_0000), "uproperty"),
         new(MemoryLayout.X64, new Address(0x7FF6_0000_0000), "ffield"),
     ];
-
-    // Read the class of a property in the ffield shape at this offset, because FField keeps it in front of its name.
-    private const int FieldClassOffset = 0x8;
 
     private FakeGame _fakeGame = null!;
     private UnrealGame _game = null!;
@@ -83,7 +83,7 @@ public sealed class StructKindTests(
         }
     }
 
-    // DoublePosition has the same member names with DoubleProperty, so the element type comes from the members and not the name.
+    // DoublePosition is a Rotator of 3 DoubleProperty members, so the element type comes from the members.
     [Test]
     public void Read_ThreeDoubleMembers_ReturnsDoubleArray()
     {
@@ -104,6 +104,66 @@ public sealed class StructKindTests(
             Assert.That(
                 Data.Member("Coord").Read<float[]>().UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.Coord. Coord is StructProperty, which reads as Int32[], not Single[]."));
+        }
+    }
+
+    // Position is a Vector of 3 floats, so it also reads as a Vector with the floats widened to doubles.
+    [Test]
+    public void Read_FloatVectorAsVector_WidensToDoubles()
+    {
+        Assert.That(Data.Member("Position").Read<Vector>().Unwrap(), Is.EqualTo(new Vector(1, 2, 3)));
+    }
+
+    // A Vector prints its components with the invariant culture, so a log line reads the same in every culture.
+    [Test]
+    public void ToString_Vector_UsesTheInvariantCulture()
+    {
+        Assert.That(new Vector(1.25, -2.5, 3.75).ToString(), Is.EqualTo("(1.25, -2.5, 3.75)"));
+    }
+
+    // A Vector watcher keeps its value while the struct doesn't change and reports the new value when a member changes.
+    [Test]
+    public void CreateWatcher_Vector_ChangesWithAMember()
+    {
+        ManualTicks ticks = new();
+        var watcher = Data.Member("Position").Value<Vector>().Unwrap().CreateWatcher(ticks);
+        _ = watcher.Current;
+        ticks.Value++;
+        bool changedWhileSteady = watcher.Changed;
+
+        _fakeGame.Memory.Write(_fakeGame.Data + FakeGame.PositionOffset + 4, 5f);
+        ticks.Value++;
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(changedWhileSteady, Is.False);
+            Assert.That(watcher.Changed, Is.True);
+            Assert.That(watcher.Current, Is.EqualTo(new Vector(1, 5, 3)));
+        }
+    }
+
+    // DoublePosition is a Rotator of doubles, so it reads as a Rotator with its members in order.
+    [Test]
+    public void Read_DoubleRotatorAsRotator_ReadsTheDoubles()
+    {
+        Assert.That(Data.Member("DoublePosition").Read<Rotator>().Unwrap(), Is.EqualTo(new Rotator(1.5, 2.5, 3.5)));
+    }
+
+    // A Rotator isn't a Vector, Coord has ints and Position is a Vector, so none of them reads as the other type.
+    [Test]
+    public void Read_OtherNumberStructsAsVector_FailWithTheirTypes()
+    {
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(
+                Data.Member("DoublePosition").Read<Vector>().UnwrapErr().Message,
+                Is.EqualTo("Can't read GWorld.GameMode.Data.DoublePosition. DoublePosition is StructProperty, which reads as Double[], not Vector."));
+            Assert.That(
+                Data.Member("Coord").Read<Vector>().UnwrapErr().Message,
+                Is.EqualTo("Can't read GWorld.GameMode.Data.Coord. Coord is StructProperty, which reads as Int32[], not Vector."));
+            Assert.That(
+                Data.Member("Position").Read<Rotator>().UnwrapErr().Message,
+                Is.EqualTo("Can't read GWorld.GameMode.Data.Position. Position is StructProperty, which reads as Single[], not Rotator."));
         }
     }
 
@@ -132,7 +192,7 @@ public sealed class StructKindTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(value, Is.TypeOf<StructValue>());
-            Assert.That(((StructValue)value!).TypeName, Is.EqualTo("FixtureVector"));
+            Assert.That(((StructValue)value!).TypeName, Is.EqualTo("Vector"));
             Assert.That(((StructValue)value).Names, Is.EqualTo(["X", "Y", "Z"]));
             Assert.That(((StructValue)value)["Z"], Is.EqualTo(3f));
         }
@@ -209,7 +269,7 @@ public sealed class StructKindTests(
         {
             Assert.That(
                 Data.Member("Position").Read<StructValue>().Unwrap(),
-                Is.EqualTo(new StructValue("FixtureVector", ["X", "Y", "Z"], [1f, 2f, 3f])));
+                Is.EqualTo(new StructValue("Vector", ["X", "Y", "Z"], [1f, 2f, 3f])));
             Assert.That(Data.Member("Position").Read<float[]>().Unwrap(), Is.EqualTo(expected));
             Assert.That(
                 Data.Member("Hp").Value<StructValue>().UnwrapErr().Message,

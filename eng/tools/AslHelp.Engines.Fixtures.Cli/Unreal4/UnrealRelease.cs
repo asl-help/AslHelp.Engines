@@ -39,12 +39,6 @@ internal sealed record UnrealRelease(
     public static string DisplayName => UnrealSR.DisplayName;
 
     /// <inheritdoc/>
-    public static string ReleasesPath => "eng/fixtures/unreal4/releases.json";
-
-    /// <inheritdoc/>
-    public static string ReleasesResource => "Unreal4/releases.json";
-
-    /// <inheritdoc/>
     /// <remarks>
     ///     The keys are the version, the minor and the app, so 2 rows of 1 minor fail the load.
     /// </remarks>
@@ -63,6 +57,12 @@ internal sealed record UnrealRelease(
     /// </remarks>
     [JsonIgnore]
     public string Pin => Minor;
+
+    /// <inheritdoc/>
+    public static string ReleasesPath => "eng/fixtures/unreal4/releases.json";
+
+    /// <inheritdoc/>
+    public static string ReleasesResource => "Unreal4/releases.json";
 
     /// <inheritdoc/>
     /// <remarks>

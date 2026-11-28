@@ -33,6 +33,22 @@ internal sealed partial record UnrealFixtureManifest(
     // Matches the arguments of a reflection macro, with 1 level of nested parentheses as in meta=(...).
     private const string MacroArguments = @"\((?:[^()]|\([^()]*\))*\)";
 
+    [GeneratedRegex(@"^\};", RegexOptions.Multiline)]
+    private static partial Regex ClassEndRegex { get; }
+
+    [GeneratedRegex(@"UCLASS" + MacroArguments + @"\s*class\s+(?:\w+_API\s+)?[UA](\w+)\b[^{]*\{")]
+    private static partial Regex ClassRegex { get; }
+
+    [GeneratedRegex(@"//[^\r\n]*|/\*.*?\*/", RegexOptions.Singleline)]
+    private static partial Regex CommentRegex { get; }
+
+    // Takes the last word before an array size, an initializer, a bit width or the end of the declaration.
+    [GeneratedRegex(@"(\w+)\s*(?:\[[^\]]*\]\s*)?(?:=.*|\{.*\}|:\s*\d+)?\s*$", RegexOptions.Singleline)]
+    private static partial Regex MemberNameRegex { get; }
+
+    [GeneratedRegex(@"UPROPERTY" + MacroArguments + @"\s*([^;]+);")]
+    private static partial Regex PropertyRegex { get; }
+
     /// <summary>
     ///     Reads the manifest from the headers of a rendered project.
     /// </summary>
@@ -62,9 +78,9 @@ internal sealed partial record UnrealFixtureManifest(
         foreach (string header in Directory.EnumerateFiles(moduleDirectory, "*.h"))
         {
             // Replaces each comment with a space, so a comment between 2 words of a declaration doesn't glue them together.
-            string text = CommentRegex().Replace(File.ReadAllText(header), " ");
+            string text = CommentRegex.Replace(File.ReadAllText(header), " ");
 
-            foreach (Match match in ClassRegex().Matches(text))
+            foreach (Match match in ClassRegex.Matches(text))
             {
                 string name = match.Groups[1].Value;
                 classes.Add(name);
@@ -127,12 +143,12 @@ internal sealed partial record UnrealFixtureManifest(
     private static void AddProperties(string header, string text, List<string> properties)
     {
         // Stops at the closing brace that opens a line, because the closing brace of a member sits inside a line.
-        string body = ClassEndRegex().Split(text, 2)[0];
+        string body = ClassEndRegex.Split(text, 2)[0];
 
-        foreach (Match property in PropertyRegex().Matches(body))
+        foreach (Match property in PropertyRegex.Matches(body))
         {
             string declaration = property.Groups[1].Value;
-            var member = MemberNameRegex().Match(declaration);
+            var member = MemberNameRegex.Match(declaration);
 
             if (!member.Success)
             {
@@ -142,20 +158,4 @@ internal sealed partial record UnrealFixtureManifest(
             properties.Add(member.Groups[1].Value);
         }
     }
-
-    [GeneratedRegex(@"^\};", RegexOptions.Multiline)]
-    private static partial Regex ClassEndRegex();
-
-    [GeneratedRegex(@"UCLASS" + MacroArguments + @"\s*class\s+(?:\w+_API\s+)?[UA](\w+)\b[^{]*\{")]
-    private static partial Regex ClassRegex();
-
-    [GeneratedRegex(@"//[^\r\n]*|/\*.*?\*/", RegexOptions.Singleline)]
-    private static partial Regex CommentRegex();
-
-    // Takes the last word before an array size, an initializer, a bit width or the end of the declaration.
-    [GeneratedRegex(@"(\w+)\s*(?:\[[^\]]*\]\s*)?(?:=.*|\{.*\}|:\s*\d+)?\s*$", RegexOptions.Singleline)]
-    private static partial Regex MemberNameRegex();
-
-    [GeneratedRegex(@"UPROPERTY" + MacroArguments + @"\s*([^;]+);")]
-    private static partial Regex PropertyRegex();
 }

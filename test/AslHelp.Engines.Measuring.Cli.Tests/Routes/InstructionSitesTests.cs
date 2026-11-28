@@ -164,7 +164,7 @@ public sealed class InstructionSitesTests
     [Test]
     public void Find_SiteNearSectionStart_HasFewerInstructionsBefore()
     {
-        var image = new CodeBuilder(false).Nops(1).MovEcx(Global).Nops(10).Build();
+        var image = new CodeBuilder(false).Fillers(1).MovEcx(Global).Fillers(10).Build();
 
         var window = InstructionSites.Find(image, _wanted).Single();
 
@@ -179,7 +179,7 @@ public sealed class InstructionSitesTests
     [Test]
     public void Find_SiteAtSectionEnd_HasFewerInstructionsAfter()
     {
-        var image = new CodeBuilder(false).Nops(10).MovEcx(Global).Nops(2).Build();
+        var image = new CodeBuilder(false).Fillers(10).MovEcx(Global).Fillers(2).Build();
 
         var window = InstructionSites.Find(image, _wanted).Single();
 
@@ -194,7 +194,7 @@ public sealed class InstructionSitesTests
     [Test]
     public void Find_InvalidBytesAroundTheSite_EndTheWindow()
     {
-        var image = new CodeBuilder(true).Raw(0x06).Nops(3).MovRax(Global).Nops(1).Raw(0x06).Nops(2).Build();
+        var image = new CodeBuilder(true).Raw(0x06).Fillers(3).MovRax(Global).Fillers(1).Raw(0x06).Fillers(2).Build();
 
         var window = InstructionSites.Find(image, _wanted).Single();
 
@@ -205,11 +205,58 @@ public sealed class InstructionSitesTests
         }
     }
 
+    // Padding ends the window on both sides, because it moves with the code it pads.
+    [TestCase((byte)0x90)]
+    [TestCase((byte)0xCC)]
+    public void Find_PaddingAroundTheSite_EndsTheWindow(byte padding)
+    {
+        var image = new CodeBuilder(false).Fillers(2).Raw(padding).Fillers(3).MovEcx(Global).Fillers(1).Raw(padding).Fillers(2).Build();
+
+        var window = InstructionSites.Find(image, _wanted).Single();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(window.Site, Is.EqualTo(3));
+            Assert.That(window.Starts, Has.Length.EqualTo(5));
+        }
+    }
+
+    // A return before the site ends the window and a return after it is the last instruction, because the bytes past a return belong to other code.
+    [Test]
+    public void Find_ReturnsAroundTheSite_EndTheWindowAfterThem()
+    {
+        var image = new CodeBuilder(false).Fillers(2).Ret().Fillers(3).MovEcx(Global).Fillers(1).Ret().Fillers(2).Build();
+
+        var window = InstructionSites.Find(image, _wanted).Single();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(window.Site, Is.EqualTo(3));
+            Assert.That(window.Starts, Has.Length.EqualTo(6));
+            Assert.That(window.Bytes[^1], Is.EqualTo(0xC3));
+        }
+    }
+
+    // A jump through the global is the site and the last instruction of its window.
+    [Test]
+    public void Find_JumpThroughTheGlobal_IsTheLastInstruction()
+    {
+        var image = new CodeBuilder(false).Fillers(2).Raw(0xFF, 0x25).Absolute(Global).Fillers(3).Build();
+
+        var window = InstructionSites.Find(image, _wanted).Single();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(window.Site, Is.EqualTo(2));
+            Assert.That(window.Starts, Has.Length.EqualTo(3));
+        }
+    }
+
     // 2 sites close to each other each get their own window with the other inside it.
     [Test]
     public void Find_TwoSitesSixInstructionsApart_ReturnsBothWindows()
     {
-        var image = new CodeBuilder(false).MovEcx(Global).Nops(5).MovEdx(Global).Build();
+        var image = new CodeBuilder(false).MovEcx(Global).Fillers(5).MovEdx(Global).Build();
 
         var windows = InstructionSites.Find(image, _wanted);
 

@@ -54,6 +54,12 @@ public sealed class UnrealPath : IMemberPath
     }
 
     /// <summary>
+    ///     Gets the path to the number of elements of the array, set or map at the end of this path, an <see cref="int"/>,
+    ///     or a failure when the end of this path isn't a collection, even when it has a member <c>Count</c>.
+    /// </summary>
+    public Result<IMemberPath> Count => Step(_memberPath.AppendCount());
+
+    /// <summary>
     ///     Gets a value indicating whether a step or a read checked the last step of the path against the classes of the game.
     /// </summary>
     /// <remarks>
@@ -63,17 +69,6 @@ public sealed class UnrealPath : IMemberPath
     ///     until a read of the path reaches the step.
     /// </remarks>
     public bool IsChecked => _memberPath.IsChecked;
-
-    /// <summary>
-    ///     Creates the path to the number of elements of the array, set or map at the end of this path.
-    /// </summary>
-    /// <returns>
-    ///     The longer path to an <see cref="int"/> or a failure when the end of this path isn't a collection, even when it has a member <c>Count</c>.
-    /// </returns>
-    public Result<IMemberPath> Count()
-    {
-        return Step(_memberPath.AppendCount());
-    }
 
     /// <summary>
     ///     Creates a new watcher for the value at the end of the path in the type of the kind of its property.
@@ -226,6 +221,11 @@ file sealed class BoxedPathWatcher : Watcher<object?>
         _memberPath = memberPath;
     }
 
+    public override string ToString()
+    {
+        return _memberPath.ToString();
+    }
+
     protected override Result<object?> Read()
     {
         var result = _memberPath.ReadBoxed(Ticks, _last);
@@ -236,10 +236,5 @@ file sealed class BoxedPathWatcher : Watcher<object?>
         }
 
         return result;
-    }
-
-    public override string ToString()
-    {
-        return _memberPath.ToString();
     }
 }

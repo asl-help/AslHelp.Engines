@@ -44,14 +44,14 @@ internal sealed class FakePdb(
     public uint BlockSize { get; init; } = 4096;
 
     /// <summary>
-    ///     Gets the age of the info stream.
-    /// </summary>
-    public uint InfoAge { get; init; } = 1;
-
-    /// <summary>
     ///     Gets the age of the DBI stream.
     /// </summary>
     public uint DbiAge { get; init; } = 1;
+
+    /// <summary>
+    ///     Gets the age of the info stream.
+    /// </summary>
+    public uint InfoAge { get; init; } = 1;
 
     /// <summary>
     ///     Gets a value indicating whether the stream directory lists a nil stream right before the section header stream.

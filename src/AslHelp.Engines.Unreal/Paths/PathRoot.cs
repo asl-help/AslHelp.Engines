@@ -1,7 +1,11 @@
+using AslHelp.Engines.Profiles;
 using AslHelp.Engines.Unreal.Errors;
+using AslHelp.Engines.Unreal.Objects;
+using AslHelp.Engines.Unreal.Properties;
 using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
 using AslHelp.Memory.Locating;
+using System;
 
 namespace AslHelp.Engines.Unreal.Paths;
 
@@ -35,12 +39,21 @@ internal abstract class PathRoot
     /// <param name="classReader">The reader of the game.</param>
     /// <param name="globalSlot">The slot of the global.</param>
     /// <param name="className">The name of the class that the global is declared as, like <c>World</c>.</param>
+    /// <param name="globalName">The name of the global, like <c>GWorld</c>, for the error when the slot isn't found.</param>
+    /// <param name="moduleName">The name of the module that the slot is searched in.</param>
+    /// <param name="selection">The pick that the profile came from, so a slot that isn't found fails with the target and the picked version.</param>
     /// <returns>
     ///     The root.
     /// </returns>
-    public static PathRoot Global(ClassReader classReader, GlobalPointer globalSlot, string className)
+    public static PathRoot Global(
+        ClassReader classReader,
+        GlobalPointer globalSlot,
+        string className,
+        string globalName,
+        string moduleName,
+        ProfileSelection<UnrealProfile>? selection)
     {
-        return new GlobalRoot(classReader, globalSlot, className);
+        return new GlobalRoot(classReader, globalSlot, className, globalName, moduleName, selection);
     }
 
     /// <summary>
@@ -62,31 +75,57 @@ internal abstract class PathRoot
     }
 
     /// <summary>
-    ///     Creates the root at the 1st live object of the class called <paramref name="className"/>, like a subsystem.
+    ///     Creates the root at the subsystem of the class called <paramref name="className"/> in the subsystem map of the game instance.
     /// </summary>
     /// <remarks>
-    ///     Keeps the object it finds and checks its class pointer on each read.
-    ///     Searches the object array again on each read while the object is missing or gone,
-    ///     which reads the array and only the objects in slots that changed.
+    ///     Reads the game instance from <c>GEngine.GameInstance</c> and from <c>GWorld.OwningGameInstance</c> when the engine doesn't have
+    ///     one, because <c>GWorld</c> is a passing world or null while a level loads. Keeps the subsystem while its class stays the same.
     /// </remarks>
     /// <param name="classReader">The reader of the game.</param>
-    /// <param name="className">The name of the class.</param>
+    /// <param name="gEngine">The root at <c>GEngine</c>.</param>
+    /// <param name="gWorld">The root at <c>GWorld</c>.</param>
+    /// <param name="subsystemMapOffset">The offset of the subsystem map in the game instance.</param>
+    /// <param name="className">The name of the class of the subsystem.</param>
     /// <returns>
     ///     The root.
     /// </returns>
-    public static PathRoot FirstObject(ClassReader classReader, string className)
+    public static PathRoot Subsystem(
+        ClassReader classReader,
+        UnrealRoot gEngine,
+        UnrealRoot gWorld,
+        int subsystemMapOffset,
+        string className)
     {
-        return new FirstObjectRoot(classReader, className);
+        return new SubsystemRoot(classReader, gEngine, gWorld, subsystemMapOffset, className);
     }
 }
 
 file sealed class GlobalRoot(
     ClassReader classReader,
     GlobalPointer globalSlot,
-    string className) : PathRoot
+    string className,
+    string globalName,
+    string moduleName,
+    ProfileSelection<UnrealProfile>? selection) : PathRoot
 {
+    private ResultError? _cause;
+    private ResultError? _error;
+
     public override Result<Address> Read()
     {
+        if (globalSlot.Locate().TryUnwrapErr(out var cause))
+        {
+            // Keep the error until the next search, because the slot returns the same cause until then.
+            if (!ReferenceEquals(cause, _cause))
+            {
+                ResultError notLocated = AttachError.GlobalNotLocated(globalName, moduleName, cause);
+                _error = selection is null ? notLocated : AttachError.ProfileMisfit(selection.Target, selection.Version, notLocated);
+                _cause = cause;
+            }
+
+            return _error!;
+        }
+
         return globalSlot.Read();
     }
 
@@ -119,44 +158,158 @@ file sealed class ObjectRoot(
     }
 }
 
-file sealed class FirstObjectRoot(
+file sealed class SubsystemRoot(
     ClassReader classReader,
+    UnrealRoot gEngine,
+    UnrealRoot gWorld,
+    int subsystemMapOffset,
     string className) : PathRoot
 {
-    // Keep the error, because a path reads its root on every tick.
-    private RootError? _noLiveObjectError;
-    private UnrealObject? _object;
+    private const string SubsystemMapName = "SubsystemMap";
+
+    private Result<IMemberPath>? _engineInstance;
+    private RootError? _notFoundError;
+    // Keep the subsystem with its class, so a later read only checks the class.
+    private (Address Address, Address Class)? _subsystem;
+    private SparseArray? _subsystemMap;
+    private byte[] _subsystemPairs = [];
+    private Result<IMemberPath>? _worldInstance;
 
     public override Result<Address> Read()
     {
-        if (_object is { } kept)
+        if (_subsystem is { } kept)
         {
-            if (classReader.ObjectReader.ClassOf(kept.Address).TryUnwrap(out var klass, out _) && klass == kept.Class.Address)
+            if (classReader.ObjectReader.ClassOf(kept.Address).TryUnwrap(out var klass, out _) && klass == kept.Class)
             {
                 return kept.Address;
             }
 
-            _object = null;
+            _subsystem = null;
         }
 
-        if (!classReader.Find(className).TryUnwrap(out var objectClass, out var error)
-            || !classReader.InstancesOf(objectClass).TryUnwrap(out var objects, out error))
+        if (!classReader.Find(className).TryUnwrap(out var subsystemClass, out var error))
         {
             return error;
         }
 
-        if (objects.Count == 0)
+        if (!ReadGameInstance().TryUnwrap(out var gameInstance, out error))
         {
-            return _noLiveObjectError ??= RootError.NoLiveObject(className);
+            return error;
         }
 
-        _object = objects[0];
+        if (gameInstance == Address.Zero)
+        {
+            return _notFoundError ??= RootError.SubsystemNotFound(className);
+        }
 
-        return _object.Address;
+        if (!FindSubsystem(gameInstance, subsystemClass.Address).TryUnwrap(out var subsystem, out error))
+        {
+            return error;
+        }
+
+        if (subsystem == Address.Zero)
+        {
+            return _notFoundError ??= RootError.SubsystemNotFound(className);
+        }
+
+        _subsystem = (subsystem, subsystemClass.Address);
+
+        return subsystem;
     }
 
     public override Result<UnrealClass> ReadDeclaredClass()
     {
         return classReader.Find(className);
+    }
+
+    // Read the game instance of the engine 1st, because it outlives every world. Return 0 when neither has one and the failure of the
+    // engine when neither reads. Build a step again after a failed check, because a step checks the classes the game has at that moment.
+    private Result<Address> ReadGameInstance()
+    {
+        if (_engineInstance is not { IsOk: true })
+        {
+            _engineInstance = gEngine.Path.Member("GameInstance");
+        }
+
+        var fromEngine = _engineInstance.Value.Read<Address>();
+
+        if (fromEngine.TryUnwrap(out var gameInstance, out var engineError) && gameInstance != Address.Zero)
+        {
+            return gameInstance;
+        }
+
+        if (_worldInstance is not { IsOk: true })
+        {
+            _worldInstance = gWorld.Path.Member("OwningGameInstance");
+        }
+
+        var fromWorld = _worldInstance.Value.Read<Address>();
+
+        if (fromWorld.TryUnwrap(out gameInstance, out var worldError))
+        {
+            return gameInstance;
+        }
+
+        return engineError is null ? worldError : engineError;
+    }
+
+    // Find the pair whose key is the class, because the map keys each subsystem by its class.
+    // A pair is the class pointer, the subsystem pointer and the 2 ints of its hash chain.
+    private Result<Address> FindSubsystem(Address gameInstance, Address subsystemClass)
+    {
+        var memory = classReader.Memory;
+
+        if (_subsystemMap is null)
+        {
+            if (!classReader.KindLayouts.Find((MapKind)PropertyKinds.Find("MapProperty")).TryUnwrap(out var layout, out var error))
+            {
+                return error;
+            }
+
+            _subsystemMap = new SparseArray(
+                SubsystemMapName,
+                layout.Set.SparseArray,
+                subsystemMapOffset + layout.Pairs + layout.Set.Elements,
+                classReader.Bounds.MaxElements);
+        }
+
+        if (!_subsystemMap.ReadSlots(memory, gameInstance).TryUnwrap(out var slots, out var slotsError))
+        {
+            return slotsError;
+        }
+
+        int pointerSize = memory.Layout.PointerSize;
+        int stride = (2 * pointerSize) + (2 * sizeof(int));
+        int length = slots.SlotCount * stride;
+
+        if (_subsystemPairs.Length < length)
+        {
+            _subsystemPairs = new byte[length];
+        }
+
+        var pairs = _subsystemPairs.AsSpan(0, length);
+
+        // Read every pair with 1 read, because a tick before the game makes the subsystem would read each used slot otherwise.
+        if (length > 0 && memory.Read(slots.Data, pairs).TryUnwrapErr(out var pairsError))
+        {
+            return ValueError.Unreadable(gameInstance, SubsystemMapName, slots.Data, pairsError);
+        }
+
+        for (int slot = 0; slot < slots.SlotCount; slot++)
+        {
+            if (!_subsystemMap.IsUsed(slot))
+            {
+                continue;
+            }
+
+            var pair = pairs.Slice(slot * stride, stride);
+
+            if (ObjectSlots.PointerAt(pair.Slice(0, pointerSize), memory.Layout.ByteOrder) == subsystemClass)
+            {
+                return ObjectSlots.PointerAt(pair.Slice(pointerSize, pointerSize), memory.Layout.ByteOrder);
+            }
+        }
+
+        return Address.Zero;
     }
 }

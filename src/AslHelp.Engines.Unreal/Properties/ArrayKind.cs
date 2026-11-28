@@ -64,7 +64,7 @@ internal sealed class ArrayKind : LayoutKind<ArrayPropertyLayout>
             return CollectionError.ElementSizeInvalid(property.Name, inner.ElementSize, "ElementSize");
         }
 
-        ArrayElements elements = new(property, layout, element, inner.ElementSize);
+        ArrayElements elements = new(property, layout, element, inner.ElementSize, classReader.Bounds.MaxElements);
 
         return element.Accept(new ArrayAccessFactory(property, elements, inner.ClassName));
     }
@@ -90,13 +90,16 @@ file sealed class ArrayElements(
     UnrealProperty property,
     ArrayPropertyLayout layout,
     PropertyAccess element,
-    int stride) : CollectionAccess(property)
+    int stride,
+    int maxCount) : CollectionAccess(property)
 {
     private readonly ArrayPropertyLayout _layout = layout;
 
     public override ValueAccess<int> Count { get; } = new ArrayCount(property, layout);
 
     public override PropertyAccess Element { get; } = element;
+
+    public int MaxCount { get; } = maxCount;
 
     public int Stride { get; } = stride;
 
@@ -178,9 +181,9 @@ file sealed class ArrayValueAccess<T>(
             return error;
         }
 
-        if (count > ValueBounds.MaxElements)
+        if (count > _elements.MaxCount)
         {
-            return CollectionError.TooLong(Property.Name, count, ValueBounds.MaxElements);
+            return CollectionError.TooLong(Property.Name, count, _elements.MaxCount);
         }
 
         if (count == 0)

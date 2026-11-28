@@ -59,20 +59,6 @@ internal sealed class Downloader : IDisposable
     }
 
     /// <summary>
-    ///     Creates the handler the downloader uses when the caller passes none.
-    /// </summary>
-    /// <remarks>
-    ///     Redirects are followed, because no Authorization header is sent and file hosts often redirect to a mirror.
-    /// </remarks>
-    /// <returns>
-    ///     The handler from <see cref="HttpHandlers.Create"/>. The caller disposes it.
-    /// </returns>
-    internal static SocketsHttpHandler CreateHandler()
-    {
-        return HttpHandlers.Create(followRedirects: true);
-    }
-
-    /// <summary>
     ///     Downloads <paramref name="url"/> to <paramref name="destinationFile"/> unless the file is there with the pinned hash.
     /// </summary>
     /// <remarks>
@@ -211,6 +197,20 @@ internal sealed class Downloader : IDisposable
     public void Dispose()
     {
         _client.Dispose();
+    }
+
+    /// <summary>
+    ///     Creates the handler the downloader uses when the caller passes none.
+    /// </summary>
+    /// <remarks>
+    ///     Redirects are followed, because no Authorization header is sent and file hosts often redirect to a mirror.
+    /// </remarks>
+    /// <returns>
+    ///     The handler from <see cref="HttpHandlers.Create"/>. The caller disposes it.
+    /// </returns>
+    internal static SocketsHttpHandler CreateHandler()
+    {
+        return HttpHandlers.Create(followRedirects: true);
     }
 
     /// <summary>

@@ -19,6 +19,9 @@ internal static partial class UnrealFixtureSource
 {
     private static ReadOnlySpan<byte> BlankEngineAssociation => "\"EngineAssociation\": \"\""u8;
 
+    [GeneratedRegex(@"^(>=|>|<=|<|==)([0-9]+\.[0-9]+)$")]
+    private static partial Regex ConditionRegex { get; }
+
     private static ReadOnlySpan<byte> LineSpaceBytes => " \t\r\n"u8;
 
     /// <summary>
@@ -270,7 +273,7 @@ internal static partial class UnrealFixtureSource
     /// <exception cref="InvalidDataException">The condition isn't an op and a major.minor.</exception>
     private static bool IsTaken(string condition, Version engineVersion, string source, int lineNumber)
     {
-        var match = ConditionRegex().Match(condition);
+        var match = ConditionRegex.Match(condition);
 
         if (!match.Success || !Version.TryParse(match.Groups[2].ValueSpan, out var version))
         {
@@ -288,9 +291,6 @@ internal static partial class UnrealFixtureSource
             _ => comparison == 0,
         };
     }
-
-    [GeneratedRegex(@"^(>=|>|<=|<|==)([0-9]+\.[0-9]+)$")]
-    private static partial Regex ConditionRegex();
 }
 
 /// <summary>

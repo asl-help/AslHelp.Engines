@@ -11,14 +11,14 @@ namespace AslHelp.Engines.Fixtures.Cli.Tests;
 internal sealed class RecordingProgress : IProgress<TransferProgress>
 {
     /// <summary>
-    ///     Gets the reported values in order.
-    /// </summary>
-    public List<TransferProgress> Values { get; } = [];
-
-    /// <summary>
     ///     Gets the byte counts of the reported values in order.
     /// </summary>
     public List<long> Bytes => [.. Values.Select(value => value.Bytes)];
+
+    /// <summary>
+    ///     Gets the reported values in order.
+    /// </summary>
+    public List<TransferProgress> Values { get; } = [];
 
     /// <inheritdoc/>
     public void Report(TransferProgress value)

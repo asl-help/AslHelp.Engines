@@ -120,7 +120,7 @@ public sealed class UnrealStaticsTests
     [Test]
     public void FindThroughConstructor_LoadAtTheEndOfTheWindow_ReturnsTheStatic()
     {
-        var code = new CodeBuilder(true).Ret().LeaRcx(DataRva).Nops(126).CallTo(Constructor);
+        var code = new CodeBuilder(true).Ret().LeaRcx(DataRva).Fillers(126).CallTo(Constructor);
 
         Assert.That(Find(code.Build()).Unwrap(), Is.EqualTo(DataRva));
     }
@@ -129,7 +129,7 @@ public sealed class UnrealStaticsTests
     [Test]
     public void FindThroughConstructor_LoadPastTheWindow_Fails()
     {
-        var code = new CodeBuilder(true).Ret().LeaRcx(DataRva).Nops(127).CallTo(Constructor);
+        var code = new CodeBuilder(true).Ret().LeaRcx(DataRva).Fillers(127).CallTo(Constructor);
 
         AssertNotFound(code.Build());
     }

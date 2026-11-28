@@ -466,9 +466,12 @@ internal sealed class ClassIndex(
         return error;
     }
 
+    // Return the 1st failure only when no slot reads, because the other slots of an array with 1 unreadable block still have their objects.
     private ResultError? ReadSlots(int count, ref ResultError? skipped)
     {
         int slot = -1;
+        bool anyRead = false;
+        ResultError? failure = null;
 
         foreach (var item in _objectArray.Read(count))
         {
@@ -476,8 +479,18 @@ internal sealed class ClassIndex(
 
             if (!item.TryUnwrap(out var obj, out var error))
             {
-                return error;
+                failure ??= error;
+
+                if (slot < _slotCount)
+                {
+                    RemoveNames(slot);
+                    _slotObjects[slot] = Address.Zero;
+                }
+
+                continue;
             }
+
+            anyRead = true;
 
             // Grow with the slots that read, because a wrong count can be far above the real one.
             if (slot >= _slotObjects.Length)
@@ -580,6 +593,13 @@ internal sealed class ClassIndex(
                 _classesByName[name] = (obj, slot);
             }
         }
+
+        if (failure is not null && !anyRead)
+        {
+            return failure;
+        }
+
+        skipped ??= failure;
 
         return null;
     }

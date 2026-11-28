@@ -47,7 +47,7 @@ public sealed class UnrealTargetEdgeTests
     {
         Assert.That(
             UnrealTarget.FromFileVersion(null, ShippingName, 8, "", null).UnwrapErr().Message,
-            Is.EqualTo("'' isn't an Unreal Engine version, like 4.27.2 or 2010-09."));
+            Is.EqualTo("'' isn't an Unreal Engine version, like 4.27.2, 2010-09 or 3.8225."));
     }
 
     // A full path as the module name still builds the key from the file name.
@@ -140,6 +140,16 @@ public sealed class UnrealTargetEdgeTests
             Assert.That(version, Is.EqualTo(UnrealTarget.ParseVersion("2010.9")));
             Assert.That(version.Text, Is.EqualTo(text));
         }
+    }
+
+    // A measured UDK release reads as 3 and the build it stamps, then the parts after the month.
+    [TestCase("2010-09", new[] { 3, 7258 })]
+    [TestCase("2013-02-BETA", new[] { 3, 10897 })]
+    [TestCase("2013-02-BETA2", new[] { 3, 10900, 2 })]
+    [TestCase("2011-03-BETA2", new[] { 3, 7977, 2 })]
+    public void ParseVersion_UdkRelease_ReadsAs3AndItsBuild(string release, int[] parts)
+    {
+        Assert.That(UnrealTarget.ParseVersion(release)!.Parts, Is.EqualTo(parts));
     }
 
     private static ProfileTarget FromFileVersion(string? text, Version numbers)

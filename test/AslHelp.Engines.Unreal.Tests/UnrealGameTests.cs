@@ -149,13 +149,14 @@ public sealed class UnrealGameTests(
         Assert.That(Attach(memory, Document("uproperty", "indirect", "flat")).GWorld.Path.Read<Address>().Unwrap(), Is.EqualTo(Address.Zero));
     }
 
-    // The slot reads on each access without another search, so a world set after attach shows up.
+    // The 1st read searches for the slot and later reads don't search again, so a world set after that read shows up.
     [Test]
-    public void Attach_GWorldSetAfterAttach_ReadsTheNewPointer()
+    public void Attach_GWorldSetAfterTheFirstRead_ReadsTheNewPointer()
     {
         var memory = MemoryWithGame();
         memory.WritePointer(_gWorld, Address.Zero);
         var game = Attach(memory, Document("uproperty", "indirect", "flat"));
+        _ = game.GWorld.Path.Read<Address>().Unwrap();
         int searches = memory.ReadsAt(_module);
 
         memory.WritePointer(_gWorld, _world);
@@ -167,9 +168,7 @@ public sealed class UnrealGameTests(
         }
     }
 
-    // A signature that isn't in the module fails with the global, the module and the route.
-    [TestCase("GEngine")]
-    [TestCase("GWorld")]
+    // A signature of the name table or the object array that isn't in the module fails with the global, the module and the route.
     [TestCase("GUObjectArray")]
     [TestCase("NameTable")]
     public void Attach_LocatorWithoutMatch_FailsWithTheGlobalAndTheRoute(string global)
@@ -179,6 +178,39 @@ public sealed class UnrealGameTests(
         Assert.That(
             UnrealGame.Attach(MemoryWithGame(), Module, UnrealProfile.Parse(json).Unwrap()).UnwrapErr().Message,
             Does.StartWith($"Can't find {global} in {ModuleName}. No route located the address. '4.0': "));
+    }
+
+    // A GWorld or GEngine signature that isn't in the module still attaches, so the paths from the other global read.
+    // A read from the missing global fails with the global, the module and the route.
+    [TestCase("GEngine")]
+    [TestCase("GWorld")]
+    public void Attach_GWorldOrGEngineWithoutMatch_AttachesAndFailsItsReads(string global)
+    {
+        string json = Set(Document("uproperty", "indirect", "flat"), MissingLocator, "globals", global);
+
+        var game = UnrealGame.Attach(MemoryWithGame(), Module, UnrealProfile.Parse(json).Unwrap()).Unwrap();
+        var (missing, other) = global == "GWorld" ? (game.GWorld, game.GEngine) : (game.GEngine, game.GWorld);
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(missing.Path.Read<Address>().UnwrapErr().Message, Does.StartWith($"Can't read {global}. Can't find {global} in {ModuleName}. No route located the address. '4.0': "));
+            Assert.That(other.Path.Read<Address>().IsOk, Is.True);
+        }
+    }
+
+    // A missing GWorld searches the module again only after the retry interval, because a search can take the whole module.
+    [Test]
+    public void Attach_GWorldWithoutMatch_DoesNotSearchAgainOnEachRead()
+    {
+        var memory = MemoryWithGame();
+        string json = Set(Document("uproperty", "indirect", "flat"), MissingLocator, "globals", "GWorld");
+        var game = UnrealGame.Attach(memory, Module, UnrealProfile.Parse(json).Unwrap()).Unwrap();
+        _ = game.GWorld.Path.Read<Address>();
+        int searches = memory.ReadsAt(_module);
+
+        _ = game.GWorld.Path.Read<Address>();
+
+        Assert.That(memory.ReadsAt(_module), Is.EqualTo(searches));
     }
 
     // A global with 2 routes attaches when only the 2nd matches, as GUObjectArray of 4.8 to 4.10 needs.
@@ -191,16 +223,17 @@ public sealed class UnrealGameTests(
         Assert.That(ReadObjects(Attach(MemoryWithGame(), json)), Is.EqualTo(ArrayObjects));
     }
 
-    // 2 matches that reach 2 addresses fail attach, so the game never picks 1 of them.
+    // 2 matches that reach 2 addresses fail the read, so the game never picks 1 of them.
     [Test]
-    public void Attach_RouteReachesTwoAddresses_Fails()
+    public void Attach_RouteReachesTwoAddresses_FailsTheRead()
     {
         var memory = MemoryWithGame();
         memory.WriteGlobalReference(_module + 0x500, GWorldCode, _gWorld + 0x100);
+        var game = UnrealGame.Attach(memory, Module, UnrealProfile.Parse(Document("uproperty", "indirect", "flat")).Unwrap()).Unwrap();
 
         Assert.That(
-            UnrealGame.Attach(memory, Module, UnrealProfile.Parse(Document("uproperty", "indirect", "flat")).Unwrap()).UnwrapErr().Message,
-            Does.StartWith($"Can't find GWorld in {ModuleName}.").And.Contain("reaches both"));
+            game.GWorld.Path.Read<Address>().UnwrapErr().Message,
+            Does.StartWith($"Can't read GWorld. Can't find GWorld in {ModuleName}.").And.Contain("reaches both"));
     }
 
     // An item without room for a pointer fails attach with a result, where the array constructor alone would throw.

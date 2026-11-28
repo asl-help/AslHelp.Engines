@@ -25,6 +25,7 @@ internal sealed class FakeMemory : IMemoryReader
     private const int PoolBlockSize = 0x2_0000;
 
     private readonly List<(Address Start, byte[] Bytes)> _blocks = [];
+    private readonly HashSet<Address> _failing = [];
     private readonly Dictionary<Address, int> _readsAt = [];
 
     /// <inheritdoc/>
@@ -349,11 +350,30 @@ internal sealed class FakeMemory : IMemoryReader
         full.AsSpan(0, Layout.PointerSize).CopyTo(BytesAt(address, Layout.PointerSize));
     }
 
+    /// <summary>
+    ///     Makes every read that covers <paramref name="address"/> fail, like a byte of a page the game freed.
+    /// </summary>
+    /// <param name="address">The address of the byte.</param>
+    public void Fail(Address address)
+    {
+        _failing.Add(address);
+    }
+
     /// <inheritdoc/>
     public Result Read(Address address, Span<byte> buffer)
     {
         Reads++;
         _readsAt[address] = ReadsAt(address) + 1;
+
+        foreach (var failing in _failing)
+        {
+            long at = failing - address;
+
+            if (at >= 0 && at < buffer.Length)
+            {
+                return new UnreadableError(address);
+            }
+        }
 
         foreach ((var start, byte[] bytes) in _blocks)
         {

@@ -58,7 +58,7 @@ public sealed class UnrealGameUdkLiveTests
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(game.FindClass("World").Unwrap().GetProperties().Unwrap(), Is.Empty);
+                Assert.That(game.FindClass("World").Unwrap().Properties.Unwrap(), Is.Empty);
                 Assert.That(data.Path.Member("IntValue").Read<int>().Unwrap(), Is.EqualTo(1337));
                 Assert.That(data.Path.Member("Hp").Read<int>().Unwrap(), Is.InRange(1, 1000));
             }

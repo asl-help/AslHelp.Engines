@@ -239,6 +239,27 @@ internal sealed class ContainerHost(
     }
 
     /// <summary>
+    ///     Removes the container <paramref name="containerId"/>, also a running one, and ignores a Docker failure of the removal,
+    ///     so the failure of the start or the timeout or exit of the run reaches the caller.
+    /// </summary>
+    /// <param name="containerId">The ID of the container.</param>
+    /// <returns>
+    ///     A task that completes once the removal is done or has failed.
+    /// </returns>
+    internal async Task TryRemoveAsync(string containerId)
+    {
+        try
+        {
+            ContainerRemoveParameters remove = new() { Force = true };
+            await _client.Containers.RemoveContainerAsync(containerId, remove, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception exception) when (IsDockerFailure(exception))
+        {
+            // Leave the container on the machine, because the failure of the start or the run has the reason to show.
+        }
+    }
+
+    /// <summary>
     ///     Checks whether <paramref name="exception"/> comes from a Docker engine that doesn't run or refuses a request.
     /// </summary>
     /// <param name="exception">The exception.</param>
@@ -348,27 +369,6 @@ internal sealed class ContainerHost(
             throw new InvalidOperationException(SR.FormatDockerLost(image, exception.Message), exception);
         }
     }
-
-    /// <summary>
-    ///     Removes the container <paramref name="containerId"/>, also a running one, and ignores a Docker failure of the removal,
-    ///     so the failure of the start or the timeout or exit of the run reaches the caller.
-    /// </summary>
-    /// <param name="containerId">The ID of the container.</param>
-    /// <returns>
-    ///     A task that completes once the removal is done or has failed.
-    /// </returns>
-    internal async Task TryRemoveAsync(string containerId)
-    {
-        try
-        {
-            ContainerRemoveParameters remove = new() { Force = true };
-            await _client.Containers.RemoveContainerAsync(containerId, remove, CancellationToken.None).ConfigureAwait(false);
-        }
-        catch (Exception exception) when (IsDockerFailure(exception))
-        {
-            // Leave the container on the machine, because the failure of the start or the run has the reason to show.
-        }
-    }
 }
 
 /// <summary>
@@ -383,10 +383,10 @@ file sealed class ContainerRun(
     Task<ContainerWaitResponse> exit) : IHostedRun
 {
     /// <inheritdoc/>
-    public bool HasExited => exit.IsCompleted;
+    public int ExitCode => unchecked((int)exit.GetAwaiter().GetResult().StatusCode);
 
     /// <inheritdoc/>
-    public int ExitCode => unchecked((int)exit.GetAwaiter().GetResult().StatusCode);
+    public bool HasExited => exit.IsCompleted;
 
     /// <inheritdoc/>
     public Task WaitForExitAsync(CancellationToken cancellationToken)

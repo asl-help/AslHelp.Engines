@@ -19,9 +19,9 @@ internal sealed class LocalPlayerHost : IPlayerHost
 
 file sealed class LocalPlayerRun(Player player) : IHostedRun
 {
-    public bool HasExited => player.HasExited;
-
     public int ExitCode => player.Process.ExitCode;
+
+    public bool HasExited => player.HasExited;
 
     public Task WaitForExitAsync(CancellationToken cancellationToken)
     {

@@ -11,13 +11,13 @@ namespace AslHelp.Engines.Measuring.Cli.Tests;
 // Returns 1 value of each kind and fails for the player folders the test lists, because a real measurer needs a running engine.
 internal sealed class FakeMeasurer(params string[] failing) : IEngineMeasurer
 {
-    public string Name => "engine";
-
-    public IReadOnlyList<Option> Options => [];
-
     public int MaxDegreeOfParallelism => 1;
 
     public int Measured { get; private set; }
+
+    public string Name => "engine";
+
+    public IReadOnlyList<Option> Options => [];
 
     public string? TargetsPath { get; private set; }
 

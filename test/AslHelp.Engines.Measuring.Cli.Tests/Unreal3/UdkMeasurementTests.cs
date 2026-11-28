@@ -242,7 +242,7 @@ public sealed class UdkMeasurementTests(
         Assert.That(MeasureError(), Is.EqualTo(UdkSR.ObjectArrayNotFound));
     }
 
-    // An array whose pointers end behind the sample passes the search and then fails with its RVA and the block that did not read.
+    // An array whose pointers end behind the sample passes the search and then fails with its RVA and the 1st pointer that did not read.
     [Test]
     public void Measure_ObjectArrayUnreadablePastSample_FailsWithRvaAndCause()
     {
@@ -252,8 +252,8 @@ public sealed class UdkMeasurementTests(
         Assert.That(
             Measure(image).UnwrapErr().Message,
             Does.StartWith($"The object array at RVA 0x{FakeImage.ObjectArrayRva:X} does not read to its end.")
-                .And.Contain("from position 0")
-                .And.Contain($"No block contains {FakeImage.ObjectPointerAt(0)}."));
+                .And.Contain("from position 648")
+                .And.Contain($"No block contains {FakeImage.ObjectPointerAt(648)}."));
     }
 
     // Objects with no readable name at any offset fail the row, because every later search reads names.

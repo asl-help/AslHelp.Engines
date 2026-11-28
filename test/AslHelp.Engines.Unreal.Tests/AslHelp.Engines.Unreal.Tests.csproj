@@ -22,4 +22,9 @@
     <Compile Include="$(ToolsPath)/AslHelp.Engines.Fixtures/Unreal4/UnrealPlayerNames.cs" Link="Unreal4/UnrealPlayerNames.cs" />
   </ItemGroup>
 
+  <!-- Embed the pinned UDK releases, so a test checks that the version parser knows the build of each. -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(RootPath)/eng/fixtures/unreal3/releases.json" LogicalName="unreal3-releases.json" />
+  </ItemGroup>
+
 </Project>

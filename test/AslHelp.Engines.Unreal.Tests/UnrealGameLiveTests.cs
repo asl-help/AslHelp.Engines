@@ -235,6 +235,19 @@ public sealed class UnrealGameLiveTests(
         });
     }
 
+    // The weak pointer resolves to Items[1] on every version, because 4.0 to 4.10 keep the serial numbers in blocks apart from the object array.
+    [Test]
+    public void Read_RealPlayer_ReadsTheWeakPointer()
+    {
+        WithAttachedPlayer(game =>
+        {
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
+            var shield = data.Member("Items").Item(1).Read<Address>().Unwrap();
+
+            Assert.That(data.Member("WeakItem").Read<Address>().Unwrap(), Is.EqualTo(shield));
+        });
+    }
+
     // Typed paths read the arrays, the maps, the set and the weak pointer of FixtureData with the values BeginPlay sets.
     [Test]
     public void Read_RealPlayer_ReadsCollectionsThroughTypedPaths()
@@ -258,8 +271,8 @@ public sealed class UnrealGameLiveTests(
                 Assert.That(data.Member("CoordArray").Read<int[][]>().Unwrap(), Is.EqualTo(coordArray));
                 Assert.That(data.Member("CoordArray").Item(1).Member("X").Read<int>().Unwrap(), Is.EqualTo(3));
                 Assert.That(data.Member("Items").Item(1).Member("Count").Read<int>().Unwrap(), Is.EqualTo(3));
-                Assert.That(data.Member("Items").Item(1).Count().IsErr, Is.True);
-                Assert.That(data.Member("Items").Count().Read<int>().Unwrap(), Is.EqualTo(2));
+                Assert.That(data.Member("Items").Item(1).Count.IsErr, Is.True);
+                Assert.That(data.Member("Items").Count.Read<int>().Unwrap(), Is.EqualTo(2));
                 Assert.That(data.Member("Dict").Read<Dictionary<string, int>>().Unwrap(), Is.EquivalentTo(dict));
                 Assert.That(data.Member("Dict").Item("two").Read<int>().Unwrap(), Is.EqualTo(2));
                 Assert.That(data.Member("IntDict").Item(5).Read<int>().Unwrap(), Is.EqualTo(50));
@@ -302,10 +315,26 @@ public sealed class UnrealGameLiveTests(
                 Assert.That(watch(data.Member("Dict").Item("two")).Current, Is.EqualTo(2));
                 Assert.That(watch(data.Member("IntDict").Item(6)).Current, Is.EqualTo(60));
                 Assert.That(watch(data.Member("IntSet").Item(33)).Current, Is.True);
-                Assert.That(watch(data.Member("Items").Count()).Current, Is.EqualTo(2));
+                Assert.That(watch(data.Member("Items").Count).Current, Is.EqualTo(2));
                 Assert.That(watch(data.Member("WeakItem").Member("Count")).Current, Is.EqualTo(3));
                 Assert.That(Numbers(watch(data.Member("VecArray").Item(0)).Current), Is.EqualTo(firstVector));
                 Assert.That(Numbers(watch(data.Member("VecArray").Item(1)).Current), Is.EqualTo(secondVector));
+            }
+        });
+    }
+
+    // Position and Rotation read as Vector and Rotator on every version, with the floats before 5.0 widened to doubles.
+    [Test]
+    public void Read_RealPlayer_ReadsVectorAndRotator()
+    {
+        WithAttachedPlayer(game =>
+        {
+            var data = game.GWorld.Path.Member("AuthorityGameMode").Member("FixtureData");
+
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(data.Member("Position").Read<Vector>().Unwrap(), Is.EqualTo(new Vector(1, 2, 3)));
+                Assert.That(data.Member("Rotation").Read<Rotator>().Unwrap(), Is.EqualTo(new Rotator(10, 20, 30)));
             }
         });
     }
@@ -344,7 +373,7 @@ public sealed class UnrealGameLiveTests(
         WithAttachedPlayer(game =>
         {
             var classes = game.FindPackage("/Script/Fixture").Unwrap().GetClasses().Unwrap().Select(static klass => klass.Name);
-            var properties = game.FindClass("FixtureData").Unwrap().GetProperties().Unwrap();
+            var properties = game.FindClass("FixtureData").Unwrap().Properties.Unwrap();
             var kinds = properties.Select(static property => (property.Name, property.ClassName));
 
             using (Assert.EnterMultipleScope())
@@ -416,7 +445,7 @@ public sealed class UnrealGameLiveTests(
 
         WithAttachedPlayer(game => Assert.That(
             game.FindSubsystem("FixtureSubsystem").UnwrapErr().Message,
-            Is.EqualTo("Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile.")));
+            Is.EqualTo("Subsystems need 4.22 or later, UGameInstance.SubsystemCollection and FSubsystemCollectionBase.SubsystemMap in the profile.")));
     }
 
     // From 4.22 on the fixture subsystem sets SubsystemValue when the game instance creates it.

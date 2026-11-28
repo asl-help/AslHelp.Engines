@@ -73,6 +73,6 @@ public sealed class UnrealGameUdkRootTests
     {
         Assert.That(
             _game.FindSubsystem("FixtureSubsystem").UnwrapErr().Message,
-            Is.EqualTo("Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile."));
+            Is.EqualTo("Subsystems need 4.22 or later, UGameInstance.SubsystemCollection and FSubsystemCollectionBase.SubsystemMap in the profile."));
     }
 }

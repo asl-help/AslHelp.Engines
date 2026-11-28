@@ -94,6 +94,38 @@ internal abstract class PropertyAccess(
     }
 
     /// <summary>
+    ///     Checks whether this property also reads as <typeparamref name="TValue"/> besides the type of its kind, like a struct as a <see cref="StructValue"/>.
+    /// </summary>
+    /// <typeparam name="TValue">The type of the read.</typeparam>
+    /// <returns>
+    ///     <see langword="true"/> when <see cref="ReadAs"/> reads <typeparamref name="TValue"/>.
+    /// </returns>
+    public virtual bool AlsoReadsAs<TValue>()
+    {
+        return typeof(TValue) == typeof(StructValue) && IsStruct;
+    }
+
+    /// <summary>
+    ///     Reads the value of this property in <paramref name="container"/> as <typeparamref name="TValue"/>, which <see cref="AlsoReadsAs"/> accepts.
+    /// </summary>
+    /// <typeparam name="TValue">The type of the read.</typeparam>
+    /// <param name="memory">The memory to read from.</param>
+    /// <param name="container">The address of the object or struct with the value.</param>
+    /// <param name="last">The value of the last read or the default.</param>
+    /// <returns>
+    ///     The value or a failure when the property doesn't read as <typeparamref name="TValue"/> or a read fails.
+    /// </returns>
+    public virtual Result<TValue> ReadAs<TValue>(IMemoryReader memory, Address container, TValue? last)
+    {
+        if (typeof(TValue) != typeof(StructValue))
+        {
+            return NotValueOf(typeof(TValue));
+        }
+
+        return ReadStruct(memory, container, last as StructValue).TryUnwrap(out var value, out var error) ? (TValue)(object)value : error;
+    }
+
+    /// <summary>
     ///     Moves a path from <paramref name="container"/> into the value of this property.
     /// </summary>
     /// <param name="memory">The memory to read from.</param>

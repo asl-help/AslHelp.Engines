@@ -92,7 +92,7 @@ public sealed class BigEndianKindTests
         WriteBigEndian(sparse + 0x4, 40);
         WriteBigEndian(sparse + 0x10, 0x8000_0001);
         WriteBigEndian(sparse + 0x14, 0b10);
-        SparseArray sparseArray = new(Property("SetProperty"), new SparseArrayLayout(0x0, 0x4, 0x8, 0x10, 0x30), 0);
+        SparseArray sparseArray = new("SetProperty", new SparseArrayLayout(0x0, 0x4, 0x8, 0x10, 0x30), ValueOffset, ValueBounds.Default.MaxElements);
 
         var slots = sparseArray.ReadSlots(_memory, _object).Unwrap();
 

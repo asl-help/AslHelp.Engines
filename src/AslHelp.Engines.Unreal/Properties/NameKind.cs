@@ -53,6 +53,8 @@ file sealed class NameAccess(
     NameValueLayout layout,
     INameTable nameTable) : ValueAccess<string>(property)
 {
+    private const int MaxKeptTexts = 1024;
+
     private readonly NameValueLayout _layout = layout;
     private readonly INameTable _nameTable = nameTable;
 
@@ -94,7 +96,7 @@ file sealed class NameAccess(
         }
 
         // Clear the kept texts at the bound, because a long-running game keeps creating names.
-        if (_texts.Count >= ValueBounds.MaxElements)
+        if (_texts.Count >= MaxKeptTexts)
         {
             _texts.Clear();
         }

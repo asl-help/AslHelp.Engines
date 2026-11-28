@@ -294,14 +294,14 @@
   <data name="PropertyOffsetUnreadable" xml:space="preserve">
     <value>Can't read the offset of the property at {0}: reading {1} failed. {2} Check PropertyLayout.Offset (0x{3}).</value>
   </data>
-  <data name="RootNoLiveObject" xml:space="preserve">
-    <value>Can't find a live object of the class {0}.</value>
-  </data>
   <data name="RootObjectGone" xml:space="preserve">
     <value>The {0} object at {1} was freed.</value>
   </data>
+  <data name="RootSubsystemNotFound" xml:space="preserve">
+    <value>The game instance doesn't have a subsystem of the class {0}.</value>
+  </data>
   <data name="RootSubsystemsUnavailable" xml:space="preserve">
-    <value>Subsystems need 4.22 or later and UGameInstance.SubsystemCollection in the profile.</value>
+    <value>Subsystems need 4.22 or later, UGameInstance.SubsystemCollection and FSubsystemCollectionBase.SubsystemMap in the profile.</value>
   </data>
   <data name="StructChainPastLimit" xml:space="preserve">
     <value>The super chain of the struct at {0} goes on past {1} levels. Check StructLayout.SuperStruct (0x{2}).</value>
@@ -327,17 +327,23 @@
   <data name="StructSuperUnreadable" xml:space="preserve">
     <value>Can't read the super struct of the struct at {0}: reading {1} failed. {2} Check StructLayout.SuperStruct (0x{3}).</value>
   </data>
-  <data name="TargetBuildUnknown" xml:space="preserve">
-    <value>The stamp 1.0.{0}.0 isn't a known UDK build. Pass the version, like 2010-09 or 4.27.2.</value>
+  <data name="TargetModuleFileUnreadable" xml:space="preserve">
+    <value>Couldn't read the module file '{0}'. {1}</value>
+  </data>
+  <data name="TargetModulePathUnknown" xml:space="preserve">
+    <value>The path of module '{0}' isn't known, so its file can't be read.</value>
   </data>
   <data name="TargetPointerSizeUnsupported" xml:space="preserve">
     <value>A pointer size of {0} bytes isn't x86 or x64.</value>
+  </data>
+  <data name="TargetReleaseUnmeasured" xml:space="preserve">
+    <value>The build of UDK {0} isn't known. Pass 3 and the engine build, like 3.8225.</value>
   </data>
   <data name="TargetStampMissing" xml:space="preserve">
     <value>{0} doesn't have an engine version stamp. Pass the version, like 4.27.2.</value>
   </data>
   <data name="TargetVersionInvalid" xml:space="preserve">
-    <value>'{0}' isn't an Unreal Engine version, like 4.27.2 or 2010-09.</value>
+    <value>'{0}' isn't an Unreal Engine version, like 4.27.2, 2010-09 or 3.8225.</value>
   </data>
   <data name="ValueBoolMaskUnreadable" xml:space="preserve">
     <value>Can't read the bool mask of {0}: reading {1} failed. {2}</value>

@@ -1,6 +1,7 @@
 using AslHelp.Engines.Unreal.Errors;
 using AslHelp.Engines.Unreal.Structs;
 using AslHelp.Memory;
+using System;
 using System.Collections.Generic;
 
 namespace AslHelp.Engines.Unreal.Properties;
@@ -66,7 +67,7 @@ internal sealed class MapKind : LayoutKind<MapPropertyLayout>
             return error;
         }
 
-        SparseArray sparseArray = new(property, layout.Set.SparseArray, layout.Pairs + layout.Set.Elements);
+        SparseArray sparseArray = new(property.Name, layout.Set.SparseArray, property.Offset + layout.Pairs + layout.Set.Elements, classReader.Bounds.MaxElements);
 
         return key.Accept(new MapKeyFactory(property, sparseArray, slotSize, keyProperty.ClassName, value, valueProperty.ClassName));
     }
@@ -116,7 +117,7 @@ file sealed class MapElements<TKey>(
     SparseLookup<TKey> lookup,
     PropertyAccess value) : CollectionAccess(property)
 {
-    public override ValueAccess<int> Count { get; } = sparseArray.Count;
+    public override ValueAccess<int> Count { get; } = sparseArray.CreateCount(property);
 
     public override PropertyAccess Element { get; } = value;
 
@@ -170,7 +171,7 @@ file sealed class MapValueAccess<TKey, TValue>(
 
         if (_keys.Length < slots.SlotCount)
         {
-            _keys = new TKey[ValueBounds.MaxElements];
+            _keys = new TKey[Math.Max(slots.SlotCount, (int)Math.Min(_keys.Length * 2L, int.MaxValue))];
         }
 
         _pairs.Clear();

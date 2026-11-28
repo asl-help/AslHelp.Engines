@@ -16,16 +16,6 @@ internal sealed class FakeBuildHost(
     Func<BuildStep, int?> onStep) : IBuildHost
 {
     /// <summary>
-    ///     Gets a value indicating whether <see cref="HasImageAsync"/> finds every image. The default is <see langword="true"/>.
-    /// </summary>
-    public bool HasImage { get; init; } = true;
-
-    /// <summary>
-    ///     Gets the steps in start order.
-    /// </summary>
-    public List<BuildStep> Steps { get; } = [];
-
-    /// <summary>
     ///     Gets the number of disposed runs. Each one stands for a removed container.
     /// </summary>
     public int DisposedRuns { get; private set; }
@@ -36,9 +26,19 @@ internal sealed class FakeBuildHost(
     public List<(string Directory, int StepsBefore)> GrantedFolders { get; } = [];
 
     /// <summary>
+    ///     Gets a value indicating whether <see cref="HasImageAsync"/> finds every image. The default is <see langword="true"/>.
+    /// </summary>
+    public bool HasImage { get; init; } = true;
+
+    /// <summary>
     ///     Gets the owners of <see cref="RemoveStepsAsync"/>, each with the number of steps started before the call.
     /// </summary>
     public List<(string Owner, int StepsBefore)> RemovedOwners { get; } = [];
+
+    /// <summary>
+    ///     Gets the steps in start order.
+    /// </summary>
+    public List<BuildStep> Steps { get; } = [];
 
     /// <inheritdoc/>
     public Task<bool> HasImageAsync(string image, CancellationToken cancellationToken)
@@ -79,10 +79,10 @@ file sealed class FakeRun(
     Action onDispose) : IHostedRun
 {
     /// <inheritdoc/>
-    public bool HasExited => exitCode is not null;
+    public int ExitCode => exitCode ?? throw new InvalidOperationException();
 
     /// <inheritdoc/>
-    public int ExitCode => exitCode ?? throw new InvalidOperationException();
+    public bool HasExited => exitCode is not null;
 
     /// <inheritdoc/>
     public Task WaitForExitAsync(CancellationToken cancellationToken)

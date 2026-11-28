@@ -44,7 +44,7 @@ public sealed class SetKindTests(
             Assert.That(
                 _game.GWorld.Path.Member("GameMode").Member("Data").Member("IntSet").Read<HashSet<int>>().Unwrap(),
                 Is.EquivalentTo(expected));
-            Assert.That(IntSet.Count().Read<int>().Unwrap(), Is.EqualTo(3));
+            Assert.That(IntSet.Count.Read<int>().Unwrap(), Is.EqualTo(3));
         }
     }
 
@@ -85,6 +85,18 @@ public sealed class SetKindTests(
         Assert.That(
             _game.GWorld.Path.Member("GameMode").Member("Data").Member("IntSet").Read<HashSet<int>>().Unwrap(),
             Is.EquivalentTo(expected));
+    }
+
+    // A bound passed at attach replaces the 1024 for the slots too.
+    [Test]
+    public void Element_MoreSlotsThanPassedBound_FailsWithThatBound()
+    {
+        var game = _fakeGame.Attach(new ValueBounds { MaxElements = 2 });
+        _fakeGame.Memory.WriteInt32(_fakeGame.Data + FakeGame.IntSetOffset + 0x8, 3);
+
+        Assert.That(
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("IntSet").Item(11).Read<bool>().UnwrapErr().Message,
+            Does.EndWith("IntSet has 3 slots, past the limit of 2."));
     }
 
     // 1025 slots is past the bound, so a lookup fails before it reads any slot.

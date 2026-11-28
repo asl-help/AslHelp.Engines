@@ -76,6 +76,11 @@ file sealed class ValuePathWatcher<T> : Watcher<T>
         _memberPath = memberPath;
     }
 
+    public override string ToString()
+    {
+        return SR.FormatPathValueWatcher(typeof(T).Name, _memberPath);
+    }
+
     protected override Result<T> Read()
     {
         var result = _memberPath.ReadValue(Ticks, _last);
@@ -86,10 +91,5 @@ file sealed class ValuePathWatcher<T> : Watcher<T>
         }
 
         return result;
-    }
-
-    public override string ToString()
-    {
-        return SR.FormatPathValueWatcher(typeof(T).Name, _memberPath);
     }
 }

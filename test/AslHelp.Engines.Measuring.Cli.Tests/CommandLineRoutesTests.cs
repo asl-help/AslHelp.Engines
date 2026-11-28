@@ -45,7 +45,7 @@ public sealed class CommandLineRoutesTests
     {
         int code = await RunAsync(
             (First, new CodeBuilder(false).MovEcx(GlobalRva).Ret()),
-            (Second, new CodeBuilder(false).Nops(1)));
+            (Second, new CodeBuilder(false).Fillers(1)));
 
         using (Assert.EnterMultipleScope())
         {

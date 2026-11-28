@@ -429,7 +429,7 @@ internal static class CommandLine
                 return new FailedPlayer(error.Message, elapsed);
             }
 
-            return measurement.FindMalformedOffsetKey() is { } key
+            return measurement.MalformedOffsetKey is { } key
                 ? new FailedPlayer(SR.FormatOffsetKeyMalformed(key), elapsed)
                 : new MeasuredPlayer(measurement, elapsed);
         }

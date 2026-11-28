@@ -20,11 +20,6 @@ internal sealed class SlowStream(
 {
     private int _position;
 
-    /// <summary>
-    ///     Gets the bytes written so far, in order.
-    /// </summary>
-    public List<byte> Written { get; } = [];
-
     /// <inheritdoc/>
     public override bool CanRead => true;
 
@@ -36,6 +31,11 @@ internal sealed class SlowStream(
 
     /// <inheritdoc/>
     public override long Length => throw new NotSupportedException();
+
+    /// <summary>
+    ///     Gets the bytes written so far, in order.
+    /// </summary>
+    public List<byte> Written { get; } = [];
 
     /// <inheritdoc/>
     public override long Position

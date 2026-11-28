@@ -26,13 +26,13 @@ public sealed class UdkFailureTests(
 
     private FakeImage _image = null!;
 
+    private Address Filler => _image.Memory.ReadPointer(FakeImage.ObjectPointerAt(FakeImage.FirstFillerPosition)).Unwrap();
+
     private static IReadOnlyList<string> FirstNames => _targets.Values.OfType<UdkNameArrayTarget>().Single().FirstNames;
 
     private Address FixtureClass => _image.ClassCalled(UdkFixtureCheck.ClassName);
 
     private Address FixtureField => _image.Memory.ReadPointer(FixtureClass + layout.Children).Unwrap();
-
-    private Address Filler => _image.Memory.ReadPointer(FakeImage.ObjectPointerAt(FakeImage.FirstFillerPosition)).Unwrap();
 
     [SetUp]
     public void SetUp()

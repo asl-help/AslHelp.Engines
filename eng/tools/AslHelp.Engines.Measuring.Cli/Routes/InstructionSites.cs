@@ -22,6 +22,10 @@ internal static class InstructionSites
     /// <summary>
     ///     Decodes the code sections of <paramref name="image"/> linearly and lists the window around each site.
     /// </summary>
+    /// <remarks>
+    ///     A window starts after the last padding, return or jump before the site and ends at the 1st return or jump after it or before the 1st padding,
+    ///     because padding moves with the code it pads and the bytes after a return or a jump belong to other code.
+    /// </remarks>
     /// <param name="image">The code.</param>
     /// <param name="addresses">The wanted addresses at the preferred image base.</param>
     /// <returns>
@@ -38,7 +42,7 @@ internal static class InstructionSites
             ulong sectionAddress = image.ImageBase + section.Rva;
             var decoder = Decoder.Create(image.Is64Bit ? 64 : 32, reader, sectionAddress);
 
-            // Count the decoded instructions since the last undecodable bytes, because a window never crosses them.
+            // Count the decoded instructions since the last undecodable bytes, padding, return or jump, because a window never crosses them.
             int decoded = 0;
 
             while (reader.CanReadByte)
@@ -66,6 +70,13 @@ internal static class InstructionSites
                 if (ImmediateAddress(instruction, offsets, image.Is64Bit) is { } immediate && addresses.Contains(immediate))
                 {
                     windows.Add(ReadWindow(image, section, from, before, immediate, start - from + offsets.ImmediateOffset));
+                }
+
+                if (IsPadding(instruction) || EndsPath(instruction))
+                {
+                    decoded = 0;
+
+                    continue;
                 }
 
                 starts[decoded % starts.Length] = start;
@@ -120,6 +131,7 @@ internal static class InstructionSites
 
     /// <summary>
     ///     Decodes the instructions from <paramref name="from"/> to the 8th after the site and copies their bytes.
+    ///     Stops before padding and after a return or a jump at or after the site.
     /// </summary>
     /// <param name="image">The code.</param>
     /// <param name="section">The section of the site.</param>
@@ -145,7 +157,7 @@ internal static class InstructionSites
         {
             decoder.Decode(out var instruction);
 
-            if (instruction.IsInvalid)
+            if (instruction.IsInvalid || (starts.Count > site && IsPadding(instruction)))
             {
                 break;
             }
@@ -178,6 +190,11 @@ internal static class InstructionSites
 
             starts.Add(length);
             length += instruction.Length;
+
+            if (starts.Count > site && EndsPath(instruction))
+            {
+                break;
+            }
         }
 
         byte[] bytes = section.Bytes.Span.Slice(from, length).ToArray();
@@ -217,6 +234,18 @@ internal static class InstructionSites
         return IsNearBranch(instruction)
             || (offsets.ImmediateSize == AddressSize && IsInsideImage(instruction.Immediate32, image))
             || (offsets.ImmediateSize == LargeAddressSize && IsInsideImage(instruction.Immediate64, image));
+    }
+
+    // Treat a return and a jump as the end of the straight path, because the bytes after them belong to other code.
+    private static bool EndsPath(in Instruction instruction)
+    {
+        return instruction.FlowControl is FlowControl.Return or FlowControl.UnconditionalBranch or FlowControl.IndirectBranch;
+    }
+
+    // Treat nop and int3 as padding, because a compiler fills space with them and they move with what they pad.
+    private static bool IsPadding(in Instruction instruction)
+    {
+        return instruction.Mnemonic is Mnemonic.Nop or Mnemonic.Int3;
     }
 
     private static bool IsInsideImage(ulong value, CodeImage image)

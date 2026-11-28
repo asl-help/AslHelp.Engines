@@ -54,11 +54,6 @@ internal sealed class FakeUdkGame
         """;
 
     /// <summary>
-    ///     The route of <c>GObjObjects</c> in <see cref="Document"/>.
-    /// </summary>
-    public const string GObjObjectsRoute = """[{ "forward": "3B F0 8B 0D ????????", "offset": 4 }, { "read": "global" }]""";
-
-    /// <summary>
     ///     The value of <c>Coord.X</c> in the data object.
     /// </summary>
     public const int CoordX = 7;
@@ -79,6 +74,11 @@ internal sealed class FakeUdkGame
     public const int GoalScoreOffset = 0x84;
 
     /// <summary>
+    ///     The route of <c>GObjObjects</c> in <see cref="Document"/>.
+    /// </summary>
+    public const string GObjObjectsRoute = """[{ "forward": "3B F0 8B 0D ????????", "offset": 4 }, { "read": "global" }]""";
+
+    /// <summary>
     ///     The value of <c>IntValue</c> in the data object.
     /// </summary>
     public const int IntValue = 1337;
@@ -94,14 +94,14 @@ internal sealed class FakeUdkGame
     public const string ModuleName = "UDK.exe";
 
     /// <summary>
-    ///     The number of objects in the object array, with the empty slot.
-    /// </summary>
-    public const int ObjectCount = 24;
-
-    /// <summary>
     ///     The text of <c>NameValue</c> in the data object.
     /// </summary>
     public const string NameText = "fixture-name";
+
+    /// <summary>
+    ///     The number of objects in the object array, with the empty slot.
+    /// </summary>
+    public const int ObjectCount = 24;
 
     /// <summary>
     ///     The text of <c>StringValue</c> in the data object.
@@ -120,8 +120,8 @@ internal sealed class FakeUdkGame
     private const int ClassId = 1;
     private const int CoordOffset = 0xA4;
     private const int DataOffset = 0x90;
-    private const int EngineGameOffset = 0x84;
     private const int ElementSizeOffset = 0x44;
+    private const int EngineGameOffset = 0x84;
     private const int FixtureDataId = 9;
     private const int FixtureGameId = 8;
     private const int GameId = 11;

@@ -1,4 +1,5 @@
 using AslHelp.Engines.Profiles;
+using AslHelp.Memory.Locating;
 using NUnit.Framework;
 using System.Text.Json;
 using static AslHelp.Engines.Tests.Profiles.FakeProfile;
@@ -36,6 +37,52 @@ public sealed class ProfileReaderEdgeTests
             Assert.That(profile.SpeedOffset, Is.EqualTo(0x10));
             Assert.That(profile.ThingsLocator.Routes.Keys, Is.EqualTo(["1.0"]));
         }
+    }
+
+    // An optional global that the document doesn't have reads as null and doesn't fail the document.
+    [Test]
+    public void ReadGlobalOrNull_MissingGlobal_ReadsNullAndMaps()
+    {
+        MemoryLocator? extra = null;
+
+        _ = ProfileReader.Read(
+            Document("x64", "1.0"),
+            reader =>
+            {
+                extra = reader.ReadGlobalOrNull("Extra");
+                return Map(reader);
+            },
+            FakeVersion.Parse).Unwrap();
+
+        Assert.That(extra, Is.Null);
+    }
+
+    // An optional global that isn't a locator fails the document with the global.
+    [Test]
+    public void ReadGlobalOrNull_GlobalThatIsNotALocator_FailsTheDocument()
+    {
+        const string Document = """
+            {
+              "engine": "fake",
+              "versions": ["1.0"],
+              "offsets": { "Thing": { "Speed": "0x10" } },
+              "globals": {
+                "Extra": 5,
+                "Things": { "1.0": [{ "forward": "A1 ????????", "offset": 1 }, { "read": "global" }] }
+              }
+            }
+            """;
+
+        var result = ProfileReader.Read(
+            Document,
+            reader =>
+            {
+                _ = reader.ReadGlobalOrNull("Extra");
+                return Map(reader);
+            },
+            FakeVersion.Parse);
+
+        Assert.That(result.UnwrapErr().Message, Does.Contain("Extra"));
     }
 
     // An object that a mapper keeps still reads after the document is gone.

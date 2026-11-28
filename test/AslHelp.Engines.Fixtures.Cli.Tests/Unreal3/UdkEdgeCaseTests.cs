@@ -275,14 +275,14 @@ public sealed class UdkEdgeCaseTests
 file sealed class FakeUdkHost : IPlayerHost
 {
     /// <summary>
-    ///     Gets the file of each started executable in order, such as <c>UDK.com</c>.
-    /// </summary>
-    public List<string> Starts { get; } = [];
-
-    /// <summary>
     ///     Gets a value indicating whether the server exits with code 3 right after it starts.
     /// </summary>
     public bool ServerExits { get; init; }
+
+    /// <summary>
+    ///     Gets the file of each started executable in order, such as <c>UDK.com</c>.
+    /// </summary>
+    public List<string> Starts { get; } = [];
 
     /// <inheritdoc/>
     public Task<IHostedRun> StartAsync(string installDirectory, string executablePath, string arguments, CancellationToken cancellationToken)

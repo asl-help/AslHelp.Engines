@@ -255,26 +255,27 @@ public sealed class ChunkedObjectArrayTests(
         }
     }
 
-    // A chunk ending after 1500 items gives the 1st block of 1024 and then 1 failure with the position of the failed 2nd block.
+    // A chunk ending after 1500 items reads its 2nd block 1 item at a time, so the items up to 1500 still read and each item after it fails.
     [Test]
-    public void Read_BlockPastReadableMemory_YieldsBlockThenFailure()
+    public void Read_BlockPastReadableMemory_ReadsItsItemsOneByOne()
     {
         FakeMemory memory = new() { Layout = memoryLayout };
         memory.AddChunkedObjectArray(_array, layout, _table, 2000, _chunk);
         memory.Add(_chunk, new byte[1500 * item.Size]);
 
         var items = new ChunkedObjectArray(memory, _array, layout, item).Read(2000).ToList();
-        var block = _chunk + (1024 * item.Size);
+        var address = _chunk + (1500 * item.Size) + item.ObjectPointer;
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(items, Has.Count.EqualTo(1025));
-            Assert.That(items.Take(1024).All(static read => read.IsOk), Is.True);
+            Assert.That(items, Has.Count.EqualTo(2000));
+            Assert.That(items.Take(1500).All(static read => read.IsOk), Is.True);
+            Assert.That(items.Skip(1500).All(static read => read.IsErr), Is.True);
             Assert.That(
-                items[^1].UnwrapErr().Message,
+                items[1500].UnwrapErr().Message,
                 Is.EqualTo(
-                    $"Can't read the 976 object pointers from position 1024 of the object array at {_array}: reading {block} failed. "
-                    + $"No block contains {block}."));
+                    $"Can't read the 1 object pointers from position 1500 of the object array at {_array}: reading {address} failed. "
+                    + $"No block contains {address}."));
         }
     }
 
@@ -298,9 +299,9 @@ public sealed class ChunkedObjectArrayTests(
         }
     }
 
-    // A failed block ends the enumeration, so a readable chunk behind it does not put pointers after the failure.
+    // A chunk that doesn't read fails at each of its positions and the chunk behind it still reads.
     [Test]
-    public void Read_BlockOfFirstChunkUnreadable_EndsBeforeNextChunk()
+    public void Read_BlockOfFirstChunkUnreadable_GoesOnWithNextChunk()
     {
         int perChunk = layout.ElementsPerChunk;
         FakeMemory memory = new() { Layout = memoryLayout };
@@ -311,9 +312,28 @@ public sealed class ChunkedObjectArrayTests(
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(items, Has.Count.EqualTo(1));
-            Assert.That(items[0].IsErr, Is.True);
-            Assert.That(memory.ReadsAt(_table + memoryLayout.PointerSize), Is.Zero);
+            Assert.That(items, Has.Count.EqualTo(perChunk + 1));
+            Assert.That(items.Take(perChunk).All(static read => read.IsErr), Is.True);
+            Assert.That(items[^1].Unwrap(), Is.EqualTo(ObjectAt(perChunk)));
+        }
+    }
+
+    // Only the 1st block where no item reads gets read 1 item at a time, so a wrong profile with many dead chunks costs at most 1 block of item reads.
+    [Test]
+    public void Read_TwoChunksUnreadable_ReadsItemsOneByOneOnlyInTheFirst()
+    {
+        int perChunk = layout.ElementsPerChunk;
+        FakeMemory memory = new() { Layout = memoryLayout };
+        memory.AddChunkedObjectArray(_array, layout, _table, 2 * perChunk, _chunk, _nextChunk);
+
+        var items = new ChunkedObjectArray(memory, _array, layout, item).Read(2 * perChunk).ToList();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(items, Has.Count.EqualTo(2 * perChunk));
+            Assert.That(items.All(static read => read.IsErr), Is.True);
+            Assert.That(memory.ReadsAt(_chunk + item.Size + item.ObjectPointer), Is.EqualTo(1));
+            Assert.That(memory.ReadsAt(_nextChunk + item.Size + item.ObjectPointer), Is.Zero);
         }
     }
 

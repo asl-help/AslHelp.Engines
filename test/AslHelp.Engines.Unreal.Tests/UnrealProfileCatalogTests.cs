@@ -138,6 +138,22 @@ public sealed class UnrealProfileCatalogTests
         Assert.That(selection.Entry.Source, Is.EqualTo($"Profiles/{document}.json"));
     }
 
+    // A build without a measured release takes the nearest lower UDK document when guessing is allowed, across the years of the releases.
+    [TestCase("3.8225", "unreal3-2010-08-BETA")]
+    [TestCase("3.13000", "unreal3-2011-07-BETA")]
+    public void Select_UnmeasuredUnreal3BuildWithGuessing_TakesTheNearestLowerDocument(string version, string document)
+    {
+        var selection = UnrealProfile.CreateCatalog()
+            .Select(new ProfileTarget(UnrealTarget.Unreal3, UnrealTarget.ParseVersion(version)!, "win-x86-shipping"), ProfileGuessHandling.Allow)
+            .Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(selection.Entry.Source, Is.EqualTo($"Profiles/{document}.json"));
+            Assert.That(selection.Match, Is.EqualTo(ProfileMatch.LowerVersion));
+        }
+    }
+
     // A document a consumer adds after the shipped documents wins for the versions it lists.
     [Test]
     public void CreateCatalog_ConsumerDocumentFor4192_WinsOverTheShippedDocument()

@@ -15,20 +15,25 @@ internal sealed class FakeCacheStore : ICacheStore
     private readonly List<FileStream> _heldDownloads = [];
 
     /// <summary>
-    ///     Gets the stored files by path, such as <c>players/abc.tar.zst</c>.
-    /// </summary>
-    public Dictionary<string, byte[]> Files { get; } = [];
-
-    /// <summary>
     ///     Gets the calls in order, such as <c>Download players/abc.tar.zst</c>.
     /// </summary>
     public List<string> Calls { get; } = [];
+
+    /// <summary>
+    ///     Gets a value indicating whether <see cref="Dispose"/> ran.
+    /// </summary>
+    public bool Disposed { get; private set; }
 
     /// <summary>
     ///     Gets the call that throws an <see cref="IOException"/> or <see langword="null"/> for none. <c>Download</c> or
     ///     <c>Upload</c> fails every call of that method and a full line such as <c>Upload players/abc.json</c> fails 1 path.
     /// </summary>
     public string? FailingCall { get; init; }
+
+    /// <summary>
+    ///     Gets the stored files by path, such as <c>players/abc.tar.zst</c>.
+    /// </summary>
+    public Dictionary<string, byte[]> Files { get; } = [];
 
     /// <summary>
     ///     Gets a value indicating whether each download stays open for reading without delete share until <see cref="Dispose"/>.
@@ -39,11 +44,6 @@ internal sealed class FakeCacheStore : ICacheStore
     ///     Gets the progress that every download of a stored file and every upload reports once or <see langword="null"/> for none.
     /// </summary>
     public TransferProgress? Progress { get; init; }
-
-    /// <summary>
-    ///     Gets a value indicating whether <see cref="Dispose"/> ran.
-    /// </summary>
-    public bool Disposed { get; private set; }
 
     /// <inheritdoc/>
     public async Task<bool> TryDownloadAsync(

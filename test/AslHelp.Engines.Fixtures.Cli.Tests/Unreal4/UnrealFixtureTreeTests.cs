@@ -62,19 +62,6 @@ public sealed partial class UnrealFixtureTreeTests
 
     private TestFolder _folder = null!;
 
-    private static IEnumerable<Version> Minors()
-    {
-        for (int minor = 0; minor <= 27; minor++)
-        {
-            yield return new Version(4, minor);
-        }
-
-        for (int minor = 0; minor <= 8; minor++)
-        {
-            yield return new Version(5, minor);
-        }
-    }
-
     [OneTimeSetUp]
     public void OneTimeSetUp()
     {
@@ -709,5 +696,18 @@ public sealed partial class UnrealFixtureTreeTests
         string path = RenderedFile(version, relativePath);
 
         return File.Exists(path) ? File.ReadAllText(path) : string.Empty;
+    }
+
+    private static IEnumerable<Version> Minors()
+    {
+        for (int minor = 0; minor <= 27; minor++)
+        {
+            yield return new Version(4, minor);
+        }
+
+        for (int minor = 0; minor <= 8; minor++)
+        {
+            yield return new Version(5, minor);
+        }
     }
 }

@@ -29,18 +29,18 @@ internal sealed record FakeRelease(
     public static string DisplayName => "Fake";
 
     /// <inheritdoc/>
-    public static string ReleasesPath => "eng/fixtures/fake/releases.json";
-
-    /// <inheritdoc/>
-    public static string ReleasesResource => "fake-releases.json";
-
-    /// <inheritdoc/>
     [JsonIgnore]
     public IReadOnlyList<string> Keys => [Version, Alias];
 
     /// <inheritdoc/>
     [JsonIgnore]
     public string Pin => Version;
+
+    /// <inheritdoc/>
+    public static string ReleasesPath => "eng/fixtures/fake/releases.json";
+
+    /// <inheritdoc/>
+    public static string ReleasesResource => "fake-releases.json";
 
     /// <inheritdoc/>
     public bool Matches(string spelling)

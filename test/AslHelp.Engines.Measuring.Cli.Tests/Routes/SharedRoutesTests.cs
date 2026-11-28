@@ -50,7 +50,7 @@ public sealed class SharedRoutesTests
     {
         var found = Find(
             Version("a", new CodeBuilder(false).MovEcx(GlobalA).Ret(), GlobalA),
-            Version("b", new CodeBuilder(false).Nops(3).MovEcx(GlobalB).Ret(), GlobalB));
+            Version("b", new CodeBuilder(false).Fillers(3).MovEcx(GlobalB).Ret(), GlobalB));
 
         var route = found[Global].Routes.Single();
 
@@ -71,7 +71,7 @@ public sealed class SharedRoutesTests
     {
         var found = Find(
             Version("a", new CodeBuilder(false).MovEcx(GlobalA), GlobalA),
-            Version("b", new CodeBuilder(false).MovEcx(GlobalB).Nops(1).MovEcx(GlobalB), GlobalB));
+            Version("b", new CodeBuilder(false).MovEcx(GlobalB).Fillers(1).MovEcx(GlobalB), GlobalB));
 
         Assert.That(found[Global].Routes.Single().Versions, Is.EqualTo(_aAndB));
     }
@@ -82,7 +82,7 @@ public sealed class SharedRoutesTests
     {
         var found = Find(
             Version("a", new CodeBuilder(false).MovEcx(GlobalA).Ret(), GlobalA),
-            Version("b", new CodeBuilder(false).MovEcx(Other).Nops(1).MovEcx(GlobalB).Ret(), GlobalB));
+            Version("b", new CodeBuilder(false).MovEcx(Other).Fillers(1).MovEcx(GlobalB).Ret(), GlobalB));
 
         var route = found[Global].Routes.Single();
 
@@ -134,7 +134,7 @@ public sealed class SharedRoutesTests
     public void Find_MatchInCoveredVersionAtItsGlobal_KeepsTheCandidate()
     {
         var found = Find(
-            Version("a", new CodeBuilder(false).MovEcx(GlobalA).Nops(1).MovEax(GlobalA), GlobalA),
+            Version("a", new CodeBuilder(false).MovEcx(GlobalA).Fillers(1).MovEax(GlobalA), GlobalA),
             Version("b", new CodeBuilder(false).MovEcx(GlobalB), GlobalB),
             Version("c", new CodeBuilder(false).MovEax(GlobalA), GlobalA));
 
@@ -190,7 +190,7 @@ public sealed class SharedRoutesTests
         var found = Find(
             Version("a", new CodeBuilder(false).MovEcx(GlobalA), GlobalA),
             Version("b", new CodeBuilder(false).MovEcx(GlobalB), GlobalB),
-            Version("c", new CodeBuilder(false).Nops(8), GlobalA));
+            Version("c", new CodeBuilder(false).Fillers(8), GlobalA));
 
         using (Assert.EnterMultipleScope())
         {
@@ -204,15 +204,15 @@ public sealed class SharedRoutesTests
     public void Find_ShortCandidateCoversFewer_PrefersTheLongerThatCoversAll()
     {
         var found = Find(
-            Version("a", new CodeBuilder(false).MovEcx(GlobalA).Nops(1).Ret(), GlobalA),
-            Version("b", new CodeBuilder(false).MovEcx(GlobalB).Nops(1).Ret(), GlobalB),
-            Version("c", new CodeBuilder(false).MovEcx(Other).Nops(2).Ret().MovEcx(GlobalA).Nops(1).Ret(), GlobalA));
+            Version("a", new CodeBuilder(false).MovEcx(GlobalA).Fillers(1).Ret(), GlobalA),
+            Version("b", new CodeBuilder(false).MovEcx(GlobalB).Fillers(1).Ret(), GlobalB),
+            Version("c", new CodeBuilder(false).MovEcx(Other).Fillers(2).Ret().MovEcx(GlobalA).Fillers(1).Ret(), GlobalA));
 
         var route = found[Global].Routes.Single();
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(route.Forward, Is.EqualTo("8B 0D ???????? 90 C3"));
+            Assert.That(route.Forward, Is.EqualTo("8B 0D ???????? FC C3"));
             Assert.That(route.Versions, Is.EqualTo(_threeVersions));
         }
     }
@@ -221,7 +221,7 @@ public sealed class SharedRoutesTests
     [Test]
     public void Find_EqualCoverage_PrefersFewerInstructions()
     {
-        var found = Find(Version("a", new CodeBuilder(false).Nops(1).MovEcx(GlobalA).Ret(), GlobalA));
+        var found = Find(Version("a", new CodeBuilder(false).Fillers(1).MovEcx(GlobalA).Ret(), GlobalA));
 
         Assert.That(found[Global].Routes.Single().Forward, Is.EqualTo("8B 0D ????????"));
     }
@@ -230,13 +230,13 @@ public sealed class SharedRoutesTests
     [Test]
     public void Find_EqualInstructions_PrefersFewerBytes()
     {
-        var found = Find(Version("a", new CodeBuilder(false).MovEcx(Other).Ret().Nops(1).MovEcx(GlobalA).Raw(0x6A, 0x01), GlobalA));
+        var found = Find(Version("a", new CodeBuilder(false).MovEcx(Other).Ret().Fillers(1).MovEcx(GlobalA).Raw(0x6A, 0x01), GlobalA));
 
         var route = found[Global].Routes.Single();
 
         using (Assert.EnterMultipleScope())
         {
-            Assert.That(route.Forward, Is.EqualTo("90 8B 0D ????????"));
+            Assert.That(route.Forward, Is.EqualTo("FC 8B 0D ????????"));
             Assert.That(route.Offset, Is.EqualTo(3));
         }
     }
@@ -245,7 +245,7 @@ public sealed class SharedRoutesTests
     [Test]
     public void Find_EqualRank_PrefersOrdinalText()
     {
-        var found = Find(Version("a", new CodeBuilder(false).MovEdx(GlobalA).Nops(1).MovEcx(GlobalA), GlobalA));
+        var found = Find(Version("a", new CodeBuilder(false).MovEdx(GlobalA).Fillers(1).MovEcx(GlobalA), GlobalA));
 
         Assert.That(found[Global].Routes.Single().Forward, Is.EqualTo("8B 0D ????????"));
     }
@@ -316,7 +316,7 @@ public sealed class SharedRoutesTests
     {
         var found = Find(
             Version("a", new CodeBuilder(false).MovEcx(GlobalA), GlobalA),
-            Version("b", new CodeBuilder(false).Raw(0x8B, 0x4D, 0x08).Nops(4).Raw(0xB8, 0x8B, 0x1D).Absolute(GlobalB).Ret(), GlobalB));
+            Version("b", new CodeBuilder(false).Raw(0x8B, 0x4D, 0x08).Fillers(4).Raw(0xB8, 0x8B, 0x1D).Absolute(GlobalB).Ret(), GlobalB));
 
         using (Assert.EnterMultipleScope())
         {
@@ -331,7 +331,7 @@ public sealed class SharedRoutesTests
     {
         var found = Find(
             Version("a", new CodeBuilder(false).MovEcx(GlobalA).Ret(), GlobalA),
-            Version("b", new CodeBuilder(false).Raw(0x8B, 0x4D, 0x08).Nops(4).Raw(0xB8, 0x8B, 0x1D).Absolute(GlobalB).Ret(), GlobalB));
+            Version("b", new CodeBuilder(false).Raw(0x8B, 0x4D, 0x08).Fillers(4).Raw(0xB8, 0x8B, 0x1D).Absolute(GlobalB).Ret(), GlobalB));
 
         var routes = found[Global].Routes;
 
@@ -374,8 +374,8 @@ public sealed class SharedRoutesTests
     [Test]
     public void Find_SameInputTwice_ReturnsEqualJson()
     {
-        var a = Version("a", new CodeBuilder(false).MovEdx(GlobalA).Nops(1).MovEcx(GlobalA).Ret(), GlobalA);
-        var b = Version("b", new CodeBuilder(false).MovEcx(GlobalB).Nops(1).MovEdx(GlobalB).Ret(), GlobalB);
+        var a = Version("a", new CodeBuilder(false).MovEdx(GlobalA).Fillers(1).MovEcx(GlobalA).Ret(), GlobalA);
+        var b = Version("b", new CodeBuilder(false).MovEcx(GlobalB).Fillers(1).MovEdx(GlobalB).Ret(), GlobalB);
 
         string first = Json(Find(a, b));
         string second = Json(Find(a, b));
@@ -437,7 +437,7 @@ public sealed class SharedRoutesTests
     public void Find_GlobalMissingInOneVersion_ListsThatVersionAsNotFound()
     {
         const string Second = "Second";
-        string first = Write("a", new CodeBuilder(false).MovEcx(GlobalA).Nops(1).MovEdx(Other));
+        string first = Write("a", new CodeBuilder(false).MovEcx(GlobalA).Fillers(1).MovEdx(Other));
         string second = Write("b", new CodeBuilder(false).MovEdx(Other));
 
         var found = Find(
@@ -459,7 +459,7 @@ public sealed class SharedRoutesTests
     {
         var found = Find(
             Version("a", new CodeBuilder(true, 0x0001_4000_0000).MovRax(GlobalA).Ret(), GlobalA),
-            Version("b", new CodeBuilder(true, 0x0001_5000_0000).Nops(2).MovRax(GlobalB).Ret(), GlobalB));
+            Version("b", new CodeBuilder(true, 0x0001_5000_0000).Fillers(2).MovRax(GlobalB).Ret(), GlobalB));
 
         var route = found[Global].Routes.Single();
 
@@ -488,13 +488,13 @@ public sealed class SharedRoutesTests
     {
         // Pad the code, because a scan of a few bytes ends before a 2nd worker of a step without the limit starts. Give e
         // another global and no load, because the conflict check then scans a version that the search of the route left uncached.
-        var padded = new CodeBuilder(false).Nops(PaddingBytes).Ret();
+        var padded = new CodeBuilder(false).Fillers(PaddingBytes).Ret();
         RouteVersion[] versions =
         [
-            Version("a", new CodeBuilder(false).Nops(PaddingBytes).MovEcx(GlobalA).Ret(), GlobalA),
-            Version("b", new CodeBuilder(false).Nops(PaddingBytes).MovEcx(GlobalB).Ret(), GlobalB),
-            Version("c", new CodeBuilder(false).Nops(PaddingBytes).MovEcx(GlobalA).Ret(), GlobalA),
-            Version("d", new CodeBuilder(false).Nops(PaddingBytes).MovEcx(GlobalB).Ret(), GlobalB),
+            Version("a", new CodeBuilder(false).Fillers(PaddingBytes).MovEcx(GlobalA).Ret(), GlobalA),
+            Version("b", new CodeBuilder(false).Fillers(PaddingBytes).MovEcx(GlobalB).Ret(), GlobalB),
+            Version("c", new CodeBuilder(false).Fillers(PaddingBytes).MovEcx(GlobalA).Ret(), GlobalA),
+            Version("d", new CodeBuilder(false).Fillers(PaddingBytes).MovEcx(GlobalB).Ret(), GlobalB),
             new RouteVersion("e", Write("e", padded), new Dictionary<string, IReadOnlyList<uint>> { ["Y"] = [GlobalA] }),
         ];
 

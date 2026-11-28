@@ -7,7 +7,7 @@ using System.Runtime.InteropServices;
 namespace AslHelp.Engines.Unreal.Properties;
 
 /// <summary>
-///     Reads the slots of the sparse array of a set or a map property and the bits that mark which slots are used.
+///     Reads the slots of the sparse array of a set or a map and the bits that mark which slots are used.
 /// </summary>
 /// <remarks>
 ///     Keeps the allocation bits in a buffer, so a read doesn't allocate. Isn't thread-safe.
@@ -17,7 +17,8 @@ internal sealed class SparseArray
     private const int BitsPerWord = 32;
 
     private readonly SparseArrayLayout _layout;
-    private readonly UnrealProperty _property;
+    private readonly int _maxSlots;
+    private readonly string _name;
     private readonly int _start;
 
     private uint[] _words = [];
@@ -25,21 +26,29 @@ internal sealed class SparseArray
     /// <summary>
     ///     Initializes a new instance of the <see cref="SparseArray"/> class.
     /// </summary>
-    /// <param name="property">The set or map property, for the messages.</param>
+    /// <param name="name">The name of the set or the map, for the messages.</param>
     /// <param name="layout">The offsets inside the sparse array.</param>
-    /// <param name="start">The offset of the sparse array in the value of the property.</param>
-    public SparseArray(UnrealProperty property, SparseArrayLayout layout, int start)
+    /// <param name="start">The offset of the sparse array in the object or struct that has the set or the map.</param>
+    /// <param name="maxSlots">The most slots a read takes, because a torn or wrong count can be huge.</param>
+    public SparseArray(string name, SparseArrayLayout layout, int start, int maxSlots)
     {
-        _property = property;
+        _name = name;
         _layout = layout;
         _start = start;
-        Count = new SparseCount(property, this);
+        _maxSlots = maxSlots;
     }
 
     /// <summary>
-    ///     Gets the read of the number of used slots.
+    ///     Creates the read of the number of used slots of <paramref name="property"/>.
     /// </summary>
-    public ValueAccess<int> Count { get; }
+    /// <param name="property">The set or map property of the sparse array.</param>
+    /// <returns>
+    ///     The read.
+    /// </returns>
+    public ValueAccess<int> CreateCount(UnrealProperty property)
+    {
+        return new SparseCount(property, this);
+    }
 
     /// <summary>
     ///     Finds the used slot at the position that <paramref name="key"/> gives, counting only the used slots in slot order.
@@ -57,7 +66,7 @@ internal sealed class SparseArray
     /// </returns>
     public Result<Address> FindUsed(IMemoryReader memory, Address container, int slotSize, ElementKey key)
     {
-        if (!key.As<int>(this, _property.Name).TryUnwrap(out int position, out var error)
+        if (!key.As<int>(this, _name).TryUnwrap(out int position, out var error)
             || !ReadSlots(memory, container).TryUnwrap(out var slots, out error))
         {
             return error;
@@ -80,7 +89,7 @@ internal sealed class SparseArray
             used++;
         }
 
-        return key.OutOfRange(_property.Name, position, used);
+        return key.OutOfRange(_name, position, used);
     }
 
     /// <summary>
@@ -105,7 +114,7 @@ internal sealed class SparseArray
     /// </returns>
     public Result<int> ReadCount(IMemoryReader memory, Address container)
     {
-        var start = container + _property.Offset + _start;
+        var start = container + _start;
 
         if (!ReadInt32(memory, container, start + _layout.Count).TryUnwrap(out int slots, out var error)
             || !ReadInt32(memory, container, start + _layout.NumFreeIndices).TryUnwrap(out int free, out error))
@@ -115,12 +124,12 @@ internal sealed class SparseArray
 
         if (slots < 0)
         {
-            return CollectionError.CountNegative(_property.Name, slots);
+            return CollectionError.CountNegative(_name, slots);
         }
 
         if (free < 0 || free > slots)
         {
-            return CollectionError.FreeSlotsOutOfRange(_property.Name, free, slots);
+            return CollectionError.FreeSlotsOutOfRange(_name, free, slots);
         }
 
         return slots - free;
@@ -139,7 +148,7 @@ internal sealed class SparseArray
     /// </returns>
     public Result<(Address Data, int SlotCount)> ReadSlots(IMemoryReader memory, Address container)
     {
-        var start = container + _property.Offset + _start;
+        var start = container + _start;
 
         if (!ReadInt32(memory, container, start + _layout.Count).TryUnwrap(out int slots, out var error))
         {
@@ -148,12 +157,12 @@ internal sealed class SparseArray
 
         if (slots < 0)
         {
-            return CollectionError.CountNegative(_property.Name, slots);
+            return CollectionError.CountNegative(_name, slots);
         }
 
-        if (slots > ValueBounds.MaxElements)
+        if (slots > _maxSlots)
         {
-            return CollectionError.TooManySlots(_property.Name, slots, ValueBounds.MaxElements);
+            return CollectionError.TooManySlots(_name, slots, _maxSlots);
         }
 
         if (slots == 0)
@@ -169,14 +178,14 @@ internal sealed class SparseArray
 
         if (data == Address.Zero)
         {
-            return CollectionError.DataNull(_property.Name, slots);
+            return CollectionError.DataNull(_name, slots);
         }
 
         int wordCount = (slots + BitsPerWord - 1) / BitsPerWord;
 
         if (_words.Length < wordCount)
         {
-            _words = new uint[ValueBounds.MaxElements / BitsPerWord];
+            _words = new uint[Math.Max(wordCount, (int)Math.Min(_words.Length * 2L, int.MaxValue))];
         }
 
         var words = _words.AsSpan(0, wordCount);
@@ -184,7 +193,7 @@ internal sealed class SparseArray
 
         if (memory.Read(bits, MemoryMarshal.AsBytes(words)).TryUnwrapErr(out error))
         {
-            return ValueError.Unreadable(container, _property.Name, bits, error);
+            return ValueError.Unreadable(container, _name, bits, error);
         }
 
         // Swap the bytes of each word when the game's byte order isn't the host's, because the read copies the bytes as they are.
@@ -203,14 +212,14 @@ internal sealed class SparseArray
     {
         return memory.Read<int>(address).TryUnwrap(out int value, out var error)
             ? value
-            : ValueError.Unreadable(container, _property.Name, address, error);
+            : ValueError.Unreadable(container, _name, address, error);
     }
 
     private Result<Address> ReadPointer(IMemoryReader memory, Address container, Address address)
     {
         return memory.ReadPointer(address).TryUnwrap(out var value, out var error)
             ? value
-            : ValueError.Unreadable(container, _property.Name, address, error);
+            : ValueError.Unreadable(container, _name, address, error);
     }
 }
 

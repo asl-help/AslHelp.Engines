@@ -240,6 +240,42 @@ public sealed class UnrealPathWatcherTests(
         }
     }
 
+    // An index step goes into an array element, a key into a map value or a set entry and Count reads the number of elements.
+    [Test]
+    public void Item_IndexAndKeySteps_WatchElements()
+    {
+        var hp = Data.Member("Items").Item(1).Member("Hp").Unwrap();
+        var two = Data.Member("Dict").Item("two").Unwrap();
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(hp.CreateWatcher(new ManualTicks()).Current, Is.EqualTo(500));
+            Assert.That(two.CreateWatcher(new ManualTicks()).Current, Is.EqualTo(2));
+            Assert.That(Data.Member("IntSet").Item(22).Unwrap().CreateWatcher(new ManualTicks()).Current, Is.True);
+            Assert.That(Data.Member("Items").Count.Unwrap().CreateWatcher(new ManualTicks()).Current, Is.EqualTo(2));
+            Assert.That(hp.ToString(), Is.EqualTo("GWorld.GameMode.Data.Items[1].Hp"));
+            Assert.That(two.ToString(), Is.EqualTo("GWorld.GameMode.Data.Dict[\"two\"]"));
+        }
+    }
+
+    // A long index, a string key and a bool key find their items. A missing key and an index past the count still fail the read.
+    [Test]
+    public void Item_KeyKinds_FindArrayMapAndSetItems()
+    {
+        var missingKey = Data.Member("Dict").Item("four").Unwrap().CreateWatcher(new ManualTicks());
+        var pastCount = Data.Member("IntArray").Item(3).Unwrap().CreateWatcher(new ManualTicks());
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(Data.Member("IntArray").Item(2L).Unwrap().CreateWatcher(new ManualTicks()).Current, Is.EqualTo(300));
+            Assert.That(Data.Member("IntDict").Item(5).Unwrap().CreateWatcher(new ManualTicks()).Current, Is.EqualTo(50));
+            Assert.That(missingKey.Current, Is.Null);
+            Assert.That(missingKey.Error?.Message, Does.EndWith("Dict doesn't have the key \"four\"."));
+            Assert.That(pastCount.Current, Is.Null);
+            Assert.That(pastCount.Error?.Message, Does.EndWith("IntArray doesn't have index 3. It has 3 elements."));
+        }
+    }
+
     private static IEnumerable<KindCase> KindValues()
     {
         yield return new KindCase("Hp", FakeGame.Hp);
@@ -265,44 +301,8 @@ public sealed class UnrealPathWatcherTests(
         yield return new KindCase("IntSet", (HashSet<int>)[11, 22, 33]);
         yield return new KindCase("IntDict", new Dictionary<int, int> { [4] = 40, [5] = 50, [6] = 60 });
         yield return new KindCase("NameDict", new Dictionary<string, int> { [FakeGame.NameText] = 7, ["Hp_4"] = 8 });
-        yield return new KindCase("Position", new StructValue("FixtureVector", ["X", "Y", "Z"], [1f, 2f, 3f]));
+        yield return new KindCase("Position", new StructValue("Vector", ["X", "Y", "Z"], [1f, 2f, 3f]));
         yield return new KindCase("Mixed", new StructValue("FixtureMixed", ["A", "B"], [1, 2f]));
-    }
-
-    // An index step goes into an array element, a key into a map value or a set entry and Count reads the number of elements.
-    [Test]
-    public void Item_IndexAndKeySteps_WatchElements()
-    {
-        var hp = Data.Member("Items").Item(1).Member("Hp").Unwrap();
-        var two = Data.Member("Dict").Item("two").Unwrap();
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(hp.CreateWatcher(new ManualTicks()).Current, Is.EqualTo(500));
-            Assert.That(two.CreateWatcher(new ManualTicks()).Current, Is.EqualTo(2));
-            Assert.That(Data.Member("IntSet").Item(22).Unwrap().CreateWatcher(new ManualTicks()).Current, Is.True);
-            Assert.That(Data.Member("Items").Count().Unwrap().CreateWatcher(new ManualTicks()).Current, Is.EqualTo(2));
-            Assert.That(hp.ToString(), Is.EqualTo("GWorld.GameMode.Data.Items[1].Hp"));
-            Assert.That(two.ToString(), Is.EqualTo("GWorld.GameMode.Data.Dict[\"two\"]"));
-        }
-    }
-
-    // A long index, a string key and a bool key find their items. A missing key and an index past the count still fail the read.
-    [Test]
-    public void Item_KeyKinds_FindArrayMapAndSetItems()
-    {
-        var missingKey = Data.Member("Dict").Item("four").Unwrap().CreateWatcher(new ManualTicks());
-        var pastCount = Data.Member("IntArray").Item(3).Unwrap().CreateWatcher(new ManualTicks());
-
-        using (Assert.EnterMultipleScope())
-        {
-            Assert.That(Data.Member("IntArray").Item(2L).Unwrap().CreateWatcher(new ManualTicks()).Current, Is.EqualTo(300));
-            Assert.That(Data.Member("IntDict").Item(5).Unwrap().CreateWatcher(new ManualTicks()).Current, Is.EqualTo(50));
-            Assert.That(missingKey.Current, Is.Null);
-            Assert.That(missingKey.Error?.Message, Does.EndWith("Dict doesn't have the key \"four\"."));
-            Assert.That(pastCount.Current, Is.Null);
-            Assert.That(pastCount.Error?.Message, Does.EndWith("IntArray doesn't have index 3. It has 3 elements."));
-        }
     }
 
     // Get each member after GWorld.GameMode.Data like a script line does, with Coord.X for a member of a struct.

@@ -24,6 +24,8 @@ namespace AslHelp.Engines.Unreal.Structs;
 /// <param name="propertyReader">The reader of the properties in the storage shape of the game.</param>
 /// <param name="objectArray">The object array to search for classes, which weak pointers also read.</param>
 /// <param name="kindLayouts">The offsets that the value kinds read.</param>
+/// <param name="bounds">The largest string and collection that a read takes. The default is <see cref="ValueBounds.Default"/>.</param>
+/// <param name="serialNumberBlocks">The serial numbers apart from the object array, which weak pointers read on 4.0 to 4.10.</param>
 internal sealed class ClassReader(
     IMemoryReader memory,
     INameTable nameTable,
@@ -31,15 +33,17 @@ internal sealed class ClassReader(
     StructReader structReader,
     IPropertyReader propertyReader,
     IObjectArray objectArray,
-    KindLayouts kindLayouts)
+    KindLayouts kindLayouts,
+    ValueBounds? bounds = null,
+    SerialNumberBlocks? serialNumberBlocks = null)
 {
     /// <summary>
     ///     The number of levels of a super chain after which a read fails, because a damaged chain can loop.
     /// </summary>
     internal const int MaxSuperDepth = 64;
 
-    private readonly ClassIndex _classIndex = new(objectReader, structReader, objectArray);
     private readonly Dictionary<Address, UnrealClass> _classes = [];
+    private readonly ClassIndex _classIndex = new(objectReader, structReader, objectArray);
     private readonly Dictionary<Address, UnrealPackage> _packages = [];
     private readonly IPropertyReader _propertyReader = propertyReader;
     private readonly StructReader _structReader = structReader;
@@ -47,6 +51,11 @@ internal sealed class ClassReader(
     // Keep the version of the loaded classes at which no derived class declared a member, because a failed step isn't kept
     // and a script that tries it again would list and read every derived class again.
     private readonly Dictionary<(Address Class, string Member), int> _undeclaredAt = [];
+
+    /// <summary>
+    ///     Gets the largest string and collection that a read takes.
+    /// </summary>
+    public ValueBounds Bounds { get; } = bounds ?? ValueBounds.Default;
 
     /// <summary>
     ///     Gets the offsets that the value kinds read.
@@ -72,6 +81,11 @@ internal sealed class ClassReader(
     ///     Gets the reader of the names, the classes and the outer objects of objects.
     /// </summary>
     public ObjectReader ObjectReader { get; } = objectReader;
+
+    /// <summary>
+    ///     Gets the serial numbers apart from the object array or <see langword="null"/> when the object array has them or the game has none.
+    /// </summary>
+    public SerialNumberBlocks? SerialNumberBlocks { get; } = serialNumberBlocks;
 
     /// <summary>
     ///     Reads the number of elements of the property at <paramref name="prop"/>, like 3 for <c>float V[3]</c>.
@@ -221,7 +235,7 @@ internal sealed class ClassReader(
 
         foreach (var derivedClass in derived)
         {
-            if (!derivedClass.GetProperties().TryUnwrap(out var properties, out _))
+            if (!derivedClass.Properties.TryUnwrap(out var properties, out _))
             {
                 return null;
             }

@@ -10,15 +10,15 @@ namespace AslHelp.Engines.Measuring.Cli.Tests;
 // Measures each player folder through the given function, because the command line tests pick the result per folder.
 internal sealed class ScriptedMeasurer(Func<string, Result<PlayerMeasurement>> measure) : IEngineMeasurer
 {
-    public string Name => "engine";
-
-    public IReadOnlyList<Option> Options { get; init; } = [];
-
-    public int MaxDegreeOfParallelism { get; init; } = 1;
-
     public string? Key { get; init; }
 
     public Action<string, ILogger>? Log { get; init; }
+
+    public int MaxDegreeOfParallelism { get; init; } = 1;
+
+    public string Name => "engine";
+
+    public IReadOnlyList<Option> Options { get; init; } = [];
 
     public Func<IReadOnlyList<PlayerFolder>, IReadOnlyList<PlayerFolder>> Select { get; init; } = static players => players;
 

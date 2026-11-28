@@ -17,7 +17,7 @@ public sealed class SignatureScanTests
     [Test]
     public void Search_OneX86Match_ReachesTheAbsoluteAddress()
     {
-        var image = new CodeBuilder(false).Nops(3).MovEcx(Global).Ret().Build();
+        var image = new CodeBuilder(false).Fillers(3).MovEcx(Global).Ret().Build();
 
         Assert.That(new SignatureScan(_load).Search(image), Is.EqualTo(ScanResult.Reached(Global)));
     }
@@ -28,7 +28,7 @@ public sealed class SignatureScanTests
     public void Search_OneX64Match_AddsRelativeToTheNextByte(uint target, uint sectionRva)
     {
         RouteCandidate candidate = new("48 8B 05 ????????", 3, 1, 7);
-        var image = new CodeBuilder(true, 0x0001_4000_0000, sectionRva).Nops(1).MovRax(target).Build();
+        var image = new CodeBuilder(true, 0x0001_4000_0000, sectionRva).Fillers(1).MovRax(target).Build();
 
         Assert.That(new SignatureScan(candidate).Search(image).Rva, Is.EqualTo(target));
     }
@@ -50,7 +50,7 @@ public sealed class SignatureScanTests
     public void Search_NibbleTokenAlsoMatchesFieldLoad_IsConflicting()
     {
         RouteCandidate candidate = new("8B ?D ????????", 2, 1, 6);
-        var image = new CodeBuilder(false).MovEcx(Global).Raw(0x8B, 0x4D, 0x08).Nops(4).Build();
+        var image = new CodeBuilder(false).MovEcx(Global).Raw(0x8B, 0x4D, 0x08).Fillers(4).Build();
 
         Assert.That(new SignatureScan(candidate).Search(image), Is.EqualTo(ScanResult.Conflicting));
     }
@@ -91,7 +91,7 @@ public sealed class SignatureScanTests
     public void Search_MatchWhoseOffsetIsNotAnOperand_ReturnsNull()
     {
         RouteCandidate candidate = new("8B ?? ????????", 2, 1, 6);
-        var image = new CodeBuilder(false).Raw(0x8B, 0xC1).Nops(4).Build();
+        var image = new CodeBuilder(false).Raw(0x8B, 0xC1).Fillers(4).Build();
 
         Assert.That(new SignatureScan(candidate).Search(image).Rva, Is.Null);
     }
@@ -155,8 +155,8 @@ public sealed class SignatureScanTests
     public void Search_AllBytesMaskedExceptOne_UsesTheLiteralRun()
     {
         RouteCandidate candidate = new("68 ????????", 1, 1, 5);
-        var same = new CodeBuilder(false).Push(Global).Nops(2).Push(Global).Build();
-        var different = new CodeBuilder(false).Push(Global).Nops(2).Push(Other).Build();
+        var same = new CodeBuilder(false).Push(Global).Fillers(2).Push(Global).Build();
+        var different = new CodeBuilder(false).Push(Global).Fillers(2).Push(Other).Build();
 
         using (Assert.EnterMultipleScope())
         {

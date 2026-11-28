@@ -64,14 +64,14 @@ internal sealed class FakeUv
     }
 
     /// <summary>
+    ///     Gets the command line of the last install start, without the file.
+    /// </summary>
+    public string Arguments => File.ReadAllText(_argumentsPath).Trim();
+
+    /// <summary>
     ///     Gets the full path of the file.
     /// </summary>
     public string FilePath { get; }
-
-    /// <summary>
-    ///     Gets a value indicating whether the file was started.
-    /// </summary>
-    public bool Ran => File.Exists(_argumentsPath);
 
     /// <summary>
     ///     Gets the command line of the last measure start, without the file.
@@ -79,9 +79,9 @@ internal sealed class FakeUv
     public string MeasureArguments => File.ReadAllText(_measureArgumentsPath).Trim();
 
     /// <summary>
-    ///     Gets the command line of the last install start, without the file.
+    ///     Gets a value indicating whether the file was started.
     /// </summary>
-    public string Arguments => File.ReadAllText(_argumentsPath).Trim();
+    public bool Ran => File.Exists(_argumentsPath);
 
     /// <summary>
     ///     Gets the path of the script in the command line of the last start, the argument after <c>-I</c>.

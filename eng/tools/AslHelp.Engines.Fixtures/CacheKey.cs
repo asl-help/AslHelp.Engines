@@ -12,12 +12,12 @@ namespace AslHelp.Engines.Fixtures;
 /// </remarks>
 public sealed record CacheKey
 {
-    private const int HashLength = 64;
     /// <summary>
     ///     Represents the number of hex chars in <see cref="ShortHash"/>.
     /// </summary>
     public const int ShortHashLength = 16;
 
+    private const int HashLength = 64;
     /// <summary>
     ///     Initializes a new instance of the <see cref="CacheKey"/> class.
     /// </summary>
@@ -40,14 +40,14 @@ public sealed record CacheKey
     }
 
     /// <summary>
-    ///     Gets the kind of result, in lowercase ascii letters, digits and '-'.
-    /// </summary>
-    public string Kind { get; }
-
-    /// <summary>
     ///     Gets the sha256 over the inputs, as 64 lowercase hex chars.
     /// </summary>
     public string Hash { get; }
+
+    /// <summary>
+    ///     Gets the kind of result, in lowercase ascii letters, digits and '-'.
+    /// </summary>
+    public string Kind { get; }
 
     /// <summary>
     ///     Gets the first 16 hex chars of <see cref="Hash"/>, the part that <see cref="ToString"/> puts after the kind.

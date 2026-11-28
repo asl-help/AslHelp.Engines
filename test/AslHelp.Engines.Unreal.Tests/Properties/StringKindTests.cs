@@ -74,6 +74,17 @@ public sealed class StringKindTests(
             Is.EqualTo("Can't read GWorld.GameMode.Data.StringValue. StringValue has 513 characters, past the limit of 512."));
     }
 
+    // A bound passed at attach replaces the 512, so a text past it fails with that bound.
+    [Test]
+    public void Read_StringPastPassedBound_FailsWithThatBound()
+    {
+        var game = _fakeGame.Attach(new ValueBounds { MaxChars = 5 });
+
+        Assert.That(
+            game.GWorld.Path.Member("GameMode").Member("Data").Member("StringValue").Read<string>().UnwrapErr().Message,
+            Does.EndWith($"StringValue has {FakeGame.StringText.Length} characters, past the limit of 5."));
+    }
+
     // 512 characters is the bound itself, so it still reads.
     [Test]
     public void Read_StringAtBound_ReadsTheText()

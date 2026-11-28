@@ -126,7 +126,7 @@ public sealed class UnrealPathEdgeTests(
                 Is.EqualTo(
                     "Can't read GWorld.GameMode.Data.IntArray.Count. "
                     + "IntArray is a collection, so it takes an index or Count, not the member Count."));
-            Assert.That(intArray.Count().Read<int>().Unwrap(), Is.EqualTo(3));
+            Assert.That(intArray.Count.Read<int>().Unwrap(), Is.EqualTo(3));
         }
     }
 
@@ -158,7 +158,7 @@ public sealed class UnrealPathEdgeTests(
                 Data.Item(1).UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data[1]. Data isn't a collection, so it can't take the index 1."));
             Assert.That(
-                Data.Member("Hp").Count().UnwrapErr().Message,
+                Data.Member("Hp").Count.UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.Hp.Count at GWorld.GameMode.Data.Hp. Hp is IntProperty, which doesn't have members."));
         }
     }
@@ -175,7 +175,7 @@ public sealed class UnrealPathEdgeTests(
                 position.Item(0).UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.Position[0]. Position isn't a collection, so it can't take the index 0."));
             Assert.That(
-                position.Count().UnwrapErr().Message,
+                position.Count.UnwrapErr().Message,
                 Is.EqualTo("Can't read GWorld.GameMode.Data.Position.Count. Position isn't a collection, so it doesn't have a Count."));
             Assert.That(position.Member("X").Read<float>().Unwrap(), Is.EqualTo(1f));
         }

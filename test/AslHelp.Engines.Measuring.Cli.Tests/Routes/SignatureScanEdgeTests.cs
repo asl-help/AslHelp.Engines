@@ -16,7 +16,7 @@ public sealed class SignatureScanEdgeTests
     public void Search_OverlappingMatches_ChecksBoth()
     {
         RouteCandidate candidate = new("68 ????????", 1, 1, 5);
-        var image = new CodeBuilder(false).Raw(0x68).Absolute(0x2068).Nops(4).Build();
+        var image = new CodeBuilder(false).Raw(0x68).Absolute(0x2068).Fillers(4).Build();
 
         Assert.That(new SignatureScan(candidate).Search(image).Rva, Is.Null);
     }
@@ -42,7 +42,7 @@ public sealed class SignatureScanEdgeTests
             false,
             CodeBuilder.DefaultBase,
             CodeBuilder.ImageSize,
-            [new CodeBuilder(false).Nops(2).Section(), new CodeBuilder(false, rva: 0x5000).MovEcx(Global).Section()]);
+            [new CodeBuilder(false).Fillers(2).Section(), new CodeBuilder(false, rva: 0x5000).MovEcx(Global).Section()]);
 
         Assert.That(new SignatureScan(_load).Search(image).Rva, Is.EqualTo(Global));
     }
@@ -67,7 +67,7 @@ public sealed class SignatureScanEdgeTests
     public void Search_GoodMatchAndMatchWithoutOperand_ReturnsNull(bool goodFirst)
     {
         CodeBuilder builder = new(false);
-        _ = goodFirst ? builder.MovEcx(Global).Raw(0x8B, 0xC1).Nops(4) : builder.Raw(0x8B, 0xC1).Nops(4).MovEcx(Global);
+        _ = goodFirst ? builder.MovEcx(Global).Raw(0x8B, 0xC1).Fillers(4) : builder.Raw(0x8B, 0xC1).Fillers(4).MovEcx(Global);
 
         Assert.That(new SignatureScan(_anyRegister).Search(builder.Build()).Rva, Is.Null);
     }
@@ -130,7 +130,7 @@ public sealed class SignatureScanEdgeTests
     [Test]
     public void Search_LargeSectionMatchAtTheEnd_FindsIt()
     {
-        var image = new CodeBuilder(false).Nops(16 * 1024 * 1024).MovEcx(Global).Build();
+        var image = new CodeBuilder(false).Fillers(16 * 1024 * 1024).MovEcx(Global).Build();
 
         Assert.That(new SignatureScan(_load).Search(image).Rva, Is.EqualTo(Global));
     }

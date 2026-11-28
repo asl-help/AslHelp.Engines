@@ -123,7 +123,7 @@ public sealed class CollectionKindEdgeTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(Data.Member("IntSet").Read<HashSet<int>>().Unwrap(), Is.Empty);
-            Assert.That(Data.Member("IntSet").Count().Read<int>().Unwrap(), Is.Zero);
+            Assert.That(Data.Member("IntSet").Count.Read<int>().Unwrap(), Is.Zero);
             Assert.That(Data.Member("IntSet").Item(11).Read<bool>().Unwrap(), Is.False);
         }
     }
@@ -138,7 +138,7 @@ public sealed class CollectionKindEdgeTests(
         using (Assert.EnterMultipleScope())
         {
             Assert.That(Data.Member("IntSet").Read<HashSet<int>>().Unwrap(), Is.Empty);
-            Assert.That(Data.Member("IntSet").Count().Read<int>().Unwrap(), Is.Zero);
+            Assert.That(Data.Member("IntSet").Count.Read<int>().Unwrap(), Is.Zero);
             Assert.That(Data.Member("IntSet").Item(22).Read<bool>().Unwrap(), Is.False);
         }
     }
@@ -151,7 +151,7 @@ public sealed class CollectionKindEdgeTests(
         _fakeGame.Memory.WriteInt32(IntSet + 0x34, free);
 
         Assert.That(
-            Data.Member("IntSet").Count().Read<int>().UnwrapErr().Message,
+            Data.Member("IntSet").Count.Read<int>().UnwrapErr().Message,
             Is.EqualTo(
                 $"Can't read GWorld.GameMode.Data.IntSet.Count. IntSet has {free} free slots of 4. Check the NumFreeIndices offset in the profile."));
     }
@@ -164,7 +164,7 @@ public sealed class CollectionKindEdgeTests(
         _fakeGame.Memory.WriteInt32(IntSet + 0x34, -10);
 
         Assert.That(
-            Data.Member("IntSet").Count().Read<int>().UnwrapErr().Message,
+            Data.Member("IntSet").Count.Read<int>().UnwrapErr().Message,
             Is.EqualTo("Can't read GWorld.GameMode.Data.IntSet.Count. IntSet has the count -5, which is below 0."));
     }
 

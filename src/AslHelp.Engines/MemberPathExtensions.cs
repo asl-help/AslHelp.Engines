@@ -9,15 +9,10 @@ public static class MemberPathExtensions
     extension(Result<IMemberPath> path)
     {
         /// <summary>
-        ///     Creates the path to the number of items of the collection at the end of the path.
+        ///     Gets the path to the number of items of the collection at the end of the path or the failure of the path or of
+        ///     the step.
         /// </summary>
-        /// <returns>
-        ///     The longer path or the failure of the path or of the step.
-        /// </returns>
-        public Result<IMemberPath> Count()
-        {
-            return path.TryUnwrap(out var end, out var error) ? end.Count() : error;
-        }
+        public Result<IMemberPath> Count => path.TryUnwrap(out var end, out var error) ? end.Count : error;
 
         /// <summary>
         ///     Creates the path to the item of <paramref name="key"/> in the collection at the end of the path.

@@ -117,7 +117,7 @@ public sealed class InstructionSitesEdgeTests
 
         for (int index = 0; index < 12; index++)
         {
-            _ = builder.Nops(1).Raw(0x6A, 0x01);
+            _ = builder.Fillers(1).Raw(0x6A, 0x01);
         }
 
         var image = builder.MovEcx(Global).Ret().Build();
@@ -142,7 +142,7 @@ public sealed class InstructionSitesEdgeTests
             true,
             X64Base,
             CodeBuilder.ImageSize,
-            [new CodeBuilder(true, X64Base).Nops(3).Section(), new CodeBuilder(true, X64Base, 0x5000).MovRax(Global).Section()]);
+            [new CodeBuilder(true, X64Base).Fillers(3).Section(), new CodeBuilder(true, X64Base, 0x5000).MovRax(Global).Section()]);
 
         var window = InstructionSites.Find(image, _wantedX64).Single();
 

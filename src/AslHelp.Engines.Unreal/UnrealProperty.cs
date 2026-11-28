@@ -161,9 +161,9 @@ public sealed class UnrealProperty
             return valueAccess.Read(memory, obj, default);
         }
 
-        if (typeof(T) == typeof(StructValue))
+        if (access.AlsoReadsAs<T>())
         {
-            return access.ReadStruct(memory, obj, null).TryUnwrap(out var value, out error) ? (T)(object)value : error;
+            return access.ReadAs<T>(memory, obj, default);
         }
 
         return access.NotValueOf(typeof(T));

@@ -34,16 +34,6 @@ public sealed record UnrealPlayer(
         : throw new ArgumentOutOfRangeException(nameof(Config), Config, SR.FormatPlayerConfigInvalid(Config));
 
     /// <summary>
-    ///     Gets the tag, such as <c>win-x64-shipping</c>.
-    /// </summary>
-    public string Tag => $"win-{ArchName(Arch)}-{ConfigName(Config)}";
-
-    /// <summary>
-    ///     Gets the platform of the build tools, <c>Win64</c> or <c>Win32</c>.
-    /// </summary>
-    public string Platform => UnrealPlayerNames.Platform(Arch == Architecture.X64);
-
-    /// <summary>
     ///     Gets the configuration of the build tools, <c>Shipping</c> or <c>Development</c>.
     /// </summary>
     public string Configuration => Config switch
@@ -51,6 +41,16 @@ public sealed record UnrealPlayer(
         UnrealConfig.Shipping => "Shipping",
         _ => "Development",
     };
+
+    /// <summary>
+    ///     Gets the platform of the build tools, <c>Win64</c> or <c>Win32</c>.
+    /// </summary>
+    public string Platform => UnrealPlayerNames.Platform(Arch == Architecture.X64);
+
+    /// <summary>
+    ///     Gets the tag, such as <c>win-x64-shipping</c>.
+    /// </summary>
+    public string Tag => $"win-{ArchName(Arch)}-{ConfigName(Config)}";
 
     /// <summary>
     ///     Gets the player id of this player in <paramref name="version"/>, such as <c>4.19.2-win-x64-shipping</c>.

@@ -54,16 +54,16 @@ internal sealed class Unreal(
 
     private readonly Option<UnrealConfig?> _configOption = UnrealPlayerOptions.Config(UnrealSR.ConfigDescription);
 
+    /// <summary>
+    ///     Gets how long <see cref="CheckAsync"/> waits for the ready file once the player runs. The default is 3 minutes.
+    /// </summary>
+    public TimeSpan CheckTimeout { get; init; } = UnrealGame.DefaultCheckTimeout;
+
     /// <inheritdoc/>
     public string Name => ToolchainName;
 
     /// <inheritdoc/>
     public IReadOnlyList<Option> Options => [_archOption, _configOption];
-
-    /// <summary>
-    ///     Gets how long <see cref="CheckAsync"/> waits for the ready file once the player runs. The default is 3 minutes.
-    /// </summary>
-    public TimeSpan CheckTimeout { get; init; } = UnrealGame.DefaultCheckTimeout;
 
     /// <summary>
     ///     Gets how long each build step may run once it runs. The default is 90 minutes.

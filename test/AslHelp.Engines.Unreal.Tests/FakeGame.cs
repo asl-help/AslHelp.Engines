@@ -62,25 +62,14 @@ internal sealed class FakeGame
     public const double DoubleValue = 2.718281828;
 
     /// <summary>
-    ///     The offset of <c>IntArray</c> in the data object, with the data pointer at 0 and the count at 8.
-    /// </summary>
-    public const int IntArrayOffset = 0x100;
-
-    /// <summary>
-    ///     The offset of <c>IntSet</c> in the data object, a sparse array with the slots <c>11</c>, <c>22</c>, <c>33</c> and a free slot
-    ///     whose bytes still are <c>44</c>.
-    /// </summary>
-    public const int IntSetOffset = 0x140;
-
-    /// <summary>
-    ///     The offset of <c>Items</c> in the data object, an array of the float data object and the other data object.
-    /// </summary>
-    public const int ItemsOffset = 0x130;
-
-    /// <summary>
     ///     The value of <c>Hp</c> in the data object of <c>FloatFixtureData</c>.
     /// </summary>
     public const float FloatHp = 12.5f;
+
+    /// <summary>
+    ///     The offset of <c>GameInstance</c> in the engine object, which <c>GameEngine</c> declares like in the real engine.
+    /// </summary>
+    public const int GameInstanceOffset = 0x98;
 
     /// <summary>
     ///     The offset of <c>GameMode</c> in the world.
@@ -118,6 +107,22 @@ internal sealed class FakeGame
     public const sbyte Int8Value = -5;
 
     /// <summary>
+    ///     The offset of <c>IntArray</c> in the data object, with the data pointer at 0 and the count at 8.
+    /// </summary>
+    public const int IntArrayOffset = 0x100;
+
+    /// <summary>
+    ///     The offset of <c>IntSet</c> in the data object, a sparse array with the slots <c>11</c>, <c>22</c>, <c>33</c> and a free slot
+    ///     whose bytes still are <c>44</c>.
+    /// </summary>
+    public const int IntSetOffset = 0x140;
+
+    /// <summary>
+    ///     The offset of <c>Items</c> in the data object, an array of the float data object and the other data object.
+    /// </summary>
+    public const int ItemsOffset = 0x130;
+
+    /// <summary>
     ///     The value of <c>Kind</c>, an enum with a byte as its underlying property.
     /// </summary>
     public const byte Kind = 1;
@@ -138,15 +143,20 @@ internal sealed class FakeGame
     public const int NameValueOffset = 0xA0;
 
     /// <summary>
-    ///     The offset of <c>Position</c> in the data object, a struct of the 3 floats 1, 2 and 3.
-    /// </summary>
-    public const int PositionOffset = 0x290;
-
-    /// <summary>
     ///     The offset of <c>ObjectSet</c> in the data object, a set of objects with the slots of the data object,
     ///     a free slot that still points at the float data object and the other data object.
     /// </summary>
     public const int ObjectSetOffset = 0x2C0;
+
+    /// <summary>
+    ///     The offset of <c>OwningGameInstance</c> in the world.
+    /// </summary>
+    public const int OwningGameInstanceOffset = 0x88;
+
+    /// <summary>
+    ///     The offset of <c>Position</c> in the data object, a struct of the 3 floats 1, 2 and 3.
+    /// </summary>
+    public const int PositionOffset = 0x290;
 
     /// <summary>
     ///     The offset of the number of elements in a property, <c>ArrayDim</c> in the documents of <see cref="Document"/>.
@@ -154,14 +164,14 @@ internal sealed class FakeGame
     public const int PropertyArrayDimOffset = 0x30;
 
     /// <summary>
-    ///     The offset of the size of 1 element in a property, <c>ElementSize</c> in the documents of <see cref="Document"/>.
-    /// </summary>
-    public const int PropertyElementSizeOffset = 0x34;
-
-    /// <summary>
     ///     The offset of the declared class in an object property, <c>PropertyClass</c> in the documents of <see cref="Document"/>.
     /// </summary>
     public const int PropertyClassOffset = 0x70;
+
+    /// <summary>
+    ///     The offset of the size of 1 element in a property, <c>ElementSize</c> in the documents of <see cref="Document"/>.
+    /// </summary>
+    public const int PropertyElementSizeOffset = 0x34;
 
     /// <summary>
     ///     The offset of the value offset in a property, <c>Offset_Internal</c> in the documents of <see cref="Document"/>.
@@ -238,16 +248,6 @@ internal sealed class FakeGame
     /// </summary>
     public const int WideKind = 70_000;
 
-    /// <summary>
-    ///     The code bytes in front of the operand of the <c>GEngine</c> instruction that the documents of <see cref="Document"/> search for.
-    /// </summary>
-    public static readonly byte[] GEngineCode = [0xE1, 0xE2, 0xE3];
-
-    /// <summary>
-    ///     The code bytes in front of the operand of the <c>GWorld</c> instruction that the documents of <see cref="Document"/> search for.
-    /// </summary>
-    public static readonly byte[] GWorldCode = [0xC1, 0xC2, 0xC3];
-
     private const int BoolByteOffsetOffset = 0x71;
     private const int BoolFieldMaskOffset = 0x73;
     private const int FieldChildPropertiesOffset = 0x50;
@@ -267,7 +267,20 @@ internal sealed class FakeGame
     // Leave room for objects that a test adds behind the last item of the array.
     private const int SpareItems = 8;
 
+    // The offset of the subsystem map in the game instance, the sum of the 2 offsets of SubsystemDocument.
+    private const int SubsystemMapOffset = 0x48;
+
     private const int ValuePropertyOffset = 0x78;
+
+    /// <summary>
+    ///     The code bytes in front of the operand of the <c>GEngine</c> instruction that the documents of <see cref="Document"/> search for.
+    /// </summary>
+    public static readonly byte[] GEngineCode = [0xE1, 0xE2, 0xE3];
+
+    /// <summary>
+    ///     The code bytes in front of the operand of the <c>GWorld</c> instruction that the documents of <see cref="Document"/> search for.
+    /// </summary>
+    public static readonly byte[] GWorldCode = [0xC1, 0xC2, 0xC3];
 
     private static readonly ChildLayout _childLayout = new(0x28);
     private static readonly NameEntryLayout _entryLayout = new(0x0, 0x10);
@@ -350,8 +363,8 @@ internal sealed class FakeGame
         "Position",
         "DoublePosition",
         "Mixed",
-        "FixtureVector",
-        "FixtureVector3d",
+        "Vector",
+        "Rotator",
         "FixtureMixed",
         "Z",
         "A",
@@ -367,12 +380,17 @@ internal sealed class FakeGame
         "SubsystemValue",
         "Default__FixtureData",
         "Default__FixtureSubsystem",
+        "GameInstance",
+        "OwningGameInstance",
         "/Script/Late",
         "ObjectSet",
         "ObjectDict",
         "ObjectKeyDict",
         "FIXTUREDATA",
         "HP",
+        "Pitch",
+        "Yaw",
+        "Roll",
     ];
 
     private readonly Address _coordType;
@@ -393,6 +411,7 @@ internal sealed class FakeGame
     private readonly Dictionary<string, Address> _propertyClasses = [];
     private readonly string _shape;
     private readonly Address _start;
+    private readonly Address _subsystemPairs;
     private readonly Address _vectorType;
     private readonly Address _worldClass;
 
@@ -443,6 +462,9 @@ internal sealed class FakeGame
         GEngineSlot = start + 0x12_1000;
         Engine = start + 0x2B_0000;
         Subsystem = start + 0x2B_1000;
+        GameInstance = start + 0x2B_3000;
+        GameInstanceClass = start + 0x2A_8000;
+        _subsystemPairs = start + 0x2B_4000;
         World = start + 0x20_0000;
         GameMode = start + 0x22_0000;
         BaseGameMode = start + 0x22_3000;
@@ -503,14 +525,25 @@ internal sealed class FakeGame
     public Address FloatData { get; }
 
     /// <summary>
-    ///     Gets the address of the game mode that the world points at, an object of <c>FixtureGameMode</c>.
-    /// </summary>
-    public Address GameMode { get; }
-
-    /// <summary>
     ///     Gets the address of <c>GameEngine</c>.
     /// </summary>
     public Address GameEngineClass { get; }
+
+    /// <summary>
+    ///     Gets the address of the game instance, which <c>GEngine.GameInstance</c> points at. Its subsystem map is empty until a test
+    ///     writes it with <see cref="WriteSubsystemMap"/>.
+    /// </summary>
+    public Address GameInstance { get; }
+
+    /// <summary>
+    ///     Gets the address of <c>GameInstance</c>.
+    /// </summary>
+    public Address GameInstanceClass { get; }
+
+    /// <summary>
+    ///     Gets the address of the game mode that the world points at, an object of <c>FixtureGameMode</c>.
+    /// </summary>
+    public Address GameMode { get; }
 
     /// <summary>
     ///     Gets the address of <c>GameModeBase</c>.
@@ -683,6 +716,40 @@ internal sealed class FakeGame
     }
 
     /// <summary>
+    ///     Makes the object pointer of the item at <paramref name="slot"/> unreadable, like a page of the array the game freed.
+    /// </summary>
+    /// <param name="slot">The position of the item.</param>
+    public void FailObjectSlot(int slot)
+    {
+        Memory.Fail(_items + ((long)slot * _item.Size) + _item.ObjectPointer);
+    }
+
+    /// <summary>
+    ///     Makes the object pointer of the item that has <paramref name="obj"/> unreadable.
+    /// </summary>
+    /// <param name="obj">The address of the object.</param>
+    public void FailObjectSlotOf(Address obj)
+    {
+        for (int slot = 0; slot < _itemCount; slot++)
+        {
+            if (Memory.ReadPointer(_items + ((long)slot * _item.Size) + _item.ObjectPointer).Unwrap() == obj)
+            {
+                FailObjectSlot(slot);
+
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    ///     Makes the pairs of the subsystem map unreadable, like when the game moved them after the map was read.
+    /// </summary>
+    public void FailSubsystemPairs()
+    {
+        Memory.Fail(_subsystemPairs);
+    }
+
+    /// <summary>
     ///     Adds <paramref name="obj"/> after the last item of the object array and raises the count, like when the game creates an object.
     /// </summary>
     /// <param name="obj">The address of the object.</param>
@@ -824,6 +891,49 @@ internal sealed class FakeGame
     }
 
     /// <summary>
+    ///     Writes the subsystem map of the game instance with 1 used slot per pair, in order.
+    /// </summary>
+    /// <param name="pairs">The class and the subsystem of each slot.</param>
+    public void WriteSubsystemMap(params (Address Class, Address Subsystem)[] pairs)
+    {
+        int stride = (2 * Memory.Layout.PointerSize) + (2 * sizeof(int));
+
+        for (int i = 0; i < pairs.Length; i++)
+        {
+            Memory.WritePointer(_subsystemPairs + (i * stride), pairs[i].Class);
+            Memory.WritePointer(_subsystemPairs + (i * stride) + Memory.Layout.PointerSize, pairs[i].Subsystem);
+        }
+
+        WriteSparse(GameInstance + SubsystemMapOffset, _subsystemPairs, pairs.Length, 0, (1u << pairs.Length) - 1);
+    }
+
+    /// <summary>
+    ///     Writes the document of <paramref name="field"/> with the subsystem collection of 4.22 and later.
+    /// </summary>
+    /// <param name="field">The property shape.</param>
+    /// <returns>
+    ///     The document.
+    /// </returns>
+    public static string SubsystemDocument(string field)
+    {
+        string document = JsonEdits.Set(Document(field, "indirect", "flat"), """{ "SubsystemCollection": "0x40" }""", "offsets", "UGameInstance");
+
+        return JsonEdits.Set(document, """{ "SubsystemMap": "0x8" }""", "offsets", "FSubsystemCollectionBase");
+    }
+
+    /// <summary>
+    ///     Attaches to the game with the document of the shape and <paramref name="bounds"/>.
+    /// </summary>
+    /// <param name="bounds">The largest string and collection that a read takes.</param>
+    /// <returns>
+    ///     The game.
+    /// </returns>
+    public UnrealGame Attach(ValueBounds bounds)
+    {
+        return UnrealGame.Attach(Memory, Module, UnrealProfile.Parse(Document(_shape, "indirect", "flat")).Unwrap(), bounds).Unwrap();
+    }
+
+    /// <summary>
     ///     Gets the address of the property <paramref name="name"/> of <c>FixtureData</c>, of <c>FixtureGameMode</c> or of <c>World</c>.
     /// </summary>
     /// <param name="name">The name of the property, like <c>Coord</c>, <c>Data</c> or <c>GameMode</c>.</param>
@@ -912,6 +1022,8 @@ internal sealed class FakeGame
             OtherData,
             _defaultData,
             Engine,
+            GameInstanceClass,
+            GameInstance,
         ];
 
         _itemCount = objects.Length;
@@ -951,19 +1063,21 @@ internal sealed class FakeGame
         AddClass(EngineClass, "Engine", Address.Zero, _enginePackage);
         AddClass(GameEngineClass, "GameEngine", EngineClass, _enginePackage);
         AddClass(SubsystemClass, "FixtureSubsystem", Address.Zero, _fixturePackage);
+        AddClass(GameInstanceClass, "GameInstance", Address.Zero, _enginePackage);
         AddStruct(_coordType, "FixtureCoord");
-        AddStruct(_vectorType, "FixtureVector");
-        AddStruct(_doubleVectorType, "FixtureVector3d");
+        AddStruct(_vectorType, "Vector");
+        AddStruct(_doubleVectorType, "Rotator");
         AddStruct(_mixedType, "FixtureMixed");
         AddPropertyClasses(propertyClass);
 
         int pointerSize = Memory.Layout.PointerSize;
 
         LinkProperties(EngineClass, AddProperty(EngineClass, "EngineData", "Data", "ObjectProperty", DataOffset, pointerSize));
+        LinkProperties(GameEngineClass, AddProperty(GameEngineClass, "GameInstance", "ObjectProperty", GameInstanceOffset, pointerSize));
         LinkProperties(SubsystemClass, AddProperty(SubsystemClass, "SubsystemValue", "IntProperty", SubsystemValueOffset, sizeof(int)));
         AddProperty(_worldClass, _gameModeProperty, "GameMode", "ObjectProperty", GameModeOffset, pointerSize);
         AddProperty(_otherGameModeClass, _otherDataProperty, "Data", "ObjectProperty", OtherDataOffset, pointerSize);
-        LinkProperties(_worldClass, _gameModeProperty);
+        LinkProperties(_worldClass, _gameModeProperty, AddProperty(_worldClass, "OwningGameInstance", "ObjectProperty", OwningGameInstanceOffset, pointerSize));
         LinkProperties(_otherGameModeClass, _otherDataProperty);
         LinkProperties(FixtureGameModeClass, AddProperty(FixtureGameModeClass, "Data", "ObjectProperty", DataOffset, pointerSize));
         _properties["GameMode"] = _gameModeProperty;
@@ -979,9 +1093,9 @@ internal sealed class FakeGame
             AddProperty(_vectorType, "VectorZ", "Z", "FloatProperty", 0x8, sizeof(float)));
         LinkProperties(
             _doubleVectorType,
-            AddProperty(_doubleVectorType, "DoubleX", "X", "DoubleProperty", 0x0, sizeof(double)),
-            AddProperty(_doubleVectorType, "DoubleY", "Y", "DoubleProperty", 0x8, sizeof(double)),
-            AddProperty(_doubleVectorType, "DoubleZ", "Z", "DoubleProperty", 0x10, sizeof(double)));
+            AddProperty(_doubleVectorType, "Pitch", "DoubleProperty", 0x0, sizeof(double)),
+            AddProperty(_doubleVectorType, "Yaw", "DoubleProperty", 0x8, sizeof(double)),
+            AddProperty(_doubleVectorType, "Roll", "DoubleProperty", 0x10, sizeof(double)));
         LinkProperties(
             _mixedType,
             AddProperty(_mixedType, "A", "IntProperty", 0x0, sizeof(int)),
@@ -1141,9 +1255,13 @@ internal sealed class FakeGame
         Memory.AddObject(_defaultData, ObjectLayout, Id("Default__FixtureData"), klass: FixtureDataClass);
         Memory.AddObject(Engine, ObjectLayout, Id("GameEngine"), number: 1, klass: GameEngineClass);
         Memory.AddObject(Subsystem, ObjectLayout, Id("FixtureSubsystem"), number: 1, klass: SubsystemClass);
+        Memory.AddObject(GameInstance, ObjectLayout, Id("GameInstance"), klass: GameInstanceClass);
+        Memory.Add(_subsystemPairs, new byte[0x1000]);
         Memory.Add(StringData, new byte[0x1000]);
 
         Memory.WritePointer(Engine + DataOffset, Data);
+        Memory.WritePointer(Engine + GameInstanceOffset, GameInstance);
+        WriteSubsystemMap();
         Memory.WriteInt32(Subsystem + SubsystemValueOffset, SubsystemValue);
         Memory.WritePointer(World + GameModeOffset, GameMode);
         Memory.WritePointer(GameMode + DataOffset, Data);
@@ -1287,7 +1405,12 @@ internal sealed class FakeGame
     // Writes the header of a sparse array member of the data object with its allocation bits inside it.
     private void WriteSparse(int offset, Address slots, int slotCount, int freeCount, uint bits)
     {
-        var sparse = Data + offset;
+        WriteSparse(Data + offset, slots, slotCount, freeCount, bits);
+    }
+
+    // Writes the header of a sparse array with its allocation bits inside it.
+    private void WriteSparse(Address sparse, Address slots, int slotCount, int freeCount, uint bits)
+    {
         Memory.WritePointer(sparse, slots);
         Memory.WriteInt32(sparse + 0x8, slotCount);
         Memory.Write(sparse + 0x10, bits);

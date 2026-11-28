@@ -40,7 +40,7 @@ public sealed class RouteCandidatesTests
     [Test]
     public void Enumerate_MoreThan8EachWay_StopsAt8()
     {
-        var window = Window(new CodeBuilder(false).Nops(10).MovEcx(Global).Nops(10));
+        var window = Window(new CodeBuilder(false).Fillers(10).MovEcx(Global).Fillers(10));
 
         var candidates = All(window).ToList();
 
